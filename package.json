@@ -1,0 +1,35 @@
+{
+  "name": "mkit",
+  "version": "0.1.0",
+  "description": "A private, spoiler-safe study companion for completed MCAT practice reviews.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "audit:release": "node scripts/audit-release.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:browser && pnpm build && pnpm audit:release",
+    "format": "biome check --write .",
+    "lint": "biome check .",
+    "package": "pnpm build && node scripts/package.mjs",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.5",
+    "@playwright/test": "1.62.0",
+    "@types/chrome": "0.2.2",
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.1",
+    "jsdom": "27.0.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

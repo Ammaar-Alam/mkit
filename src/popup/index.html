@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MKit</title>
+    <link rel="stylesheet" href="./index.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="masthead">
+        <span class="folio-mark" aria-hidden="true">M</span>
+        <span>
+          <span class="eyebrow">The MCAT Kit</span>
+          <strong>MKit</strong>
+        </span>
+        <span id="protection-status" class="protection-status">Protection on</span>
+      </header>
+
+      <section aria-labelledby="continue-heading" class="section">
+        <h1 id="continue-heading">Continue</h1>
+        <div class="empty-state">
+          <strong>No active attempts.</strong>
+          <span>Open a completed score report to start.</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="protection-heading" class="section">
+        <h2 id="protection-heading">Protection</h2>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Protect reviews</strong>
+            <span id="protect-state" class="switch-state">On</span>
+          </span>
+          <input id="protect-reviews" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Score Shield</strong>
+            <span id="shield-state" class="switch-state">On</span>
+          </span>
+          <input id="score-shield" class="switch" type="checkbox">
+        </label>
+      </section>
+
+      <section aria-labelledby="storage-heading" class="storage-row">
+        <span>
+          <span id="storage-heading" class="eyebrow">Storage</span>
+          <strong>Saved on this device</strong>
+        </span>
+        <span id="save-status" role="status" aria-live="polite"></span>
+      </section>
+
+      <a class="button-link" href="../options/index.html" target="_blank">Settings</a>
+    </main>
+    <script src="./index.js"></script>
+  </body>
+</html>

@@ -1,0 +1,91 @@
+@import "../styles/tokens.css";
+
+body {
+  width: 22.5rem;
+  min-width: 20rem;
+}
+
+.popup-shell {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--rule);
+}
+
+.masthead > span:nth-child(2) {
+  display: grid;
+}
+
+.masthead strong {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+}
+
+.protection-status {
+  color: var(--moss);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 560;
+}
+
+h1 {
+  font-size: 1.5625rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+.empty-state {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-md);
+  border: 1px dashed var(--rule);
+  background: var(--paper-raised);
+}
+
+.empty-state span {
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+}
+
+.switch-row + .switch-row {
+  border-top: 1px solid var(--rule);
+}
+
+.storage-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  align-items: end;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--rule);
+}
+
+.storage-row > span:first-child {
+  display: grid;
+}
+
+#save-status {
+  color: var(--moss);
+  font-size: 0.8125rem;
+}

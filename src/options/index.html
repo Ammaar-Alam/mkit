@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MKit settings</title>
+    <link rel="stylesheet" href="./index.css">
+  </head>
+  <body>
+    <header class="options-masthead">
+      <a href="../popup/index.html" class="brand">
+        <span class="folio-mark" aria-hidden="true">M</span>
+        <span>
+          <span class="eyebrow">The MCAT Kit</span>
+          <strong>MKit settings</strong>
+        </span>
+      </a>
+      <span id="save-status" role="status" aria-live="polite"></span>
+    </header>
+
+    <main class="options-shell">
+      <section aria-labelledby="review-protection-heading">
+        <div class="section-heading">
+          <span class="folio-number" aria-hidden="true">01</span>
+          <h1 id="review-protection-heading">Review protection</h1>
+        </div>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Protect completed reviews</strong>
+            <span>Hide prior answers and results until you choose Normal review.</span>
+          </span>
+          <input id="protect-reviews" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Score Shield</strong>
+            <span>Hide score values while an MKit attempt is active.</span>
+          </span>
+          <input id="score-shield" class="switch" type="checkbox">
+        </label>
+      </section>
+
+      <section aria-labelledby="fresh-attempt-heading">
+        <div class="section-heading">
+          <span class="folio-number" aria-hidden="true">02</span>
+          <h2 id="fresh-attempt-heading">Fresh Attempt</h2>
+        </div>
+        <fieldset>
+          <legend>Default mode</legend>
+          <label><input type="radio" name="default-mode" value="practice"> Practice</label>
+          <label><input type="radio" name="default-mode" value="test"> Test</label>
+        </fieldset>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Encouragement</strong>
+            <span>Show brief prompts at natural stopping points.</span>
+          </span>
+          <input id="encouragement" class="switch" type="checkbox">
+        </label>
+      </section>
+
+      <section aria-labelledby="sync-heading">
+        <div class="section-heading">
+          <span class="folio-number" aria-hidden="true">03</span>
+          <h2 id="sync-heading">Browser sync</h2>
+        </div>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Sync study progress</strong>
+            <span id="sync-description">Progress stays on this device.</span>
+          </span>
+          <input id="browser-sync" class="switch" type="checkbox">
+        </label>
+      </section>
+
+      <section aria-labelledby="about-heading">
+        <div class="section-heading">
+          <span class="folio-number" aria-hidden="true">04</span>
+          <h2 id="about-heading">About</h2>
+        </div>
+        <p>MKit 0.1.0 stores study progress locally and never sends telemetry.</p>
+        <nav aria-label="Project documents">
+          <a href="https://github.com/Ammaar-Alam/mkit/blob/main/PRIVACY.md">Privacy</a>
+          <a href="https://github.com/Ammaar-Alam/mkit/blob/main/SECURITY.md">Security</a>
+          <a href="https://github.com/Ammaar-Alam/mkit/blob/main/docs/troubleshooting.md">Troubleshooting</a>
+          <a href="https://github.com/Ammaar-Alam/mkit/blob/main/docs/supported-pages.md">Supported pages</a>
+        </nav>
+      </section>
+    </main>
+    <script src="./index.js"></script>
+  </body>
+</html>
