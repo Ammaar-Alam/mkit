@@ -19,10 +19,12 @@
 
       <section aria-labelledby="continue-heading" class="section">
         <h1 id="continue-heading">Continue</h1>
-        <div class="empty-state">
-          <strong>No active attempts.</strong>
-          <span>Open a completed score report to start.</span>
-        </div>
+        <div id="active-sessions" class="session-list" aria-live="polite"></div>
+      </section>
+
+      <section aria-labelledby="history-heading" class="section">
+        <h2 id="history-heading">History</h2>
+        <div id="session-history" class="session-list"></div>
       </section>
 
       <section aria-labelledby="protection-heading" class="section">
@@ -46,12 +48,13 @@
       <section aria-labelledby="storage-heading" class="storage-row">
         <span>
           <span id="storage-heading" class="eyebrow">Storage</span>
-          <strong>Saved on this device</strong>
+          <strong id="storage-state">Saved on this device</strong>
+          <span id="storage-detail" class="storage-detail"></span>
         </span>
         <span id="save-status" role="status" aria-live="polite"></span>
       </section>
 
-      <a class="button-link" href="../options/index.html" target="_blank">Settings</a>
+      <button id="open-settings" class="button-link" type="button">Settings</button>
     </main>
     <script src="./index.js"></script>
   </body>

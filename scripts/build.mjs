@@ -8,6 +8,7 @@ await mkdir(dist, { recursive: true });
 const common = {
   bundle: true,
   charset: "utf8",
+  external: ["/fonts/*"],
   legalComments: "none",
   logLevel: "info",
   minify: true,
@@ -15,9 +16,15 @@ const common = {
   target: ["chrome120"],
 };
 
+const uiCss = await readFile(new URL("../src/content/ui.css", import.meta.url), "utf8");
+
 await build({
   ...common,
+  define: {
+    __MKIT_UI_CSS__: JSON.stringify(uiCss),
+  },
   entryPoints: {
+    "content/index": new URL("../src/content/index.ts", import.meta.url).pathname,
     "popup/index": new URL("../src/popup/index.ts", import.meta.url).pathname,
     "options/index": new URL("../src/options/index.ts", import.meta.url).pathname,
   },
@@ -27,7 +34,14 @@ await build({
 });
 
 await Promise.all([
-  cp(new URL("../public/", import.meta.url), dist, { recursive: true }),
+  cp(new URL("../public/", import.meta.url), dist, {
+    recursive: true,
+    filter: (source) => !source.endsWith(".DS_Store"),
+  }),
+  cp(
+    new URL("../src/content/preflight.css", import.meta.url),
+    new URL("../dist/content/preflight.css", import.meta.url),
+  ),
   cp(
     new URL("../src/popup/index.html", import.meta.url),
     new URL("../dist/popup/index.html", import.meta.url),

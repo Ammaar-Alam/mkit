@@ -194,6 +194,7 @@ describe("local-first storage repository", () => {
     await repository.setScoreReveal("fl-1", true);
 
     expect(await repository.getScoreReveal("fl-1")).toBe(true);
+    expect(await repository.getScoreReveal("fl-2")).toBe(false);
     const serialized = JSON.stringify(local.values);
     expect(serialized).toContain('"revealed":true');
     expect(serialized).not.toMatch(/scoreValue|scaledScore|percentile/u);

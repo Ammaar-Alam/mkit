@@ -19,5 +19,15 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://mcatofficialprep.org/app/aamc-mcat-practice-exam-*"],
+      "css": ["content/preflight.css"],
+      "js": ["content/index.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED",
+      "all_frames": false
+    }
+  ],
   "options_page": "options/index.html"
 }

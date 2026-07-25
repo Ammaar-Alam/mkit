@@ -68,6 +68,24 @@ h2 {
   font-size: 0.875rem;
 }
 
+.session-list,
+.session-card {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.session-card {
+  padding: var(--space-md);
+  border-left: 3px solid var(--moss);
+  background: var(--paper-raised);
+}
+
+.session-card span,
+.storage-detail {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+}
+
 .switch-row + .switch-row {
   border-top: 1px solid var(--rule);
 }
@@ -83,6 +101,13 @@ h2 {
 
 .storage-row > span:first-child {
   display: grid;
+}
+
+.button-link {
+  width: 100%;
+  border: 1px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
 }
 
 #save-status {

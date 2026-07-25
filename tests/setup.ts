@@ -1,6 +1,26 @@
 import { webcrypto } from "node:crypto";
 import { afterEach, vi } from "vitest";
 
+const NativeMutationObserver = globalThis.MutationObserver;
+const activeMutationObservers = new Set<MutationObserver>();
+
+class TrackedMutationObserver extends NativeMutationObserver {
+  constructor(callback: MutationCallback) {
+    super(callback);
+    activeMutationObservers.add(this);
+  }
+
+  override disconnect(): void {
+    activeMutationObservers.delete(this);
+    super.disconnect();
+  }
+}
+
+Object.defineProperty(globalThis, "MutationObserver", {
+  configurable: true,
+  value: TrackedMutationObserver,
+});
+
 if (!globalThis.crypto?.subtle) {
   Object.defineProperty(globalThis, "crypto", {
     configurable: true,
@@ -22,10 +42,13 @@ if (!("inert" in HTMLElement.prototype)) {
 }
 
 afterEach(() => {
+  for (const observer of [...activeMutationObservers]) observer.disconnect();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  Reflect.deleteProperty(globalThis, "__mkitPreflight");
   document.documentElement.removeAttribute("data-mkit-protection");
   document.head.innerHTML = "";
-  document.body.innerHTML = "";
+  const preflightHost = globalThis.__mkitPreflight?.host;
+  for (const child of [...document.body.children]) {
+    if (child !== preflightHost) child.remove();
+  }
 });

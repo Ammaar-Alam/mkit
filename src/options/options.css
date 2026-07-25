@@ -135,6 +135,34 @@ nav a {
   text-underline-offset: 0.2em;
 }
 
+.debug-log {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.debug-log article {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.debug-log span,
+.debug-empty {
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+}
+
+.quiet-button {
+  justify-self: start;
+  padding-inline: var(--space-md);
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (min-width: 60rem) {
   .options-masthead {
     position: sticky;

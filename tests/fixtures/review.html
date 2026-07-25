@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>MKit synthetic review</title>
+    <link rel="stylesheet" href="/preflight.css">
+    <style>
+      .is-correct::after {
+        content: "MKIT_PSEUDO_CORRECT_67F1";
+        color: green;
+      }
+
+      .is-incorrect {
+        border: 8px solid red;
+        background: pink;
+      }
+    </style>
+    <script>
+      window.__mkitLeaks = [];
+      window.__sampleSpoilers = (label) => {
+        for (const element of document.querySelectorAll("[data-synth-spoiler]")) {
+          const style = getComputedStyle(element);
+          const paintable =
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            Number(style.opacity) > 0 &&
+            element.getClientRects().length > 0;
+          if (paintable) {
+            window.__mkitLeaks.push({ id: element.id, label, time: performance.now() });
+          }
+        }
+      };
+      window.__nativeEvents = { answer: 0, next: 0, previous: 0, reset: 0, submit: 0 };
+    </script>
+    <script src="/browser-entry.js"></script>
+  </head>
+  <body>
+    <main
+      id="exam-review-shell"
+      data-page-kind="full-length-review"
+      data-exam-id="synthetic-fl-1"
+    >
+      <header id="review-header">
+        <span class="question-tally" data-synth-spoiler>MKIT_TALLY_12_OF_59_A10C</span>
+        <span class="section-status" data-synth-spoiler>MKIT_SECTION_RESULT_8_CORRECT_C2A4</span>
+      </header>
+
+      <nav id="question-navigator" aria-label="Question navigator" data-synth-spoiler>
+        <button
+          id="nav-q1"
+          type="button"
+          class="navigator-item is-correct"
+          title="MKIT_NAV_TITLE_CORRECT_44BD"
+          aria-label="MKIT_NAV_LABEL_CORRECT_571A"
+        >
+          <span>1</span>
+          <span class="correctness-icon">MKIT_NAV_ICON_CHECK_9CF2</span>
+        </button>
+      </nav>
+
+      <section
+        id="question-q1"
+        data-question-id="synthetic-cp-001"
+        data-section-id="cp"
+        data-category-code="1A"
+        data-question-kind="passage"
+        data-correct-choice="B"
+      >
+        <p id="allowed-question">Synthetic prompt remains visible.</p>
+        <div id="allowed-passage">Synthetic passage remains visible.</div>
+
+        <div
+          id="question-status"
+          class="review-status is-incorrect"
+          role="status"
+          title="MKIT_STATUS_TITLE_INCORRECT_93AB"
+          aria-label="MKIT_STATUS_LABEL_INCORRECT_C163"
+          style="border: 8px solid red; background: pink"
+          data-synth-spoiler
+        >
+          MKIT_STATUS_INCORRECT_6A5E
+        </div>
+
+        <ol id="official-answer-list">
+          <li
+            id="choice-a"
+            class="answer-choice was-selected is-incorrect was-highlighted"
+            title="MKIT_ORIGINAL_TITLE_SELECTED_927F"
+            aria-label="MKIT_ORIGINAL_LABEL_SELECTED_INCORRECT_930E"
+            style="border: 4px solid red"
+          >
+            <input id="official-a" type="radio" name="official-answer" checked>
+            <label for="official-a">
+              <span class="choice-letter">A</span>
+              <span class="choice-copy">Synthetic choice alpha.</span>
+              <span class="original-marker" data-synth-spoiler>MKIT_ORIGINAL_ANSWER_A_75FC</span>
+            </label>
+          </li>
+          <li
+            id="choice-b"
+            class="answer-choice is-correct-answer was-eliminated"
+            title="MKIT_CORRECT_TITLE_B_562C"
+            aria-label="MKIT_CORRECT_LABEL_B_307A"
+            style="border: 4px solid green"
+          >
+            <input id="official-b" type="radio" name="official-answer">
+            <label for="official-b">
+              <span class="choice-letter">B</span>
+              <span class="choice-copy">Synthetic choice beta.</span>
+              <span class="correct-marker" data-synth-spoiler>MKIT_CORRECT_ANSWER_B_71ED</span>
+            </label>
+          </li>
+          <li id="choice-c" class="answer-choice">
+            <input id="official-c" type="radio" name="official-answer">
+            <label for="official-c"><span class="choice-copy">Synthetic choice gamma.</span></label>
+          </li>
+          <li id="choice-d" class="answer-choice">
+            <input id="official-d" type="radio" name="official-answer">
+            <label for="official-d"><span class="choice-copy">Synthetic choice delta.</span></label>
+          </li>
+        </ol>
+
+        <section id="official-solution" data-synth-spoiler>
+          <h2>Solution</h2>
+          <p>MKIT_EXPLANATION_BODY_824C</p>
+        </section>
+
+        <dl id="official-metadata" data-synth-spoiler>
+          <dt>Time</dt><dd>MKIT_TIME_07_42_88B0</dd>
+          <dt>Difficulty</dt><dd>MKIT_DIFFICULTY_HARD_D79B</dd>
+        </dl>
+
+        <button
+          id="tooltip-trigger"
+          type="button"
+          title="MKIT_TOOLTIP_TITLE_CORRECT_053A"
+          aria-describedby="spoiler-tooltip"
+        >
+          Details
+        </button>
+        <div id="spoiler-tooltip" role="tooltip" data-review-result="correct" data-synth-spoiler>
+          MKIT_TOOLTIP_BODY_CORRECT_9A85
+        </div>
+      </section>
+
+      <aside id="official-results-rail" data-synth-spoiler>
+        MKIT_RESULT_RAIL_OLD_ATTEMPT_074D
+      </aside>
+
+      <footer>
+        <button id="native-previous" type="button">Previous</button>
+        <button id="native-next" type="button">Next</button>
+        <button id="native-submit" type="button">Submit</button>
+        <button id="native-reset" type="button">Reset</button>
+      </footer>
+    </main>
+    <script>
+      for (const input of document.querySelectorAll('input[name="official-answer"]')) {
+        input.addEventListener("click", () => { window.__nativeEvents.answer += 1; });
+      }
+      for (const action of ["next", "previous", "reset", "submit"]) {
+        document.querySelector(`#native-${action}`).addEventListener("click", () => {
+          window.__nativeEvents[action] += 1;
+        });
+      }
+      window.__freshReviewMarkup = document.querySelector("#exam-review-shell").outerHTML;
+      window.__syncBootDisplay = getComputedStyle(
+        document.querySelector("#exam-review-shell"),
+      ).display;
+      requestAnimationFrame(() => window.__sampleSpoilers("initial-first-frame"));
+    </script>
+  </body>
+</html>
