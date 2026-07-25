@@ -34,8 +34,9 @@ test("production manifest keeps the extension worker-free and narrowly permissio
   expect(contentScripts[0]?.all_frames ?? false).toBe(false);
 
   const matches = contentScripts[0]?.matches as string[];
-  expect(matches).toEqual(["https://mcatofficialprep.org/app/aamc-mcat-practice-exam-*"]);
+  expect(matches).toEqual(["https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-*"]);
   expect(matches).not.toContain("<all_urls>");
+  expect(matches).not.toContain("https://mcatofficialprep.org/app/aamc-mcat-practice-exam-*");
   expect(matches).not.toContain("https://apps.aamc.org/mrs/*");
   expect(matches).not.toContain("https://prep.aamc.org/*");
   expect(matches.every((match) => match.startsWith("https://"))).toBe(true);

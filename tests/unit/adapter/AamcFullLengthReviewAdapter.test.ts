@@ -13,7 +13,7 @@ const REVIEW_URL = () => new URL("https://synthetic.invalid/completed/review");
 const SCORE_URL = () => new URL("https://synthetic.invalid/completed/score");
 const CONFIRMED_REVIEW_URL = () =>
   new URL(
-    "https://mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
+    "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
   );
 
 describe("AamcFullLengthReviewAdapter capabilities", () => {
@@ -358,19 +358,25 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
 
     const wrongRoute = new AamcFullLengthReviewAdapter(
       document,
-      () => new URL("https://mcatofficialprep.org/app/aamc-mcat-practice-exam-1#dashboard"),
+      () => new URL("https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#dashboard"),
     );
     expect(wrongRoute.classifyPage()).toBe("non-review");
+
+    const unverifiedOrigin = new AamcFullLengthReviewAdapter(
+      document,
+      () =>
+        new URL(
+          "https://mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
+        ),
+    );
+    expect(unverifiedOrigin.classifyPage()).toBe("non-review");
   });
 });
 
 describe("AamcFullLengthReviewAdapter confirmed score anchors", () => {
   it("recognizes and shields the content-free score anchor shape", () => {
     mountConfirmedAnchorScoreFixture();
-    const adapter = new AamcFullLengthReviewAdapter(
-      document,
-      () => new URL("https://mcatofficialprep.org/app/aamc-mcat-practice-exam-synthetic"),
-    );
+    const adapter = new AamcFullLengthReviewAdapter(document, SCORE_URL);
 
     expect(adapter.inspectCapabilities()).toMatchObject({
       pageKind: "score-report",

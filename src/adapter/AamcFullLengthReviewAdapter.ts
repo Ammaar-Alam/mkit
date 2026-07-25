@@ -641,7 +641,7 @@ interface ConfirmedReviewRoute {
 }
 
 function parseConfirmedReviewRoute(url: URL): ConfirmedReviewRoute | null {
-  if (url.protocol !== "https:" || url.hostname !== "mcatofficialprep.org") {
+  if (url.protocol !== "https:" || url.hostname !== "www.mcatofficialprep.org") {
     return null;
   }
   const pathMatch = /^\/app\/aamc-mcat-practice-exam-(\d{1,3})\/?$/.exec(url.pathname);

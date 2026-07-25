@@ -21,7 +21,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://mcatofficialprep.org/app/aamc-mcat-practice-exam-*"],
+      "matches": ["https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-*"],
       "css": ["content/preflight.css"],
       "js": ["content/index.js"],
       "run_at": "document_start",
