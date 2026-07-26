@@ -404,6 +404,48 @@
   overflow: visible;
 }
 
+/* A dragged rail is positioned from the top-left corner instead of pinned to
+   the top-right default. */
+.mkit-study-rail.is-moved {
+  inset-block-start: auto;
+  inset-inline-end: auto;
+}
+
+.mkit-study-rail.is-moving {
+  user-select: none;
+}
+
+.mkit-rail-actions {
+  display: flex;
+  gap: var(--mkit-space-2xs);
+  align-items: center;
+}
+
+.mkit-rail-grip {
+  display: inline-grid;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  place-items: center;
+  color: var(--mkit-ink-muted);
+  cursor: grab;
+  touch-action: none;
+  /* Six dots read as a grip without competing with the collapse glyph. */
+  background-image: radial-gradient(currentcolor 1px, transparent 1.2px);
+  background-position: center;
+  background-size: 0.4rem 0.4rem;
+  background-repeat: space;
+  background-clip: content-box;
+  padding: 0.55rem 0.95rem;
+}
+
+.mkit-rail-grip:hover {
+  color: var(--mkit-moss);
+}
+
+.mkit-study-rail.is-moving .mkit-rail-grip {
+  cursor: grabbing;
+}
+
 .mkit-study-rail > .mkit-folio {
   padding-block-end: var(--mkit-space-sm);
 }
@@ -439,6 +481,8 @@
   transition-delay: 0s, 0s, 150ms;
 }
 
+/* The glyph itself is the affordance, so the control keeps a full pointer and
+   touch target without painting button chrome around it. */
 .mkit-rail-toggle {
   display: inline-grid;
   min-width: 2.75rem;
@@ -446,16 +490,15 @@
   min-height: 2.75rem;
   padding: 0;
   place-items: center;
-  border: 1px solid var(--mkit-rule);
+  border: 0;
   border-radius: 0.45rem;
-  background: var(--mkit-paper-raised);
-  color: var(--mkit-ink);
+  background: transparent;
+  color: var(--mkit-ink-muted);
   cursor: pointer;
 }
 
 .mkit-rail-toggle:hover {
-  border-color: var(--mkit-moss);
-  background: var(--mkit-moss-quiet);
+  color: var(--mkit-moss);
 }
 
 .mkit-rail-toggle .mkit-icon path:last-child {
@@ -692,6 +735,19 @@
   font-size: 0.75rem;
 }
 
+.mkit-toggle__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.mkit-toggle__hint {
+  color: var(--mkit-ink-muted);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
 .mkit-toggle.is-active {
   border-color: var(--mkit-moss);
   background: var(--mkit-moss-quiet);
@@ -837,14 +893,25 @@
   width: 4.25rem;
 }
 
+/* The summary mounts inside the same fixed host as the rail, so it centers
+   itself over the page and takes pointer priority while it is open. */
 .mkit-summary {
   container: mkit-summary / inline-size;
+  position: fixed;
+  z-index: 1;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
   display: grid;
-  width: min(100%, 52rem);
+  width: min(calc(100vw - 2rem), 52rem);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
   gap: var(--mkit-space-xl);
   padding: clamp(1rem, 4vw, 2rem);
   border: 1px solid var(--mkit-rule);
   background: var(--mkit-paper);
+  box-shadow: 0 1rem 3rem color-mix(in oklch, var(--mkit-ink) 22%, transparent);
+  pointer-events: auto;
 }
 
 .mkit-summary__close {

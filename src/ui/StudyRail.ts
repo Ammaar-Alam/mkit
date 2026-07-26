@@ -27,12 +27,14 @@ export function mountStudyRail(
   let previousStage: StudyRailProps["stage"] | undefined;
   let previousFinishConfirmation = false;
   let minimized = false;
+  const placement = createRailPlacement();
 
   return mountView(target, "mkit-surface mkit-study-rail", props, (root, next) => {
     root.replaceChildren();
     root.classList.toggle("is-minimized", minimized);
     root.setAttribute("role", "region");
     root.setAttribute("aria-labelledby", headingId);
+    placement.attach(root);
 
     const modeLabel = next.mode === "practice" ? "Practice" : "Test";
     const content = element("div", {
@@ -48,14 +50,19 @@ export function mountStudyRail(
         "Fresh Attempt",
         modeLabel,
         headingId,
-        railToggle(
-          root,
-          content,
-          contentId,
-          () => minimized,
-          (value) => {
-            minimized = value;
-          },
+        element(
+          "span",
+          { className: "mkit-rail-actions" },
+          placement.handle(root),
+          railToggle(
+            root,
+            content,
+            contentId,
+            () => minimized,
+            (value) => {
+              minimized = value;
+            },
+          ),
         ),
       ),
     );
@@ -123,6 +130,120 @@ export function mountStudyRail(
     previousStage = next.stage;
     previousFinishConfirmation = next.finishConfirmationOpen ?? false;
   });
+}
+
+interface RailPlacement {
+  attach(root: HTMLElement): void;
+  handle(root: HTMLElement): HTMLElement;
+}
+
+/**
+ * The rail is a fixed overlay, so it can cover page content the reader wants to
+ * see. Dragging keeps its own offset rather than a persisted preference: the
+ * position is a momentary reading adjustment, and a stored one would reapply on
+ * a page whose layout has since changed. The offset is clamped on every apply so
+ * a resize can never strand the rail outside the viewport.
+ */
+function createRailPlacement(): RailPlacement {
+  let offset: { top: number; left: number } | null = null;
+  let target: HTMLElement | null = null;
+
+  const apply = (): void => {
+    if (!target) return;
+    if (!offset) {
+      target.style.removeProperty("top");
+      target.style.removeProperty("left");
+      target.classList.remove("is-moved");
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    const maxLeft = Math.max(0, window.innerWidth - rect.width);
+    const maxTop = Math.max(0, window.innerHeight - rect.height);
+    offset = {
+      left: Math.min(Math.max(0, offset.left), maxLeft),
+      top: Math.min(Math.max(0, offset.top), maxTop),
+    };
+    target.classList.add("is-moved");
+    target.style.top = `${offset.top}px`;
+    target.style.left = `${offset.left}px`;
+  };
+
+  const moveBy = (deltaX: number, deltaY: number): void => {
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    offset ??= { top: rect.top, left: rect.left };
+    offset = { top: offset.top + deltaY, left: offset.left + deltaX };
+    apply();
+  };
+
+  window.addEventListener("resize", apply);
+
+  return {
+    attach(root: HTMLElement): void {
+      target = root;
+      apply();
+    },
+    handle(root: HTMLElement): HTMLElement {
+      const grip = element("span", {
+        className: "mkit-rail-grip",
+        attributes: {
+          "data-focus-key": "rail-grip",
+          role: "button",
+          tabindex: "0",
+          "aria-label": "Move Fresh Attempt rail. Use arrow keys once focused.",
+          title: "Drag to move",
+        },
+      });
+
+      grip.addEventListener("pointerdown", (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        const rect = root.getBoundingClientRect();
+        const grabX = event.clientX - rect.left;
+        const grabY = event.clientY - rect.top;
+        grip.setPointerCapture(event.pointerId);
+        root.classList.add("is-moving");
+        event.preventDefault();
+
+        const onMove = (move: PointerEvent): void => {
+          offset = { top: move.clientY - grabY, left: move.clientX - grabX };
+          apply();
+        };
+        const onUp = (): void => {
+          grip.releasePointerCapture(event.pointerId);
+          root.classList.remove("is-moving");
+          grip.removeEventListener("pointermove", onMove);
+          grip.removeEventListener("pointerup", onUp);
+          grip.removeEventListener("pointercancel", onUp);
+        };
+        grip.addEventListener("pointermove", onMove);
+        grip.addEventListener("pointerup", onUp);
+        grip.addEventListener("pointercancel", onUp);
+      });
+
+      grip.addEventListener("keydown", (event: KeyboardEvent) => {
+        const step = event.shiftKey ? 40 : 12;
+        const moves: Record<string, [number, number]> = {
+          ArrowUp: [0, -step],
+          ArrowDown: [0, step],
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+        };
+        const move = moves[event.key];
+        if (move) {
+          event.preventDefault();
+          moveBy(move[0], move[1]);
+          return;
+        }
+        if (event.key === "Home") {
+          event.preventDefault();
+          offset = null;
+          apply();
+        }
+      });
+
+      return grip;
+    },
+  };
 }
 
 function railToggle(
@@ -326,18 +447,30 @@ function reflectionToggles(props: StudyRailProps): HTMLElement {
   return element(
     "div",
     { className: "mkit-toggle-list" },
-    toggleButton("Flag for review", "flag", props.flagged, () =>
-      props.onFlagChange(!props.flagged),
+    toggleButton(
+      "Bookmark",
+      "Jump back to this question later",
+      "flag",
+      "flag",
+      props.flagged,
+      () => props.onFlagChange(!props.flagged),
     ),
-    toggleButton("Review again", "circle", props.reviewAgain, () =>
-      props.onReviewAgainChange(!props.reviewAgain),
+    toggleButton(
+      "Needs more practice",
+      "Counts toward your weak topics",
+      "circle",
+      "review-again",
+      props.reviewAgain,
+      () => props.onReviewAgainChange(!props.reviewAgain),
     ),
   );
 }
 
 function toggleButton(
   label: string,
+  hint: string,
   iconName: "flag" | "circle",
+  focusKey: string,
   pressed: boolean,
   onClick: () => void,
 ): HTMLButtonElement {
@@ -348,11 +481,16 @@ function toggleButton(
       attributes: {
         type: "button",
         "aria-pressed": String(pressed),
-        "data-focus-key": label.toLowerCase().replaceAll(" ", "-"),
+        "data-focus-key": focusKey,
       },
     },
     icon(iconName),
-    element("span", { text: label }),
+    element(
+      "span",
+      { className: "mkit-toggle__copy" },
+      element("span", { className: "mkit-toggle__label", text: label }),
+      element("span", { className: "mkit-toggle__hint", text: hint }),
+    ),
     element("strong", { text: pressed ? "On" : "Off" }),
   );
   control.addEventListener("click", onClick);
