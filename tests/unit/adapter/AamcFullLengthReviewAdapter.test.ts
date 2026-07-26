@@ -332,6 +332,7 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(requiredElement(".review-answer").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".view-answers.switchable").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".result-wrapper").hasAttribute("data-mkit-hidden")).toBe(true);
+    expect(requiredElement(".sidebar-container").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".expander-content").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
     expect(document.querySelector(".multi-choice.incorrect")).toBeNull();
@@ -481,15 +482,25 @@ function mountConfirmedProductionFixture(): void {
                 Review
               </label>
             </div>
-            <div class="choices-container">
-              <section class="result-wrapper" role="region">
-                <div class="result is-incorrect">Synthetic result.</div>
-                <div class="result-group">
-                  <span class="result-label user-label">Synthetic prior result.</span>
-                  <div class="answers"><span class="answer-set">Synthetic comparison.</span></div>
+            <div class="fixed-width-sidebar-columns">
+              <div class="main-column"></div>
+              <aside class="sidebar-column">
+                <div class="sidebar-container">
+                  <div class="topbar-result-wrapper">Synthetic topbar result.</div>
+                  <div class="choices-container">
+                    <section class="result-wrapper">
+                      <div class="result is-incorrect">Synthetic result.</div>
+                      <div class="result-group">
+                        <span class="result-label user-label">Synthetic prior result.</span>
+                        <div class="answers">
+                          <span class="answer-set">Synthetic comparison.</span>
+                        </div>
+                      </div>
+                      <div class="removed-choice">Synthetic removed choice.</div>
+                    </section>
+                  </div>
                 </div>
-                <div class="removed-choice">Synthetic removed choice.</div>
-              </section>
+              </aside>
             </div>
             <section class="expander-content">
               <div class="benchprep-content-editor expanded">Synthetic explanation.</div>

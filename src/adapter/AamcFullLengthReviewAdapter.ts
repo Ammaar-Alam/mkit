@@ -66,11 +66,19 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     navigator: [".icon-bar.navigate", '[data-mkit-fixture="navigator"]', "#question-navigator"],
     navigatorSpoiler: ['[data-mkit-fixture="navigator"]', "#question-navigator"],
     resultRail: [
+      ".reviewable > .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .sidebar-column > .sidebar-container",
+      ".reviewable .fixed-width-sidebar-columns > .sidebar-column > .sidebar-container",
+      ".reviewable .sidebar-column > .sidebar-container",
+      ".reviewable .sidebar-container > .choices-container",
+      ".reviewable .choices-container",
+      ".reviewable .result-wrapper",
       ".choices-container > .result-wrapper[role='region']",
       '[data-mkit-fixture="result-rail"]',
       "#official-results-rail",
     ],
     status: [
+      ".reviewable .result-wrapper .result",
+      ".reviewable .result-wrapper .is-incorrect",
       ".choices-container > .result-wrapper[role='region'] .result",
       ".choices-container > .result-wrapper[role='region'] .is-incorrect",
       '[data-mkit-fixture="status"]',
@@ -84,6 +92,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     correctMarker: ['[data-mkit-fixture="correct-marker"]', ".correct-marker"],
     originalMarker: [
+      ".reviewable .result-wrapper .result-group:has(.result-label.user-label)",
       ".choices-container > .result-wrapper[role='region'] .result-group:has(.result-label.user-label)",
       '[data-mkit-fixture="original-marker"]',
       ".original-marker",
@@ -165,6 +174,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     reviewControl: ['[data-mkit-fixture="review-all"]', "#review-all"],
     studyRailMount: [
+      ".reviewable .sidebar-container > .choices-container",
+      ".reviewable .choices-container",
       ".choices-container > .result-wrapper[role='region']",
       ".choices-container",
       '[data-mkit-fixture="study-rail-mount"]',

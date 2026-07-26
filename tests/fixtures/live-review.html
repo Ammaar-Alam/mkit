@@ -44,46 +44,60 @@
                 </label>
               </div>
 
-              <div
-                class="answer-container question-container reading-passage"
-                style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
-              >
-                <p id="live-style-question">Synthetic question workspace.</p>
-                <ul
-                  class="question-choices-multi results"
-                  style="padding-left: 32px; border: 5px solid red; background-color: pink"
-                >
-                  <li class="multi-choice incorrect">
-                    <span class="choice-content">Synthetic choice A.</span>
-                  </li>
-                  <li class="multi-choice corrected">
-                    <span class="choice-content">Synthetic choice B.</span>
-                  </li>
-                  <li class="multi-choice">
-                    <span class="choice-content">Synthetic choice C.</span>
-                  </li>
-                  <li class="multi-choice">
-                    <span class="choice-content">Synthetic choice D.</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div class="choices-container">
-                <section class="result-wrapper" role="region">
-                  <div class="result is-incorrect">Synthetic prior result.</div>
-                  <div class="result-group">
-                    <span class="result-label user-label">Synthetic original label.</span>
-                    <div class="answers">
-                      <span class="answer-set">Synthetic comparison.</span>
-                    </div>
+              <div class="fixed-width-sidebar-columns">
+                <div class="main-column">
+                  <div
+                    class="answer-container question-container reading-passage"
+                    style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
+                  >
+                    <p id="live-style-question">Synthetic question workspace.</p>
+                    <ul
+                      class="question-choices-multi results"
+                      style="padding-left: 32px; border: 5px solid red; background-color: pink"
+                    >
+                      <li class="multi-choice incorrect">
+                        <span class="choice-content">Synthetic choice A.</span>
+                      </li>
+                      <li class="multi-choice corrected">
+                        <span class="choice-content">Synthetic choice B.</span>
+                      </li>
+                      <li class="multi-choice">
+                        <span class="choice-content">Synthetic choice C.</span>
+                      </li>
+                      <li class="multi-choice">
+                        <span class="choice-content">Synthetic choice D.</span>
+                      </li>
+                    </ul>
                   </div>
-                  <div class="removed-choice">Synthetic removed choice.</div>
-                </section>
+                  <section class="expander-content" id="known-feedback">
+                    <div class="benchprep-content-editor expanded">
+                      MKIT_LIVE_KNOWN_EXPLANATION_2A31
+                    </div>
+                  </section>
+                </div>
+                <aside class="sidebar-column">
+                  <div class="sidebar-container">
+                    <div class="topbar-result-wrapper">MKIT_LIVE_TOPBAR_RESULT_91B2</div>
+                    <div class="choices-container">
+                      <section class="result-wrapper">
+                        <div class="result is-incorrect">MKIT_LIVE_NATIVE_RESULT_3F42</div>
+                        <div class="result-group">
+                          <span class="result-label user-label">
+                            MKIT_LIVE_ORIGINAL_LABEL_77C4
+                          </span>
+                          <div class="answers">
+                            <span class="answer-set">MKIT_LIVE_ANSWER_COMPARISON_4E18</span>
+                          </div>
+                        </div>
+                        <div class="removed-choice">MKIT_LIVE_REMOVED_CHOICE_620D</div>
+                      </section>
+                    </div>
+                    <section class="native-solution-panel" id="fallback-solution">
+                      MKIT_LIVE_FALLBACK_SOLUTION_88D0
+                    </section>
+                  </div>
+                </aside>
               </div>
-
-              <section class="expander-content">
-                <div class="benchprep-content-editor expanded">Synthetic explanation.</div>
-              </section>
             </section>
           </div>
 

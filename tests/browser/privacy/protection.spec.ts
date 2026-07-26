@@ -28,6 +28,18 @@ const REVIEW_SPOILERS = [
   "MKIT_PSEUDO_CORRECT_67F1",
 ] as const;
 
+const LIVE_FEEDBACK_SPOILERS = [
+  "MKIT_LIVE_KNOWN_EXPLANATION_2A31",
+  "MKIT_LIVE_TOPBAR_RESULT_91B2",
+  "MKIT_LIVE_NATIVE_RESULT_3F42",
+  "MKIT_LIVE_ORIGINAL_LABEL_77C4",
+  "MKIT_LIVE_ANSWER_COMPARISON_4E18",
+  "MKIT_LIVE_REMOVED_CHOICE_620D",
+  "MKIT_LIVE_FALLBACK_SOLUTION_88D0",
+  "MKIT_LIVE_DELAYED_RESULT_1C50",
+  "MKIT_LIVE_DELAYED_EXPLANATION_5D29",
+] as const;
+
 test("default-deny CSS prevents first-paint spoiler exposure", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/review");
   await page.evaluate(() => new Promise(requestAnimationFrame));
@@ -168,6 +180,95 @@ test("Practice neutralizes source correctness visuals without removing layout st
     question: "padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red",
     choices: "padding-left: 32px; border: 5px solid red; background-color: pink",
   });
+});
+
+test("Practice conceals the complete live-style feedback boundary until intentional reveal", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  const initialFeedbackState = await snapshotLiveFeedbackState(page);
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  await rail.locator("[data-focus-key='answer-A']").click();
+  await expect(rail.locator("[data-focus-key='check']")).toBeEnabled();
+
+  await page.evaluate(() => {
+    scrollTo(0, 900);
+    const delayedResult = document.createElement("section");
+    delayedResult.id = "delayed-live-result";
+    delayedResult.className = "result-wrapper";
+    delayedResult.textContent = "MKIT_LIVE_DELAYED_RESULT_1C50";
+    document.querySelector(".choices-container")?.append(delayedResult);
+
+    const delayedExplanation = document.createElement("section");
+    delayedExplanation.id = "delayed-live-explanation";
+    delayedExplanation.className = "expander-content";
+    delayedExplanation.textContent = "MKIT_LIVE_DELAYED_EXPLANATION_5D29";
+    document.querySelector(".main-column")?.append(delayedExplanation);
+
+    dispatchEvent(new PopStateEvent("popstate", { state: { synthetic: true } }));
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+
+  for (const selector of [
+    ".sidebar-container",
+    ".choices-container",
+    ".result-wrapper",
+    ".topbar-result-wrapper",
+    "#fallback-solution",
+    "#known-feedback",
+    "#delayed-live-result",
+    "#delayed-live-explanation",
+  ]) {
+    await expect(page.locator(selector).first(), selector).toBeHidden();
+  }
+  await expect(page.locator("#live-style-question")).toBeVisible();
+  await expect(rail).toBeVisible();
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
+
+  const cdp = await page.context().newCDPSession(page);
+  const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(axText).not.toContain(sentinel);
+  }
+
+  const absentFromFind = await page.evaluate((sentinels) => {
+    return sentinels.every(
+      (sentinel) => !window.find(sentinel, false, false, true, false, false, false),
+    );
+  }, LIVE_FEEDBACK_SPOILERS);
+  expect(absentFromFind).toBe(true);
+
+  const selectedText = await page.evaluate(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.documentElement);
+    const selection = getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return selection?.toString() ?? "";
+  });
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(selectedText).not.toContain(sentinel);
+  }
+
+  await page.emulateMedia({ media: "print" });
+  const pdf = await page.pdf({ printBackground: true });
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(pdf.includes(Buffer.from(sentinel))).toBe(false);
+  }
+  await page.emulateMedia({ media: "screen" });
+
+  await rail.locator("[data-focus-key='check']").click();
+  await expect(page.locator("#known-feedback")).toBeVisible();
+  await expect(page.locator(".sidebar-container")).toBeHidden();
+  await expect(page.locator("#fallback-solution")).toBeHidden();
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
+  await expect(page.locator(".sidebar-container")).toBeVisible();
+  await expect(page.locator("#fallback-solution")).toBeVisible();
+  expect(await snapshotLiveFeedbackState(page)).toEqual(initialFeedbackState);
 });
 
 test("masked review removes spoilers from display, AX, Find, selection, and print", async ({
@@ -591,4 +692,30 @@ async function snapshotNativeState(
       checked: element instanceof HTMLInputElement ? element.checked : null,
     })),
   );
+}
+
+async function snapshotLiveFeedbackState(
+  page: import("@playwright/test").Page,
+): Promise<Array<{ attributes: Array<[string, string]>; hidden: boolean; selector: string }>> {
+  return page.evaluate(() => {
+    const selectors = [
+      ".sidebar-container",
+      ".choices-container",
+      ".result-wrapper",
+      ".topbar-result-wrapper",
+      "#fallback-solution",
+      "#known-feedback",
+    ];
+    return selectors.map((selector) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing synthetic feedback element: ${selector}`);
+      return {
+        selector,
+        attributes: [...element.attributes]
+          .map(({ name, value }) => [name, value] as [string, string])
+          .sort(([left], [right]) => left.localeCompare(right)),
+        hidden: element.hidden === true,
+      };
+    });
+  });
 }
