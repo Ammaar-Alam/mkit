@@ -1,5 +1,6 @@
 import type { FullLengthReviewAdapter } from "../adapter/contracts";
 import type { ReviewController } from "../core/review-controller";
+import type { ContentRouteKind, ContentStatusResponse } from "../shared/popup-status";
 import type { DisposableMKitPreflight } from "./preflight";
 
 export interface ContentLifecycleDependencies {
@@ -14,6 +15,7 @@ export interface ContentLifecycleDependencies {
 export interface ContentLifecycle {
   dispose(): void;
   reconcile(): void;
+  status(): ContentStatusResponse;
 }
 
 export function startContentLifecycle(
@@ -25,6 +27,8 @@ export function startContentLifecycle(
   let preflight: DisposableMKitPreflight | null = null;
   let probeFrame: number | null = null;
   let disposed = false;
+  let routeKind: ContentRouteKind = "non-review";
+  let routeIssues: string[] = [];
 
   const stopProbe = (): void => {
     if (probeFrame === null) return;
@@ -113,12 +117,19 @@ export function startContentLifecycle(
     let candidate: FullLengthReviewAdapter;
     let pageKind: ReturnType<FullLengthReviewAdapter["classifyPage"]>;
     let answerRoute = false;
+    routeKind = "non-review";
+    routeIssues = [];
     try {
       candidate = dependencies.createAdapter();
       pageKind = candidate.classifyPage();
       answerRoute = pageKind === "review" || pageKind === "unknown-review";
+      routeKind =
+        pageKind === "review" ? "review" : answerRoute ? "incomplete-review" : "non-review";
       const report = candidate.inspectCapabilities();
       const ready = pageKind === "review" && report.safeToReveal;
+      if (answerRoute && !ready) {
+        routeIssues = [...report.issues];
+      }
 
       if (!ready) {
         if (controller || adapter || preflight) {
@@ -186,6 +197,14 @@ export function startContentLifecycle(
 
   return {
     reconcile,
+    status(): ContentStatusResponse {
+      const attached = Boolean(controller && preflight?.host.isConnected);
+      return {
+        attached,
+        route: routeKind,
+        issues: attached ? [] : routeIssues,
+      };
+    },
     dispose(): void {
       if (disposed) return;
       disposed = true;

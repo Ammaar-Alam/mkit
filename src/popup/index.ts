@@ -1,11 +1,13 @@
 import "./popup.css";
 import { summarizeSession } from "../core/summary";
 import { type AttemptRecord, createChromeStorageRepository, type SessionRecord } from "../storage";
+import { getPopupPageState, type PopupPageState } from "./page-status";
 
-const protectInput = requiredElement<HTMLInputElement>("protect-reviews");
 const shieldInput = requiredElement<HTMLInputElement>("score-shield");
-const protectionStatus = requiredElement("protection-status");
-const protectState = requiredElement("protect-state");
+const pageState = requiredElement("page-state");
+const pageContext = requiredElement("page-status").parentElement;
+const pageStatus = requiredElement("page-status");
+const pageDetail = requiredElement("page-detail");
 const shieldState = requiredElement("shield-state");
 const saveStatus = requiredElement("save-status");
 const activeSessions = requiredElement("active-sessions");
@@ -24,7 +26,7 @@ async function initialize(): Promise<void> {
     repository.listAttempts(),
     repository.getSyncStatus(),
   ]);
-  render(settings.enabled, settings.scoreShieldEnabled);
+  render(settings.scoreShieldEnabled);
   renderSessions(sessions, attempts);
   renderStorage(
     settings.syncEnabled,
@@ -32,11 +34,8 @@ async function initialize(): Promise<void> {
     syncStatus.someNotesLocalOnly,
     syncStatus.lastErrorCode !== undefined,
   );
+  renderPageState(await getPopupPageState());
   void repository.retryDirtySync().catch(() => undefined);
-
-  protectInput.addEventListener("change", async () => {
-    await saveSetting({ enabled: protectInput.checked });
-  });
 
   shieldInput.addEventListener("change", async () => {
     await saveSetting({ scoreShieldEnabled: shieldInput.checked });
@@ -47,18 +46,35 @@ async function initialize(): Promise<void> {
   });
 }
 
-function render(enabled: boolean, scoreShieldEnabled: boolean): void {
-  protectInput.checked = enabled;
+function render(scoreShieldEnabled: boolean): void {
   shieldInput.checked = scoreShieldEnabled;
-  protectState.textContent = enabled ? "On" : "Off";
   shieldState.textContent = scoreShieldEnabled ? "On" : "Off";
-  protectionStatus.textContent = enabled ? "Protection on" : "Protection off";
+}
+
+function renderPageState(state: PopupPageState): void {
+  if (pageContext instanceof HTMLElement) {
+    pageContext.dataset.status = state.status;
+  }
+  if (state.status === "active") {
+    pageState.textContent = "Ready";
+    pageStatus.textContent = "Fresh Attempt is ready";
+  } else if (state.status === "supported-not-running") {
+    pageState.textContent = "Not covered";
+    pageStatus.textContent = "Review not verified";
+  } else {
+    pageState.textContent = "Not on a review";
+    pageStatus.textContent = "No supported review open";
+  }
+  pageDetail.textContent =
+    state.issues && state.issues.length > 0
+      ? `${state.detail} (${state.issues.join(", ")})`
+      : state.detail;
 }
 
 async function saveSetting(patch: Parameters<typeof repository.writeSettings>[0]): Promise<void> {
   try {
     const next = await repository.writeSettings(patch);
-    render(next.enabled, next.scoreShieldEnabled);
+    render(next.scoreShieldEnabled);
     announce("Saved");
   } catch {
     renderError();
@@ -152,7 +168,6 @@ function renderStorage(
 
 function renderError(): void {
   announce("Couldn’t save");
-  protectInput.disabled = true;
   shieldInput.disabled = true;
 }
 

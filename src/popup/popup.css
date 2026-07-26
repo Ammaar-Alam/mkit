@@ -29,10 +29,34 @@ body {
   font-size: 1.25rem;
 }
 
-.protection-status {
+.page-state {
   color: var(--moss);
   font-size: 0.75rem;
   font-weight: 700;
+  text-align: right;
+}
+
+.page-context {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-md);
+  border-left: 3px solid var(--moss);
+  background: var(--moss-quiet);
+}
+
+.page-context[data-status="supported-not-running"] {
+  border-left-color: var(--clay);
+  background: var(--clay-quiet);
+}
+
+.page-context[data-status="unsupported"] {
+  border-left-color: var(--rule);
+  background: var(--paper-raised);
+}
+
+.page-detail {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
 }
 
 .section {

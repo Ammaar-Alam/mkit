@@ -6,6 +6,7 @@ import { type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface RouteGuardHarness {
   dispose(): void;
+  status(): { attached: boolean; issues: string[]; route: string };
   restoreCompletedReviewCapability(): {
     footerDisplay: string;
     hostConnected: boolean;
@@ -87,6 +88,7 @@ const lifecycle = startContentLifecycle({
 
 window.__mkitRouteGuardHarness = {
   dispose: () => lifecycle.dispose(),
+  status: () => lifecycle.status(),
   restoreCompletedReviewCapability: () => {
     const reviewControl = document.querySelector(".review-answer");
     if (reviewControl && !reviewControl.querySelector(".view-answers.switchable")) {
