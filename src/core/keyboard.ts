@@ -21,7 +21,8 @@ export class FreshAttemptKeyboardController {
       event.metaKey ||
       event.ctrlKey ||
       event.altKey ||
-      isEditableTarget(event.target)
+      isEditableTarget(event.target) ||
+      isOwnControl(event.target)
     ) {
       return;
     }
@@ -81,6 +82,15 @@ function answerChoiceForKey(key: string): AnswerChoice | null {
   if (normalized === "C" || key === "3") return "C";
   if (normalized === "D" || key === "4") return "D";
   return null;
+}
+
+/**
+ * Shortcuts listen at the document in the capture phase, so a key pressed while
+ * one of MKit's own controls has focus would otherwise be consumed before that
+ * control could act on it. A focused rail button owns its own keys.
+ */
+function isOwnControl(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-mkit-host]") !== null;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {

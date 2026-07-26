@@ -21,13 +21,18 @@ import {
   mountGate,
   mountScoreShield,
   mountStudyRail,
+  mountSummary,
   type SaveState,
   type ScoreShieldProps,
   type SectionLabel,
+  type SectionSummary,
   type StudyRailProps,
   type StudyRailStage,
+  type SummaryProps,
 } from "../ui";
+import { FreshAttemptKeyboardController } from "./keyboard";
 import { SessionService } from "./session-service";
+import { summarizeSession } from "./summary";
 import { INITIAL_REVIEW_STATE, type ReviewState, reduceReviewState } from "./state";
 import { ActiveQuestionTimer, type TimingSample } from "./timing";
 
@@ -62,9 +67,11 @@ export class ReviewController {
   #gateView: MKitViewHandle<GateProps> | null = null;
   #railView: MKitViewHandle<StudyRailProps> | null = null;
   #scoreView: MKitViewHandle<ScoreShieldProps> | null = null;
+  #summaryView: MKitViewHandle<SummaryProps> | null = null;
   #stopObserver: (() => void) | null = null;
   #generation = 0;
   #normalReview = false;
+  readonly #keyboard: FreshAttemptKeyboardController;
 
   constructor(options: ReviewControllerOptions) {
     this.#adapter = options.adapter;
@@ -75,6 +82,29 @@ export class ReviewController {
     this.#uiStyle.textContent = options.uiCss;
     this.#timer = new ActiveQuestionTimer((sample) => {
       void this.#recordTiming(sample);
+    });
+    // Shortcuts drive the same handlers as the rail controls, and stay disarmed
+    // until a masked rail is actually showing so they can never reach the native
+    // page or act on a revealed answer.
+    this.#keyboard = new FreshAttemptKeyboardController({
+      select: (choice) => {
+        void this.#selectAnswer(choice);
+      },
+      toggleElimination: (choice) => {
+        void this.#toggleElimination(choice);
+      },
+      check: () => {
+        void this.#checkPractice();
+      },
+      toggleFlag: () => {
+        if (this.#attempt) void this.#updateAttempt({ flagged: !this.#attempt.flagged });
+      },
+      toggleReviewAgain: () => {
+        if (this.#attempt) void this.#updateAttempt({ reviewAgain: !this.#attempt.reviewAgain });
+      },
+      navigate: (direction) => {
+        this.#adapter.navigate(direction);
+      },
     });
   }
 
@@ -181,6 +211,7 @@ export class ReviewController {
     this.#stopObserver?.();
     this.#stopObserver = null;
     this.#clearView();
+    this.#keyboard.dispose();
   }
 
   #handleAdapterEvent(event: AdapterEvent): void {
@@ -418,6 +449,9 @@ export class ReviewController {
         this.#state.session !== "TEST_FINISHED",
     );
     this.#renderRail(this.#railProps());
+    this.#keyboard.setEnabled(
+      this.#session.status === "active" && this.#state.reveal === "CONCEALED",
+    );
   }
 
   #railProps(): StudyRailProps {
@@ -445,8 +479,15 @@ export class ReviewController {
       tags: attempt.tags,
       canNavigatePrevious: false,
       canNavigateNext: false,
+      // A section review can only finish the section it is scoped to, so the
+      // rail offers that narrower action instead of ending the whole attempt.
       ...(this.#session.mode === "test" && this.#session.status === "active"
-        ? { finishScope: "attempt" as const }
+        ? {
+            finishScope:
+              this.#context.progress.scope === "section"
+                ? ("section" as const)
+                : ("attempt" as const),
+          }
         : {}),
       finishConfirmationOpen: this.#finishConfirmationOpen,
       onSelect: (choice) => {
@@ -477,7 +518,7 @@ export class ReviewController {
         this.#showRail();
       },
       onFinishConfirm: () => {
-        void this.#finishTest();
+        void this.#finishRequested();
       },
       onFinishCancel: () => {
         this.#finishConfirmationOpen = false;
@@ -569,6 +610,22 @@ export class ReviewController {
     this.#showRail();
   }
 
+  /**
+   * A section-scoped finish records that one section and leaves the attempt
+   * active, so the reader can continue in another section. Only an
+   * attempt-scoped finish ends the session and reports the summary.
+   */
+  async #finishRequested(): Promise<void> {
+    if (this.#session?.mode !== "test" || !this.#attempt) return;
+    if (this.#context?.progress.scope !== "section") {
+      await this.#finishTest();
+      return;
+    }
+    this.#session = await this.#sessions.finishSection(this.#session.id, this.#attempt.sectionKey);
+    this.#finishConfirmationOpen = false;
+    this.#showRail();
+  }
+
   async #finishTest(): Promise<void> {
     if (this.#session?.mode !== "test") return;
     this.#session = await this.#sessions.finish(this.#session.id);
@@ -576,6 +633,55 @@ export class ReviewController {
     this.#finishConfirmationOpen = false;
     this.#timer.setSessionActive(false);
     this.#showRail();
+    await this.#showSummary(this.#session);
+  }
+
+  /**
+   * The summary reports only the reader's own Fresh Attempt results, so it stays
+   * available while official answers remain masked. Closing it returns to the
+   * finished rail rather than to the native page.
+   */
+  async #showSummary(session: SessionRecord): Promise<void> {
+    const attempts = await this.#repository.listAttempts(session.id);
+    const summary = summarizeSession(session, attempts);
+    const sections: SectionSummary[] = [];
+    for (const [sectionKey, counts] of Object.entries(summary.bySection)) {
+      const label = sectionLabel(sectionKey);
+      if (!label) continue;
+      const timing = summary.timingBySection[sectionKey];
+      sections.push({
+        section: label,
+        counts,
+        timing: {
+          averageMs: timing?.averageMs ?? 0,
+          outlierCount: timing?.outliers.length ?? 0,
+        },
+      });
+    }
+    const categories = Object.entries(summary.categoryNeedsReview)
+      .map(([code, needsReview]) => ({ code, needsReview }))
+      .sort((left, right) => right.needsReview - left.needsReview);
+
+    this.#summaryView = mountSummary(this.#preflight.shadow, {
+      counts: summary.counts,
+      sections,
+      questionTypes: {
+        passage: summary.byQuestionType.passage,
+        discrete: summary.byQuestionType.discrete,
+      },
+      timing: {
+        averageMs: summary.timing.averageMs,
+        outlierCount: summary.timing.outliers.length,
+      },
+      categories,
+      encouragementEnabled: this.#settings?.encouragementEnabled ?? false,
+      autoFocus: true,
+      onClose: () => {
+        this.#summaryView?.destroy();
+        this.#summaryView = null;
+        this.#showRail();
+      },
+    });
   }
 
   async #updateAttempt(patch: Partial<AttemptRecord>): Promise<void> {
@@ -689,10 +795,14 @@ export class ReviewController {
     this.#gateView = null;
     this.#railView = null;
     this.#scoreView = null;
+    this.#summaryView = null;
     this.#preflight.shadow.replaceChildren(this.#uiStyle);
   }
 
   #clearView(): void {
+    // Every teardown path routes through here, so shortcuts cannot outlive the
+    // rail that owns them.
+    this.#keyboard.setEnabled(false);
     this.#resetView();
   }
 }

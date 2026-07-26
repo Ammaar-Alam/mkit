@@ -51,6 +51,34 @@ describe("Fresh Attempt keyboard controls", () => {
 
     controller.dispose();
   });
+
+  it("leaves keys pressed on MKit's own controls to those controls", () => {
+    const actions = actionSpies();
+    const controller = new FreshAttemptKeyboardController(actions);
+    const host = document.createElement("div");
+    host.dataset.mkitHost = "";
+    const railControl = document.createElement("button");
+    host.append(railControl);
+    document.body.append(host);
+    controller.setEnabled(true);
+
+    // Shortcuts capture at the document, so a focused rail button would lose its
+    // own Enter and letter keys to the shortcut handler.
+    railControl.dispatchEvent(key("Enter"));
+    railControl.dispatchEvent(key("f"));
+    railControl.dispatchEvent(key("b"));
+
+    expect(actions.check).not.toHaveBeenCalled();
+    expect(actions.toggleFlag).not.toHaveBeenCalled();
+    expect(actions.select).not.toHaveBeenCalled();
+
+    // The same keys still work while the reader is on the page itself.
+    document.body.dispatchEvent(key("Enter"));
+    expect(actions.check).toHaveBeenCalledOnce();
+
+    host.remove();
+    controller.dispose();
+  });
 });
 
 function actionSpies(): FreshAttemptKeyboardActions {
