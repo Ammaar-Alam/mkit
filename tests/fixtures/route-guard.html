@@ -29,14 +29,21 @@
               data-section-id="cp"
             >
               <div class="answer-set-content">
-                <div class="answer-container question-container">
-                  <p id="dashboard-question">Synthetic stale question-like node.</p>
-                  <ul class="question-choices-multi results">
-                    <li class="multi-choice incorrect">Synthetic stale choice A.</li>
-                    <li class="multi-choice corrected">Synthetic stale choice B.</li>
-                    <li class="multi-choice">Synthetic stale choice C.</li>
-                    <li class="multi-choice">Synthetic stale choice D.</li>
-                  </ul>
+                <div
+                  class="answer-container correct is-hidden question-container"
+                  style="visibility: hidden"
+                >
+                  <div id="dashboard-question-workspace" style="visibility: visible">
+                    <p id="dashboard-question">Synthetic stale question-like node.</p>
+                    <div class="multi-choice incorrect" data-choice="D">
+                      Synthetic stale choice A.
+                    </div>
+                    <div class="multi-choice correct" data-choice="A">
+                      Synthetic stale choice B.
+                    </div>
+                    <div class="multi-choice" data-choice="B">Synthetic stale choice C.</div>
+                    <div class="multi-choice" data-choice="C">Synthetic stale choice D.</div>
+                  </div>
                 </div>
                 <label class="review-answer">
                   Review
@@ -75,6 +82,9 @@
       if (fixtureParams.has("missing-capability")) {
         document.querySelector(".view-answers.switchable")?.remove();
       }
+      if (fixtureParams.has("incomplete-choices")) {
+        document.querySelector(".multi-choice:last-of-type")?.remove();
+      }
       window.__mkitRouteGuardAuthoredMarkup = document.querySelector("#dashboard-root").outerHTML;
       window.__mkitRouteGuardAuthoredSurface = [
         document.querySelector("#wrapper").outerHTML,
@@ -86,6 +96,9 @@
       window.__mkitRouteGuardSyncFooterDisplay = getComputedStyle(
         document.querySelector("#main-footer"),
       ).display;
+      window.__mkitRouteGuardSyncQuestionVisibility = getComputedStyle(
+        document.querySelector("#dashboard-question-workspace"),
+      ).visibility;
     </script>
   </body>
 </html>

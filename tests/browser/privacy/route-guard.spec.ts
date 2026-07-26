@@ -82,13 +82,16 @@ test("leaving an answer review removes MKit and restores the dashboard exactly",
   expect(await snapshotDashboard(page)).toEqual(authoredDashboard);
 });
 
-test("exact answer route stays covered as completed-review anchors first appear", async ({
+test("valid wrapperless answer review mounts protection once the host is ready", async ({
   page,
 }) => {
   await page.goto("http://127.0.0.1:4173/route-guard?answer");
 
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncQuestionVisibility)).toBe("visible");
+  await expect(page.locator("ul.question-choices-multi.results")).toHaveCount(0);
+  await expect(page.locator(".multi-choice")).toHaveCount(4);
   await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
   await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
   await expect(page.locator("#wrapper")).toBeHidden();
@@ -139,6 +142,27 @@ test("accepted answer route fails open when a completed-review capability is abs
 
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  await expect(page.locator("#main-footer")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+  expect(await snapshotAuthoredSurface(page)).toBe(
+    await page.evaluate(() => window.__mkitRouteGuardAuthoredSurface),
+  );
+});
+
+test("wrapperless answer review with fewer than four choices remains fail-open", async ({
+  page,
+}) => {
+  await page.goto(
+    "http://127.0.0.1:4173/route-guard?answer&incomplete-choices&stale-route&stale-protection",
+  );
+  await waitForTwoFrames(page);
+
+  await expect(page.locator("ul.question-choices-multi.results")).toHaveCount(0);
+  await expect(page.locator(".multi-choice")).toHaveCount(3);
   await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
   await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
   await expect(page.locator("#wrapper")).toBeVisible();

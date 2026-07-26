@@ -21,6 +21,7 @@ declare global {
     __mkitRouteGuardHarness: RouteGuardHarness;
     __mkitRouteGuardSyncDisplay: string;
     __mkitRouteGuardSyncFooterDisplay: string;
+    __mkitRouteGuardSyncQuestionVisibility: string;
   }
 }
 

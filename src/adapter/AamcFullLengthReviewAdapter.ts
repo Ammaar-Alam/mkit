@@ -760,7 +760,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     }
     return [...questionRegion.querySelectorAll(".multi-choice")].filter(
       (choice) =>
-        this.#isAuthoredVisible(choice) &&
+        choice.closest(".reviewable") === reviewRoot &&
         !choice.closest(".sidebar-column, .result-wrapper, .expander-content"),
     );
   }

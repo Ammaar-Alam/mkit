@@ -297,13 +297,18 @@ describe("AamcFullLengthReviewAdapter score shielding", () => {
 });
 
 describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
-  it("grades one wrapperless active choice snapshot and rejects active ambiguity", () => {
+  it("grades one wrapperless active-root choice snapshot and rejects active ambiguity", () => {
     mountConfirmedProductionFixture();
     const correctChoice = requiredElement(".multi-choice.corrected");
     correctChoice.classList.replace("corrected", "correct");
     const choiceWrapper = requiredElement(".question-choices-multi.results");
     const activeChoices = [...choiceWrapper.querySelectorAll(".multi-choice")];
-    choiceWrapper.replaceWith(...activeChoices);
+    const structuralQuestion = requiredElement<HTMLElement>("#confirmed-question-container");
+    const visibleWorkspace = requiredElement<HTMLElement>("#confirmed-question-region");
+    structuralQuestion.style.visibility = "hidden";
+    visibleWorkspace.style.visibility = "visible";
+    visibleWorkspace.append(...activeChoices);
+    choiceWrapper.remove();
     document.body.insertAdjacentHTML(
       "beforeend",
       `
@@ -317,9 +322,10 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
         </article>
       `,
     );
-    const structuralQuestion = requiredElement("#confirmed-question-container");
     const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
 
+    expect(document.querySelector("ul.question-choices-multi.results")).toBeNull();
+    expect(visibleWorkspace.querySelectorAll(".multi-choice")).toHaveLength(4);
     expect(adapter.inspectCapabilities()).toMatchObject({
       answerChoiceCount: 4,
       correctAnswerParseable: true,
