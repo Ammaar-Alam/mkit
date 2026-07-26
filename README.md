@@ -8,6 +8,11 @@ MKit is a private study companion for reviewing completed MCAT practice material
 
 > MKit is an independent project. It is not affiliated with, endorsed by, or sponsored by the Association of American Medical Colleges.
 
+## Install
+
+[Install MKit from the Chrome Web Store](https://chromewebstore.google.com/detail/mkit-%E2%80%94-the-mcat-kit/lfmldlmodicabjfegocoehckdedkcnlf).
+Chrome and Arc use the same published extension.
+
 ## Privacy first
 
 MKit is local-first and has no analytics, backend, telemetry, ads, or remote runtime code. It is designed never to store or sync official question, passage, answer-choice, explanation, score, image, original-answer, or correct-answer content.
@@ -29,10 +34,13 @@ MKit fails closed. If a supported page changes and protection cannot be verified
 
 ## Status
 
-MKit 0.1.1 is the current release. Its privacy core, exact completed full-length
-and section-review route families, local-first persistence, popup, options page,
-and package audit are covered by synthetic regression tests and live
-completed-review verification.
+MKit is available from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/mkit-%E2%80%94-the-mcat-kit/lfmldlmodicabjfegocoehckdedkcnlf).
+[GitHub Releases](https://github.com/Ammaar-Alam/mkit/releases/latest) provide
+the matching manual-install archive. The privacy core, exact completed
+full-length and section-review route families, local-first persistence, popup,
+options page, and package audit are covered by synthetic regression tests and
+live completed-review verification.
 
 The current support boundary is documented in [Supported pages](docs/supported-pages.md).
 
@@ -49,8 +57,8 @@ pnpm build
 pnpm check
 ```
 
-`pnpm build` writes an unpacked extension to `dist/`. `pnpm package` creates
-`release/mkit-0.1.1.zip`. Both directories are ignored.
+`pnpm build` writes an unpacked extension to `dist/`. `pnpm package` creates a
+versioned ZIP under `release/`. Both directories are ignored.
 
 The production extension contains no network client and loads no remote fonts, scripts, styles, or images.
 
