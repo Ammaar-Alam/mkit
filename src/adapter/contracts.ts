@@ -1,6 +1,11 @@
 import type { AnswerChoice, AttemptOutcome, PassageOrDiscrete } from "../storage/schema";
 
-export type PageKind = "review" | "score-report" | "non-review" | "unknown-review";
+export type PageKind =
+  | "review"
+  | "score-report"
+  | "section-overview"
+  | "non-review"
+  | "unknown-review";
 
 export type AdapterIssueCode =
   | "QUESTION_REGION_MISSING"
@@ -55,6 +60,9 @@ export interface FullLengthReviewAdapter {
   getQuestionContext(): Promise<SanitizedQuestionContext | null>;
   applyCleanSlate(): CapabilityReport;
   applyScoreShield(): CapabilityReport;
+  /** Neutralizes row-level correctness cues on a completed section overview. */
+  applySectionOverviewCover(): boolean;
+  revealSectionOverview(): void;
   gradeFresh(selection: AnswerChoice): AttemptOutcome;
   revealScores(): void;
   revealFeedback(): void;

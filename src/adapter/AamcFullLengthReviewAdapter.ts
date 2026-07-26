@@ -15,6 +15,8 @@ const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
 const CONFIRMED_REVIEW_SWITCHES = new WeakSet<Element>();
 const CONFIRMED_REVIEW_SWITCH_MARKER = "data-mkit-review-switch";
+const SECTION_OVERVIEW_GROUP = "section-overview";
+const SECTION_OVERVIEW_MARKER = "data-mkit-outcome-hidden";
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -54,7 +56,20 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         '[data-mkit-fixture-page="score-report"]',
         '[data-page-kind="score-report"]',
       ],
+      sectionOverview: [
+        "table.answers-wrapper",
+        '[data-mkit-fixture-page="section-overview"]',
+      ],
     },
+    /**
+     * Row-level correctness on the completed section overview. The glyph is
+     * painted by a `::before` on the cell, so the cue lives in the state class
+     * rather than in any child node.
+     */
+    sectionOverviewCorrectness: [
+      "table.answers-wrapper .li-cell.correctness",
+      '[data-mkit-fixture="section-overview-correctness"]',
+    ],
     questionRegion: [
       ".reviewable > .question-content-container",
       '[data-mkit-fixture="question"]',
@@ -228,6 +243,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     }
     if (route) {
       return "unknown-review";
+    }
+    if (
+      parseSectionOverviewRoute(this.#url()) &&
+      this.#queryAny(this.#selectors.page.sectionOverview)
+    ) {
+      return "section-overview";
     }
     return "non-review";
   }
@@ -459,6 +480,42 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return report;
   }
 
+  /**
+   * Covers only the per-row correctness cue on a completed section overview. The
+   * cue is a `::before` selected by the `correct`/`incorrect` state class, so the
+   * class is removed reversibly rather than the cell hidden: the row, its
+   * preview, native filters, sorting, pagination, and Review links all stay
+   * usable. Returns whether any cue was covered.
+   */
+  applySectionOverviewCover(): boolean {
+    if (this.classifyPage() !== "section-overview") {
+      return false;
+    }
+    const cues = this.#queryAll(this.#selectors.sectionOverviewCorrectness);
+    if (cues.length === 0) {
+      return false;
+    }
+    if (this.#revealedGroups.has(SECTION_OVERVIEW_GROUP)) {
+      return true;
+    }
+    this.#mask.removeClasses(cues, ["correct", "incorrect"], SECTION_OVERVIEW_GROUP);
+    this.#mask.removeAttributes(cues, ["title", "aria-label"], SECTION_OVERVIEW_GROUP);
+    for (const cue of cues) {
+      cue.setAttribute(SECTION_OVERVIEW_MARKER, "");
+    }
+    return true;
+  }
+
+  revealSectionOverview(): void {
+    this.#revealedGroups.add(SECTION_OVERVIEW_GROUP);
+    this.#withoutObservation(() => {
+      this.#mask.restoreGroup(SECTION_OVERVIEW_GROUP);
+      for (const marked of this.#document.querySelectorAll(`[${SECTION_OVERVIEW_MARKER}]`)) {
+        marked.removeAttribute(SECTION_OVERVIEW_MARKER);
+      }
+    });
+  }
+
   gradeFresh(selection: AnswerChoice): AttemptOutcome {
     const correct = this.#readCorrectChoice();
     if (!correct) {
@@ -492,8 +549,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#withoutObservation(() => {
       this.#revealedGroups.clear();
       this.#mask.restoreAll();
-      for (const marked of this.#document.querySelectorAll(`[${CONFIRMED_REVIEW_SWITCH_MARKER}]`)) {
+      for (const marked of this.#document.querySelectorAll(
+        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}]`,
+      )) {
         marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
+        marked.removeAttribute(SECTION_OVERVIEW_MARKER);
       }
       this.#completedReviewSwitch = null;
       window.getSelection()?.removeAllRanges();
@@ -1008,6 +1068,22 @@ interface ConfirmedReviewRoute {
   kind: "full-length" | "section";
   questionIdentifier: string;
   sectionIdentifier: string | null;
+}
+
+/**
+ * The completed section overview lists every question in one section. It is not
+ * a review workspace, so it is recognized separately from the answer routes.
+ */
+function parseSectionOverviewRoute(url: URL): { sectionIdentifier: string } | null {
+  if (url.protocol !== "https:" || url.hostname !== "www.mcatofficialprep.org") {
+    return null;
+  }
+  if (!/^\/app\/aamc-mcat-practice-exam-\d{1,3}\/?$/.test(url.pathname)) {
+    return null;
+  }
+  const match = /^#exams\/details\/exam_section\/([a-zA-Z0-9_-]{1,128})$/.exec(url.hash);
+  const sectionIdentifier = match?.[1];
+  return sectionIdentifier ? { sectionIdentifier } : null;
 }
 
 function parseConfirmedReviewRoute(url: URL): ConfirmedReviewRoute | null {

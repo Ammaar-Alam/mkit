@@ -8,6 +8,15 @@ html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   user-select: none !important;
 }
 
+/* The section overview paints its correctness cue with a ::before selected by the
+   row's state class. With that class removed the cell would be blank, so a
+   neutral mark keeps the column aligned and readable. */
+[data-mkit-outcome-hidden]::before {
+  content: "\00B7" !important;
+  color: oklch(43% 0.022 65) !important;
+  font-weight: 700 !important;
+}
+
 html[data-mkit-protection="masked"]
   .reviewable
   :is(

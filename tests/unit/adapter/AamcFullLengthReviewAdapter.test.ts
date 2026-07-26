@@ -19,6 +19,10 @@ const CONFIRMED_SECTION_REVIEW_URL = () =>
   new URL(
     "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question",
   );
+const SECTION_OVERVIEW_URL = () =>
+  new URL(
+    "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/details/exam_section/synthetic-section",
+  );
 
 describe("AamcFullLengthReviewAdapter capabilities", () => {
   it("recognizes a complete synthetic review without serializing page content or answer keys", async () => {
@@ -789,6 +793,88 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
       );
       expect(unsupported.classifyPage(), unsupportedHash).toBe("non-review");
     }
+  });
+});
+
+describe("AamcFullLengthReviewAdapter completed section overview", () => {
+  function mountSectionOverviewFixture(): void {
+    document.body.innerHTML = `
+      <span class="li-cell questions-correct">synthetic tally</span>
+      <table class="answers-wrapper">
+        <tbody>
+          <tr class="content">
+            <td>1</td>
+            <td><div class="li-cell correctness correct" title="Correct"></div></td>
+            <td class="answer-preview preview content-container">Synthetic preview one</td>
+            <td><a class="review-link" href="#review-one">Review</a></td>
+          </tr>
+          <tr class="content">
+            <td>2</td>
+            <td><div class="li-cell correctness incorrect" title="Incorrect"></div></td>
+            <td class="answer-preview preview content-container">Synthetic preview two</td>
+            <td><a class="review-link" href="#review-two">Review</a></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
+
+  const cueClasses = (): (string | null)[] =>
+    [...document.querySelectorAll(".li-cell.correctness")].map((cue) => cue.getAttribute("class"));
+
+  it("covers row correctness without taking over the page", () => {
+    mountSectionOverviewFixture();
+    const adapter = new AamcFullLengthReviewAdapter(document, SECTION_OVERVIEW_URL);
+
+    expect(adapter.classifyPage()).toBe("section-overview");
+    expect(adapter.applySectionOverviewCover()).toBe(true);
+
+    // The cue is a `::before` selected by the state class, so removing the class
+    // neutralizes it and leaves both rows indistinguishable.
+    expect(cueClasses()).toEqual(["li-cell correctness", "li-cell correctness"]);
+    for (const cue of document.querySelectorAll(".li-cell.correctness")) {
+      expect(cue.hasAttribute("title")).toBe(false);
+      expect(cue.hasAttribute("data-mkit-outcome-hidden")).toBe(true);
+    }
+
+    // Everything the reader navigates with stays untouched, and no host, marker,
+    // or hidden node is introduced.
+    expect(document.querySelectorAll(".answer-preview")).toHaveLength(2);
+    expect(requiredElement(".answer-preview").textContent).toContain("Synthetic preview one");
+    expect(document.querySelectorAll("a.review-link")).toHaveLength(2);
+    expect(requiredElement<HTMLElement>(".questions-correct").hidden).toBe(false);
+    expect(document.querySelectorAll("[data-mkit-host]")).toHaveLength(0);
+    expect(document.querySelectorAll("[data-mkit-hidden]")).toHaveLength(0);
+    expect(document.documentElement.dataset.mkitProtection).toBeUndefined();
+  });
+
+  it("restores the authored cues on reveal and keeps other routes untouched", () => {
+    mountSectionOverviewFixture();
+    const adapter = new AamcFullLengthReviewAdapter(document, SECTION_OVERVIEW_URL);
+    adapter.applySectionOverviewCover();
+
+    adapter.revealSectionOverview();
+    expect(cueClasses()).toEqual([
+      "li-cell correctness correct",
+      "li-cell correctness incorrect",
+    ]);
+    expect(document.querySelectorAll("[data-mkit-outcome-hidden]")).toHaveLength(0);
+
+    // A near-miss hash on the same page is not an overview route.
+    mountSectionOverviewFixture();
+    const otherRoute = new AamcFullLengthReviewAdapter(
+      document,
+      () =>
+        new URL(
+          "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/details/exam_section",
+        ),
+    );
+    expect(otherRoute.classifyPage()).not.toBe("section-overview");
+    expect(otherRoute.applySectionOverviewCover()).toBe(false);
+    expect(cueClasses()).toEqual([
+      "li-cell correctness correct",
+      "li-cell correctness incorrect",
+    ]);
   });
 });
 

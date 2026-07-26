@@ -34,6 +34,11 @@ export function startContentLifecycle(
   let disposed = false;
   let routeKind: ContentRouteKind = "non-review";
   let routeIssues: string[] = [];
+  /**
+   * The adapter that covered a section overview. Its class mask is reversible, so
+   * leaving that page has to restore it even though no host was ever mounted.
+   */
+  let sectionOverviewAdapter: FullLengthReviewAdapter | null = null;
 
   const stopProbe = (): void => {
     if (probeFrame === null) return;
@@ -93,6 +98,17 @@ export function startContentLifecycle(
     clearPageMarkers();
   };
 
+  const releaseSectionOverview = (): void => {
+    const owner = sectionOverviewAdapter;
+    sectionOverviewAdapter = null;
+    if (!owner) return;
+    try {
+      owner.restoreNormalReview();
+    } catch {
+      // Leaving the overview must not depend on the cover restoring cleanly.
+    }
+  };
+
   const deactivate = (): void => {
     stopProbe();
     const currentAdapter = adapter;
@@ -130,6 +146,23 @@ export function startContentLifecycle(
       answerRoute = pageKind === "review" || pageKind === "unknown-review";
       routeKind =
         pageKind === "review" ? "review" : answerRoute ? "incomplete-review" : "non-review";
+      // The completed section overview is covered in place: it needs no host,
+      // controller, or protection marker, so the native page stays intact and
+      // only its row-level correctness cues are neutralized.
+      if (pageKind === "section-overview") {
+        if (controller || adapter || preflight) {
+          deactivate();
+        }
+        sectionOverviewAdapter = candidate;
+        if (candidate.applySectionOverviewCover()) {
+          stopProbe();
+        } else {
+          scheduleProbe();
+        }
+        return;
+      }
+      releaseSectionOverview();
+
       const report = candidate.inspectCapabilities();
       const ready = pageKind === "review" && report.safeToReveal;
       if (answerRoute && !ready) {
@@ -151,6 +184,7 @@ export function startContentLifecycle(
       }
     } catch {
       routeIssues = [CONTENT_DETECTION_FAILED_ISSUE];
+      releaseSectionOverview();
       if (controller || adapter || preflight) {
         deactivate();
       } else {
@@ -219,6 +253,7 @@ export function startContentLifecycle(
       removeEventListener("popstate", routeListener);
       removeEventListener("pageshow", routeListener);
       document.removeEventListener("DOMContentLoaded", routeListener);
+      releaseSectionOverview();
       deactivate();
     },
   };

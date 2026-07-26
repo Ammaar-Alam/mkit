@@ -91,6 +91,8 @@ class ControlledAdapter implements FullLengthReviewAdapter {
   };
   applyCleanSlate = () => SAFE_REVIEW_REPORT;
   applyScoreShield = () => SAFE_REVIEW_REPORT;
+  applySectionOverviewCover = () => false;
+  revealSectionOverview = () => undefined;
   gradeFresh = () => "unknown" as const;
   revealScores = () => undefined;
   revealFeedback = () => undefined;
