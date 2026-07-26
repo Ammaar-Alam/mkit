@@ -32,8 +32,8 @@ import {
 } from "../ui";
 import { FreshAttemptKeyboardController } from "./keyboard";
 import { SessionService } from "./session-service";
-import { summarizeSession } from "./summary";
 import { INITIAL_REVIEW_STATE, type ReviewState, reduceReviewState } from "./state";
+import { summarizeSession } from "./summary";
 import { ActiveQuestionTimer, type TimingSample } from "./timing";
 
 type ViewHandle = Pick<MKitViewHandle<unknown>, "destroy">;
@@ -411,6 +411,11 @@ export class ReviewController {
     if (!this.#context || session.examKey !== this.#context.examKey) return;
     const attempt = await this.#sessions.getOrCreateAttempt(session.id, this.#context);
     if (generation !== this.#generation || this.#normalReview) return;
+    // Any page mutation reconciles, including a scroll, so a reveal the reader
+    // has already made on this question is carried over instead of reset. A
+    // different question always starts concealed.
+    const sameQuestion = this.#attempt?.questionKey === attempt.questionKey;
+    const revealed = sameQuestion ? this.#state.reveal : "CONCEALED";
     this.#session = session;
     this.#attempt = attempt;
     this.#state = {
@@ -421,7 +426,7 @@ export class ReviewController {
           : session.status === "finished"
             ? "TEST_FINISHED"
             : "TEST_ACTIVE",
-      reveal: "CONCEALED",
+      reveal: revealed,
       selection: attempt.selection,
     };
     if (session.currentQuestionKey !== this.#context.questionKey) {
@@ -430,7 +435,7 @@ export class ReviewController {
         this.#context.questionKey,
       );
     }
-    this.#answersRevealed = false;
+    this.#answersRevealed = sameQuestion && this.#answersRevealed;
     this.#showRail();
   }
 

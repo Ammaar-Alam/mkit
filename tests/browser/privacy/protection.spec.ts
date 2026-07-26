@@ -170,6 +170,47 @@ test("Practice keeps scroll stable while masking same-question mutations", async
   await expect(host.locator(".mkit-study-rail")).toBeVisible();
 });
 
+test("Practice keeps the checked outcome and an intentional reveal across mutations", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  await rail.locator("[data-focus-key='answer-A']").click();
+  await rail.locator("[data-focus-key='check']").click();
+  await expect(rail.locator(".mkit-outcome--needs-review")).toHaveText("Incorrect");
+
+  // Every page mutation reconciles, so a scroll must not take back the outcome.
+  const mutate = (id: string) =>
+    page.evaluate((marker) => {
+      scrollTo(0, 600);
+      const noise = document.createElement("div");
+      noise.id = marker;
+      noise.textContent = "Synthetic delayed content.";
+      document.querySelector(".content-container")?.append(noise);
+    }, id);
+
+  await mutate("scroll-noise-one");
+  await expect(page.locator("#scroll-noise-one")).toBeAttached();
+  await expect(rail.locator(".mkit-outcome--needs-review")).toHaveText("Incorrect");
+  await expect(page.locator("#known-feedback")).toBeHidden();
+
+  await rail.locator("[data-focus-key='reveal-answers']").click();
+  await expect(page.locator("#known-feedback")).toBeVisible();
+
+  // The revealed solution has to stay revealed through the next reconciliation.
+  await mutate("scroll-noise-two");
+  await expect(page.locator("#scroll-noise-two")).toBeAttached();
+  await expect(page.locator("#known-feedback")).toBeVisible();
+  await expect(rail.locator(".mkit-outcome--needs-review")).toHaveText("Incorrect");
+
+  // Retry deliberately takes the reveal back.
+  await rail.locator("[data-focus-key='retry']").click();
+  await expect(page.locator("#known-feedback")).toBeHidden();
+});
+
 test("Practice neutralizes source correctness visuals without removing layout styles", async ({
   page,
 }) => {
@@ -341,11 +382,11 @@ test("Practice conceals the complete live-style feedback boundary until intentio
 
   await rail.locator("[data-focus-key='reveal-original']").click();
   await expect(page.locator(".sidebar-container")).toBeVisible();
-  await expect(page.locator("#fallback-solution")).toBeVisible();
+  await expect(page.locator("#known-feedback")).toBeVisible();
 
   await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
   await expect(page.locator(".sidebar-container")).toBeVisible();
-  await expect(page.locator("#fallback-solution")).toBeVisible();
+  await expect(page.locator("#known-feedback")).toBeVisible();
   await expect(page.locator("#delayed-live-result")).toBeVisible();
   await expect(page.locator("#delayed-live-explanation")).toBeVisible();
   await expect(page.locator("#delayed-inline-feedback")).toBeVisible();
