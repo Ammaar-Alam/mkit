@@ -29,6 +29,7 @@ const REVIEW_SPOILERS = [
 ] as const;
 
 const LIVE_FEEDBACK_SPOILERS = [
+  "MKIT_LIVE_INLINE_SOLUTION_4B76",
   "MKIT_LIVE_KNOWN_EXPLANATION_2A31",
   "MKIT_LIVE_TOPBAR_RESULT_91B2",
   "MKIT_LIVE_NATIVE_RESULT_3F42",
@@ -37,6 +38,7 @@ const LIVE_FEEDBACK_SPOILERS = [
   "MKIT_LIVE_REMOVED_CHOICE_620D",
   "MKIT_LIVE_FALLBACK_SOLUTION_88D0",
   "MKIT_LIVE_DELAYED_RESULT_1C50",
+  "MKIT_LIVE_DELAYED_INLINE_SOLUTION_6E83",
   "MKIT_LIVE_DELAYED_EXPLANATION_5D29",
 ] as const;
 
@@ -206,7 +208,17 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     delayedExplanation.id = "delayed-live-explanation";
     delayedExplanation.className = "expander-content";
     delayedExplanation.textContent = "MKIT_LIVE_DELAYED_EXPLANATION_5D29";
-    document.querySelector(".main-column")?.append(delayedExplanation);
+    document.querySelector(".content-container")?.append(delayedExplanation);
+
+    const delayedInlineContainer = document.createElement("div");
+    delayedInlineContainer.id = "delayed-inline-feedback-container";
+    delayedInlineContainer.className = "answer-container incorrect is-hidden question-container";
+    const delayedInlineRegion = document.createElement("div");
+    delayedInlineRegion.id = "delayed-inline-feedback";
+    delayedInlineRegion.setAttribute("role", "region");
+    delayedInlineRegion.textContent = "MKIT_LIVE_DELAYED_INLINE_SOLUTION_6E83";
+    delayedInlineContainer.append(delayedInlineRegion);
+    document.querySelector(".content-container")?.append(delayedInlineContainer);
 
     dispatchEvent(new PopStateEvent("popstate", { state: { synthetic: true } }));
   });
@@ -217,9 +229,11 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     ".choices-container",
     ".result-wrapper",
     ".topbar-result-wrapper",
+    "#inline-feedback",
     "#fallback-solution",
     "#known-feedback",
     "#delayed-live-result",
+    "#delayed-inline-feedback",
     "#delayed-live-explanation",
   ]) {
     await expect(page.locator(selector).first(), selector).toBeHidden();
@@ -227,6 +241,7 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   await expect(page.locator("#live-style-question")).toBeVisible();
   await expect(rail).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
+  await expect(page.locator("#inline-feedback-container")).not.toHaveClass(/\bcorrect\b/);
 
   const cdp = await page.context().newCDPSession(page);
   const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
@@ -261,6 +276,9 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   await page.emulateMedia({ media: "screen" });
 
   await rail.locator("[data-focus-key='check']").click();
+  await expect(page.locator("#inline-feedback")).toBeVisible();
+  await expect(page.locator("#inline-feedback-container")).toHaveClass(/\bcorrect\b/);
+  await expect(page.locator("#delayed-inline-feedback")).toBeVisible();
   await expect(page.locator("#known-feedback")).toBeVisible();
   await expect(page.locator(".sidebar-container")).toBeHidden();
   await expect(page.locator("#fallback-solution")).toBeHidden();
@@ -268,6 +286,25 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
   await expect(page.locator(".sidebar-container")).toBeVisible();
   await expect(page.locator("#fallback-solution")).toBeVisible();
+  await expect(page.locator("#delayed-live-result")).toBeVisible();
+  await expect(page.locator("#delayed-live-explanation")).toBeVisible();
+  await expect(page.locator("#delayed-inline-feedback")).toBeVisible();
+  expect(
+    await page.locator("#delayed-inline-feedback-container").evaluate((element) => ({
+      attributes: [...element.attributes]
+        .map(({ name, value }) => [name, value] as [string, string])
+        .sort(([left], [right]) => left.localeCompare(right)),
+      hidden: element instanceof HTMLElement ? element.hidden : null,
+      inert: element instanceof HTMLElement ? element.inert : null,
+    })),
+  ).toEqual({
+    attributes: [
+      ["class", "answer-container incorrect is-hidden question-container"],
+      ["id", "delayed-inline-feedback-container"],
+    ],
+    hidden: false,
+    inert: false,
+  });
   expect(await snapshotLiveFeedbackState(page)).toEqual(initialFeedbackState);
 });
 
@@ -703,6 +740,8 @@ async function snapshotLiveFeedbackState(
       ".choices-container",
       ".result-wrapper",
       ".topbar-result-wrapper",
+      "#inline-feedback-container",
+      "#inline-feedback",
       "#fallback-solution",
       "#known-feedback",
     ];

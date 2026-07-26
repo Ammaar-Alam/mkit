@@ -333,9 +333,14 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(requiredElement(".view-answers.switchable").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".result-wrapper").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".sidebar-container").hasAttribute("data-mkit-hidden")).toBe(true);
+    expect(requiredElement("#confirmed-inline-feedback").hasAttribute("data-mkit-hidden")).toBe(
+      true,
+    );
     expect(requiredElement(".expander-content").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
     expect(document.querySelector(".multi-choice.incorrect")).toBeNull();
+    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).toBeNull();
+    expect(requiredElement<HTMLElement>("#confirmed-question-copy").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".answer-container").style.outline).toBe("");
     expect(requiredElement<HTMLElement>(".answer-container").style.boxShadow).toBe("");
     expect(requiredElement<HTMLElement>(".answer-container").style.padding).toBe("12px");
@@ -360,6 +365,8 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
 
     adapter.revealFeedback();
     expect(document.querySelector(".multi-choice.corrected")).not.toBeNull();
+    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).not.toBeNull();
+    expect(requiredElement<HTMLElement>("#confirmed-inline-feedback").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".expander-content").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".result-wrapper").hidden).toBe(true);
 
@@ -483,7 +490,23 @@ function mountConfirmedProductionFixture(): void {
               </label>
             </div>
             <div class="fixed-width-sidebar-columns">
-              <div class="main-column"></div>
+              <div class="content-column">
+                <div class="questions-container">
+                  <div class="content-container">
+                    <div class="answer-container question-container">
+                      <p id="confirmed-question-copy">Synthetic question workspace.</p>
+                    </div>
+                    <div
+                      class="answer-container correct is-hidden question-container"
+                      id="confirmed-inline-feedback-container"
+                    >
+                      <div id="confirmed-inline-feedback" role="region">
+                        Synthetic inline solution.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <aside class="sidebar-column">
                 <div class="sidebar-container">
                   <div class="topbar-result-wrapper">Synthetic topbar result.</div>

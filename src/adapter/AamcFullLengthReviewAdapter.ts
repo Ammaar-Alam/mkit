@@ -90,6 +90,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       '[data-mkit-fixture="explanation"]',
       "#official-solution",
     ],
+    inlineFeedback: [
+      ".reviewable > .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
+      ".reviewable .fixed-width-sidebar-columns > .content-column .questions-container > .content-container > .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
+      ".reviewable .content-column .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
+    ],
     correctMarker: ['[data-mkit-fixture="correct-marker"]', ".correct-marker"],
     originalMarker: [
       ".reviewable .result-wrapper .result-group:has(.result-label.user-label)",
@@ -124,6 +129,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".multi-choice.corrected",
       ".question-content-container.corrected",
       ".answer-container.question-container.corrected",
+      ".answer-container.question-container.correct",
       "ul.question-choices-multi.results.corrected",
       ".is-correct",
       ".is-correct-answer",
@@ -231,6 +237,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         ...this.#selectors.status,
         ...this.#selectors.correctMarker,
         ...this.#selectors.explanation,
+        ...this.#selectors.inlineFeedback,
       ]).length > 0;
     const explanationFound = Boolean(this.#queryAny(this.#selectors.explanation));
     const correctAnswerParseable = this.#readCorrectChoice() !== null;
@@ -314,6 +321,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#mask.hide(this.#queryAll(this.#selectors.officialInputs), CLEAN_SLATE_GROUP);
 
     this.#mask.hide(this.#queryAll(this.#selectors.explanation), FEEDBACK_GROUP);
+    this.#mask.hide(this.#queryAll(this.#selectors.inlineFeedback), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.correctMarker), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.originalMarker), ORIGINAL_GROUP);
 
@@ -346,7 +354,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     );
     this.#mask.removeClasses(
       feedbackClassCarriers,
-      ["corrected", "is-correct", "is-correct-answer", "correct-answer", "answer-correct"],
+      [
+        "corrected",
+        "correct",
+        "is-correct",
+        "is-correct-answer",
+        "correct-answer",
+        "answer-correct",
+      ],
       FEEDBACK_GROUP,
     );
     this.#mask.removeClasses(

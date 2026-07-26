@@ -45,35 +45,48 @@
               </div>
 
               <div class="fixed-width-sidebar-columns">
-                <div class="main-column">
-                  <div
-                    class="answer-container question-container reading-passage"
-                    style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
-                  >
-                    <p id="live-style-question">Synthetic question workspace.</p>
-                    <ul
-                      class="question-choices-multi results"
-                      style="padding-left: 32px; border: 5px solid red; background-color: pink"
-                    >
-                      <li class="multi-choice incorrect">
-                        <span class="choice-content">Synthetic choice A.</span>
-                      </li>
-                      <li class="multi-choice corrected">
-                        <span class="choice-content">Synthetic choice B.</span>
-                      </li>
-                      <li class="multi-choice">
-                        <span class="choice-content">Synthetic choice C.</span>
-                      </li>
-                      <li class="multi-choice">
-                        <span class="choice-content">Synthetic choice D.</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <section class="expander-content" id="known-feedback">
-                    <div class="benchprep-content-editor expanded">
-                      MKIT_LIVE_KNOWN_EXPLANATION_2A31
+                <div class="content-column">
+                  <div class="questions-container">
+                    <div class="content-container">
+                      <div
+                        class="answer-container question-container reading-passage"
+                        style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
+                      >
+                        <p id="live-style-question">Synthetic question workspace.</p>
+                        <ul
+                          class="question-choices-multi results"
+                          style="padding-left: 32px; border: 5px solid red; background-color: pink"
+                        >
+                          <li class="multi-choice incorrect">
+                            <span class="choice-content">Synthetic choice A.</span>
+                          </li>
+                          <li class="multi-choice corrected">
+                            <span class="choice-content">Synthetic choice B.</span>
+                          </li>
+                          <li class="multi-choice">
+                            <span class="choice-content">Synthetic choice C.</span>
+                          </li>
+                          <li class="multi-choice">
+                            <span class="choice-content">Synthetic choice D.</span>
+                          </li>
+                        </ul>
+                      </div>
+                      <div
+                        class="answer-container correct is-hidden question-container"
+                        id="inline-feedback-container"
+                      >
+                        <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
+                        <div id="inline-feedback" role="region">
+                          MKIT_LIVE_INLINE_SOLUTION_4B76
+                        </div>
+                      </div>
+                      <section class="expander-content" id="known-feedback">
+                        <div class="benchprep-content-editor expanded">
+                          MKIT_LIVE_KNOWN_EXPLANATION_2A31
+                        </div>
+                      </section>
                     </div>
-                  </section>
+                  </div>
                 </div>
                 <aside class="sidebar-column">
                   <div class="sidebar-container">
