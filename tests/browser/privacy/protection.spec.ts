@@ -149,24 +149,24 @@ test("Practice neutralizes source correctness visuals without removing layout st
 
   const maskedStyles = await page.evaluate(() => {
     const question = document.querySelector<HTMLElement>(".answer-container.question-container");
-    const choices = document.querySelector<HTMLElement>("ul.question-choices-multi.results");
-    if (!question || !choices) throw new Error("Synthetic workspace is missing.");
+    const correctChoice = document.querySelector<HTMLElement>("#live-choice-b");
+    if (!question || !correctChoice) throw new Error("Synthetic workspace is missing.");
     return {
       question: {
         boxShadow: question.style.boxShadow,
         outline: question.style.outline,
         padding: question.style.padding,
       },
-      choices: {
-        backgroundColor: choices.style.backgroundColor,
-        border: choices.style.border,
-        paddingLeft: choices.style.paddingLeft,
+      correctChoice: {
+        backgroundColor: correctChoice.style.backgroundColor,
+        border: correctChoice.style.border,
+        paddingLeft: correctChoice.style.paddingLeft,
       },
     };
   });
   expect(maskedStyles).toEqual({
     question: { boxShadow: "", outline: "", padding: "16px" },
-    choices: { backgroundColor: "", border: "", paddingLeft: "32px" },
+    correctChoice: { backgroundColor: "", border: "", paddingLeft: "32px" },
   });
 
   await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
@@ -174,14 +174,30 @@ test("Practice neutralizes source correctness visuals without removing layout st
     question: document
       .querySelector<HTMLElement>(".answer-container.question-container")
       ?.getAttribute("style"),
-    choices: document
-      .querySelector<HTMLElement>("ul.question-choices-multi.results")
-      ?.getAttribute("style"),
+    correctChoice: document.querySelector<HTMLElement>("#live-choice-b")?.getAttribute("style"),
   }));
   expect(restoredStyles).toEqual({
     question: "padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red",
-    choices: "padding-left: 32px; border: 5px solid red; background-color: pink",
+    correctChoice: "padding-left: 32px; border: 5px solid green; background-color: palegreen",
   });
+});
+
+test("wrapperless active choices grade from the reversible class snapshot", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const rail = page.locator("[data-mkit-host] .mkit-study-rail");
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  await host.locator("[data-focus-key='answer-B']").click();
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(0);
+  await expect(page.locator("#live-style-question")).toBeVisible();
+  await expect(page.locator("#live-question-image")).toBeVisible();
+  await rail.locator("[data-focus-key='check']").click();
+  await expect(rail.locator(".mkit-outcome--correct")).toHaveText("Correct");
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(0);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
+  await expect(page.locator("#live-choice-b")).toHaveClass(/correct/);
 });
 
 test("Practice conceals the complete live-style feedback boundary until intentional reveal", async ({

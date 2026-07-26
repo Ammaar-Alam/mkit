@@ -153,7 +153,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".reviewable > .question-content-container",
       ".reviewable .answer-container.question-container",
       ".reviewable ul.question-choices-multi.results",
-      ".reviewable ul.question-choices-multi.results > .multi-choice",
+      ".reviewable .multi-choice",
       ".reviewable .choice-content",
     ],
     scoreRegion: [
@@ -225,7 +225,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   inspectCapabilities(): CapabilityReport {
     const pageKind = this.classifyPage();
     const questionRegionFound = Boolean(this.#queryAny(this.#selectors.questionRegion));
-    const answerChoiceCount = this.#queryAll(this.#selectors.answerChoices).length;
+    const answerChoiceCount = parseConfirmedReviewRoute(this.#url())
+      ? this.#confirmedAnswerChoices().length
+      : this.#queryAll(this.#selectors.answerChoices).length;
     const navigatorFound = Boolean(this.#queryAny(this.#selectors.navigator));
     const feedbackRegionFound =
       this.#queryAll([
@@ -243,7 +245,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
     if (pageKind === "review") {
       if (!questionRegionFound) issues.push("QUESTION_REGION_MISSING");
-      if (answerChoiceCount < 4) issues.push("ANSWER_CHOICES_INCOMPLETE");
+      if (answerChoiceCount !== 4) issues.push("ANSWER_CHOICES_INCOMPLETE");
       if (!navigatorFound) issues.push("NAVIGATOR_MISSING");
       if (!feedbackRegionFound) issues.push("FEEDBACK_REGION_MISSING");
       if (!this.#readExamIdentifier()) issues.push("STABLE_EXAM_ID_MISSING");
@@ -344,7 +346,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       CLEAN_SLATE_GROUP,
     );
     this.#mask.clearInlineStyles(
-      [...feedbackClassCarriers, ...originalClassCarriers, ...staleClassCarriers],
+      [...feedbackClassCarriers, ...originalClassCarriers, ...staleClassCarriers].filter(
+        (element) => !element.matches(".multi-choice"),
+      ),
       CLEAN_SLATE_GROUP,
     );
     this.#mask.removeClasses(
@@ -653,7 +657,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #readCorrectChoice(): AnswerChoice | null {
     const route = parseConfirmedReviewRoute(this.#url());
     if (route) {
-      const choices = this.#queryAll(["ul.question-choices-multi.results > .multi-choice"]);
+      const choices = this.#confirmedAnswerChoices();
+      if (choices.length !== 4) {
+        return null;
+      }
       const correctChoices = choices.filter(
         (choice) =>
           this.#mask.hasClass(choice, "corrected", FEEDBACK_GROUP) ||
@@ -676,6 +683,75 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return normalized === "A" || normalized === "B" || normalized === "C" || normalized === "D"
       ? normalized
       : null;
+  }
+
+  #confirmedAnswerChoices(): Element[] {
+    const reviewRoot = this.#activeReviewRoot();
+    const questionRegion = reviewRoot?.querySelector(":scope > .question-content-container");
+    if (!reviewRoot || !questionRegion || !this.#isAuthoredVisible(questionRegion)) {
+      return [];
+    }
+    return [...questionRegion.querySelectorAll(".multi-choice")].filter(
+      (choice) =>
+        this.#isAuthoredVisible(choice) &&
+        !choice.closest(".sidebar-column, .result-wrapper, .expander-content"),
+    );
+  }
+
+  #activeReviewRoot(): Element | null {
+    const visibleRoots = [...this.#document.querySelectorAll(".reviewable")].filter((root) =>
+      this.#isAuthoredVisible(root),
+    );
+    return visibleRoots.length === 1 ? (visibleRoots[0] ?? null) : null;
+  }
+
+  #isAuthoredVisible(element: Element): boolean {
+    const view = this.#document.defaultView;
+    const pageCoverActive = this.#isMKitPageCoverActive();
+    let current: Element | null = element;
+    while (current) {
+      if (
+        current.hasAttribute("hidden") ||
+        current.hasAttribute("data-mkit-hidden") ||
+        current.getAttribute("aria-hidden") === "true" ||
+        (current instanceof HTMLElement && current.inert)
+      ) {
+        return false;
+      }
+      if (current instanceof HTMLElement) {
+        if (
+          current.style.display === "none" ||
+          current.style.visibility === "hidden" ||
+          current.style.visibility === "collapse" ||
+          Number.parseFloat(current.style.opacity || "1") === 0
+        ) {
+          return false;
+        }
+      }
+      if (view && !pageCoverActive) {
+        const style = view.getComputedStyle(current);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse" ||
+          Number.parseFloat(style.opacity || "1") === 0
+        ) {
+          return false;
+        }
+      }
+      current = current.parentElement;
+    }
+    return true;
+  }
+
+  #isMKitPageCoverActive(): boolean {
+    const root = this.#document.documentElement;
+    const protection = root.dataset.mkitProtection;
+    return (
+      (root.dataset.mkitRoute === "answer-review" && protection === undefined) ||
+      protection === "boot" ||
+      protection === "unsupported"
+    );
   }
 }
 

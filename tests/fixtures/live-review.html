@@ -73,23 +73,23 @@
                           >
                             <rect fill="#d8d2c2" height="48" width="64"></rect>
                           </svg>
-                          <ul
-                            class="question-choices-multi results"
-                            style="padding-left: 32px; border: 5px solid red; background-color: pink"
+                          <div class="multi-choice incorrect" data-choice="D">
+                            <span class="choice-content">Synthetic choice A.</span>
+                          </div>
+                          <div
+                            class="multi-choice correct"
+                            data-choice="A"
+                            id="live-choice-b"
+                            style="padding-left: 32px; border: 5px solid green; background-color: palegreen"
                           >
-                            <li class="multi-choice incorrect">
-                              <span class="choice-content">Synthetic choice A.</span>
-                            </li>
-                            <li class="multi-choice correct">
-                              <span class="choice-content">Synthetic choice B.</span>
-                            </li>
-                            <li class="multi-choice">
-                              <span class="choice-content">Synthetic choice C.</span>
-                            </li>
-                            <li class="multi-choice">
-                              <span class="choice-content">Synthetic choice D.</span>
-                            </li>
-                          </ul>
+                            <span class="choice-content">Synthetic choice B.</span>
+                          </div>
+                          <div class="multi-choice" data-choice="B">
+                            <span class="choice-content">Synthetic choice C.</span>
+                          </div>
+                          <div class="multi-choice" data-choice="C">
+                            <span class="choice-content">Synthetic choice D.</span>
+                          </div>
                         </div>
                         <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
                         <div id="inline-feedback" role="region">
