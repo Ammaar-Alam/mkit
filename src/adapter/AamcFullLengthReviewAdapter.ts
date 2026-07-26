@@ -540,8 +540,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#observer = new MutationObserver(process);
     this.#observeDocument();
 
+    // A route signal alone does not mean the question changed: the page fires
+    // popstate for in-place updates too. Re-veiling unconditionally would
+    // collapse the masked page to zero height and lose the reader's scroll
+    // position, so `process()` arms the cover only when the route or question
+    // actually moved.
     const routeListener = (): void => {
-      document.documentElement.dataset.mkitProtection = "boot";
       process();
     };
     window.addEventListener("popstate", routeListener);
