@@ -56,10 +56,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         '[data-mkit-fixture-page="score-report"]',
         '[data-page-kind="score-report"]',
       ],
-      sectionOverview: [
-        "table.answers-wrapper",
-        '[data-mkit-fixture-page="section-overview"]',
-      ],
+      sectionOverview: ["table.answers-wrapper", '[data-mkit-fixture-page="section-overview"]'],
     },
     /**
      * Row-level correctness on the completed section overview. The glyph is
@@ -117,6 +114,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     inlineFeedback: [
       ".reviewable .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.correct.is-hidden.question-container > div[role='region']",
+      ".reviewable .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.incorrect.is-hidden.question-container > div[role='region']",
     ],
     correctMarker: ['[data-mkit-fixture="correct-marker"]', ".correct-marker"],
     originalMarker: [

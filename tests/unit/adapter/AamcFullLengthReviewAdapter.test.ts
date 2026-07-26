@@ -301,6 +301,26 @@ describe("AamcFullLengthReviewAdapter score shielding", () => {
 });
 
 describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
+  it("masks the inline solution when the original attempt was incorrect", () => {
+    mountConfirmedProductionFixture();
+    const container = requiredElement("#confirmed-question-container");
+    container.classList.replace("correct", "incorrect");
+    const solution = requiredElement<HTMLElement>("#confirmed-inline-feedback");
+    solution.setAttribute("aria-label", "Solution");
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    adapter.applyCleanSlate();
+
+    expectHiddenFromInteraction(solution);
+    expect(container.classList.contains("incorrect")).toBe(true);
+
+    adapter.revealFeedback();
+
+    expect(solution.hidden).toBe(false);
+    expect(solution.inert).toBe(false);
+    expect(solution.getAttribute("aria-hidden")).toBeNull();
+  });
+
   it("grades one wrapperless active-root choice snapshot and rejects active ambiguity", () => {
     mountConfirmedProductionFixture();
     const correctChoice = requiredElement(".multi-choice.corrected");
@@ -854,10 +874,7 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     adapter.applySectionOverviewCover();
 
     adapter.revealSectionOverview();
-    expect(cueClasses()).toEqual([
-      "li-cell correctness correct",
-      "li-cell correctness incorrect",
-    ]);
+    expect(cueClasses()).toEqual(["li-cell correctness correct", "li-cell correctness incorrect"]);
     expect(document.querySelectorAll("[data-mkit-outcome-hidden]")).toHaveLength(0);
 
     // A near-miss hash on the same page is not an overview route.
@@ -871,10 +888,7 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     );
     expect(otherRoute.classifyPage()).not.toBe("section-overview");
     expect(otherRoute.applySectionOverviewCover()).toBe(false);
-    expect(cueClasses()).toEqual([
-      "li-cell correctness correct",
-      "li-cell correctness incorrect",
-    ]);
+    expect(cueClasses()).toEqual(["li-cell correctness correct", "li-cell correctness incorrect"]);
   });
 });
 

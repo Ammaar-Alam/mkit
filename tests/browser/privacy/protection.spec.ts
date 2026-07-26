@@ -307,7 +307,7 @@ test("Practice conceals the complete live-style feedback boundary until intentio
 
     const delayedInlineContainer = document.createElement("div");
     delayedInlineContainer.id = "delayed-inline-feedback-container";
-    delayedInlineContainer.className = "answer-container correct is-hidden question-container";
+    delayedInlineContainer.className = "answer-container incorrect is-hidden question-container";
     const delayedInlineRegion = document.createElement("div");
     delayedInlineRegion.id = "delayed-inline-feedback";
     delayedInlineRegion.setAttribute("role", "region");
@@ -400,7 +400,7 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     })),
   ).toEqual({
     attributes: [
-      ["class", "answer-container correct is-hidden question-container"],
+      ["class", "answer-container incorrect is-hidden question-container"],
       ["id", "delayed-inline-feedback-container"],
     ],
     hidden: false,
