@@ -13,6 +13,13 @@ const FEEDBACK_GROUP = "feedback";
 const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
+const INLINE_FEEDBACK_STATE_CLASSES = [
+  "correct",
+  "incorrect",
+  "corrected",
+  "is-correct",
+  "is-incorrect",
+] as const;
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -90,10 +97,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       '[data-mkit-fixture="explanation"]',
       "#official-solution",
     ],
-    inlineFeedback: [
-      ".reviewable > .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
-      ".reviewable .fixed-width-sidebar-columns > .content-column .questions-container > .content-container > .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
-      ".reviewable .content-column .answer-container.question-container:is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect, .is-hidden) > [role='region']",
+    inlineFeedbackCandidate: [
+      ".reviewable > .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.question-container > [role='region']",
+      ".reviewable .fixed-width-sidebar-columns > .content-column .questions-container > .content-container > .answer-container.question-container > [role='region']",
+      ".reviewable .content-column .answer-container.question-container > [role='region']",
     ],
     correctMarker: ['[data-mkit-fixture="correct-marker"]', ".correct-marker"],
     originalMarker: [
@@ -127,22 +134,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     feedbackClassCarrier: [
       ".multi-choice.corrected",
-      ".question-content-container.corrected",
-      ".answer-container.question-container.corrected",
-      ".answer-container.question-container.correct",
       "ul.question-choices-multi.results.corrected",
-      ".is-correct",
-      ".is-correct-answer",
-      ".correct-answer",
-      ".answer-correct",
+      ".is-correct:not(.answer-container):not(.question-container):not(.question-content-container)",
+      ".is-correct-answer:not(.answer-container):not(.question-container):not(.question-content-container)",
+      ".correct-answer:not(.answer-container):not(.question-container):not(.question-content-container)",
+      ".answer-correct:not(.answer-container):not(.question-container):not(.question-content-container)",
     ],
     originalClassCarrier: [
       ".multi-choice.incorrect",
-      ".question-content-container.incorrect",
-      ".answer-container.question-container.incorrect",
       "ul.question-choices-multi.results.incorrect",
       ".result-wrapper .is-incorrect",
-      ".is-incorrect",
+      ".is-incorrect:not(.answer-container):not(.question-container):not(.question-content-container)",
       ".was-selected",
       ".answer-incorrect",
       ".selected-answer",
@@ -156,10 +158,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".highlighted",
     ],
     correctnessVisualCarrier: [
-      ".reviewable > .question-content-container:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
-      ".reviewable .answer-container.question-container:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
-      ".reviewable ul.question-choices-multi.results:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
-      ".reviewable .choice-content:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
+      ".reviewable > .question-content-container",
+      ".reviewable .answer-container.question-container",
+      ".reviewable ul.question-choices-multi.results",
+      ".reviewable .choice-content",
     ],
     scoreRegion: [
       ".score-reports-wrapper",
@@ -237,8 +239,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         ...this.#selectors.status,
         ...this.#selectors.correctMarker,
         ...this.#selectors.explanation,
-        ...this.#selectors.inlineFeedback,
-      ]).length > 0;
+      ]).length > 0 || this.#queryInlineFeedback().length > 0;
     const explanationFound = Boolean(this.#queryAny(this.#selectors.explanation));
     const correctAnswerParseable = this.#readCorrectChoice() !== null;
     const categoryCodeFound = this.#readCategoryCode() !== null;
@@ -321,7 +322,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#mask.hide(this.#queryAll(this.#selectors.officialInputs), CLEAN_SLATE_GROUP);
 
     this.#mask.hide(this.#queryAll(this.#selectors.explanation), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.inlineFeedback), FEEDBACK_GROUP);
+    this.#mask.hide(this.#queryInlineFeedback(), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.correctMarker), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.originalMarker), ORIGINAL_GROUP);
 
@@ -354,14 +355,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     );
     this.#mask.removeClasses(
       feedbackClassCarriers,
-      [
-        "corrected",
-        "correct",
-        "is-correct",
-        "is-correct-answer",
-        "correct-answer",
-        "answer-correct",
-      ],
+      ["corrected", "is-correct", "is-correct-answer", "correct-answer", "answer-correct"],
       FEEDBACK_GROUP,
     );
     this.#mask.removeClasses(
@@ -578,6 +572,22 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       }
     }
     return [...elements];
+  }
+
+  #queryInlineFeedback(): Element[] {
+    return this.#queryAll(this.#selectors.inlineFeedbackCandidate).filter((region) => {
+      const container = region.parentElement;
+      if (
+        !container?.matches(".answer-container.question-container") ||
+        container.classList.contains("reading-passage") ||
+        !INLINE_FEEDBACK_STATE_CLASSES.some((className) => container.classList.contains(className))
+      ) {
+        return false;
+      }
+      return !container.querySelector(
+        "ul.question-choices-multi.results, .choice-content, .reading-passage",
+      );
+    });
   }
 
   #readExamIdentifier(): string | null {

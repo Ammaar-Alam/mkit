@@ -339,7 +339,11 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(requiredElement(".expander-content").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
     expect(document.querySelector(".multi-choice.incorrect")).toBeNull();
-    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).toBeNull();
+    expect(document.querySelector("#confirmed-question-container.correct")).not.toBeNull();
+    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).not.toBeNull();
+    expect(requiredElement("#confirmed-question-region").hasAttribute("data-mkit-hidden")).toBe(
+      false,
+    );
     expect(requiredElement<HTMLElement>("#confirmed-question-copy").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".answer-container").style.outline).toBe("");
     expect(requiredElement<HTMLElement>(".answer-container").style.boxShadow).toBe("");
@@ -493,8 +497,20 @@ function mountConfirmedProductionFixture(): void {
               <div class="content-column">
                 <div class="questions-container">
                   <div class="content-container">
-                    <div class="answer-container question-container">
-                      <p id="confirmed-question-copy">Synthetic question workspace.</p>
+                    <div
+                      class="answer-container correct is-hidden question-container"
+                      id="confirmed-question-container"
+                    >
+                      <div id="confirmed-question-region" role="region">
+                        <p id="confirmed-question-copy">Synthetic question workspace.</p>
+                        <span class="choice-content">Synthetic visible choice.</span>
+                        <svg
+                          id="confirmed-question-figure"
+                          aria-label="Synthetic visible diagram"
+                          role="img"
+                          viewBox="0 0 10 10"
+                        ></svg>
+                      </div>
                     </div>
                     <div
                       class="answer-container correct is-hidden question-container"

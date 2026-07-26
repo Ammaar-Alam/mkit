@@ -49,27 +49,48 @@
                   <div class="questions-container">
                     <div class="content-container">
                       <div
-                        class="answer-container question-container reading-passage"
+                        class="answer-container correct is-hidden question-container reading-passage"
+                        id="live-question-container"
                         style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
                       >
-                        <p id="live-style-question">Synthetic question workspace.</p>
-                        <ul
-                          class="question-choices-multi results"
-                          style="padding-left: 32px; border: 5px solid red; background-color: pink"
-                        >
-                          <li class="multi-choice incorrect">
-                            <span class="choice-content">Synthetic choice A.</span>
-                          </li>
-                          <li class="multi-choice corrected">
-                            <span class="choice-content">Synthetic choice B.</span>
-                          </li>
-                          <li class="multi-choice">
-                            <span class="choice-content">Synthetic choice C.</span>
-                          </li>
-                          <li class="multi-choice">
-                            <span class="choice-content">Synthetic choice D.</span>
-                          </li>
-                        </ul>
+                        <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
+                        <div id="live-question-region" role="region">
+                          <p id="live-style-question">Synthetic question workspace.</p>
+                          <img
+                            id="live-question-image"
+                            alt="Synthetic question figure"
+                            height="48"
+                            width="64"
+                            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='48'%3E%3Crect width='64' height='48' fill='%23ddd8ca'/%3E%3C/svg%3E"
+                          >
+                          <svg
+                            id="live-question-svg"
+                            aria-label="Synthetic question diagram"
+                            height="48"
+                            role="img"
+                            viewBox="0 0 64 48"
+                            width="64"
+                          >
+                            <rect fill="#d8d2c2" height="48" width="64"></rect>
+                          </svg>
+                          <ul
+                            class="question-choices-multi results"
+                            style="padding-left: 32px; border: 5px solid red; background-color: pink"
+                          >
+                            <li class="multi-choice incorrect">
+                              <span class="choice-content">Synthetic choice A.</span>
+                            </li>
+                            <li class="multi-choice corrected">
+                              <span class="choice-content">Synthetic choice B.</span>
+                            </li>
+                            <li class="multi-choice">
+                              <span class="choice-content">Synthetic choice C.</span>
+                            </li>
+                            <li class="multi-choice">
+                              <span class="choice-content">Synthetic choice D.</span>
+                            </li>
+                          </ul>
+                        </div>
                       </div>
                       <div
                         class="answer-container correct is-hidden question-container"

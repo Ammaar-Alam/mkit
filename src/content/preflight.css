@@ -15,6 +15,21 @@ html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   user-select: none !important;
 }
 
+html[data-mkit-protection="masked"]
+  .reviewable
+  :is(
+    .question-content-container,
+    .answer-container.question-container,
+    ul.question-choices-multi.results,
+    .choice-content
+  ):is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect) {
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
 [data-mkit-host] {
   display: block !important;
   position: fixed !important;

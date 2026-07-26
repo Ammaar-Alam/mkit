@@ -189,6 +189,10 @@ test("Practice conceals the complete live-style feedback boundary until intentio
 }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
   const initialFeedbackState = await snapshotLiveFeedbackState(page);
+  const initialQuestionState = await snapshotLiveQuestionState(page);
+  const initialQuestionClasses = await page
+    .locator("#live-question-container")
+    .getAttribute("class");
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());
   const host = page.locator("[data-mkit-host]");
   await host.locator("[data-focus-key='practice']").click();
@@ -239,9 +243,16 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     await expect(page.locator(selector).first(), selector).toBeHidden();
   }
   await expect(page.locator("#live-style-question")).toBeVisible();
+  await expect(page.locator("#live-question-image")).toBeVisible();
+  await expect(page.locator("#live-question-svg")).toBeVisible();
+  await expect(page.locator("#live-question-container")).toHaveAttribute(
+    "class",
+    initialQuestionClasses ?? "",
+  );
+  expect(await snapshotLiveQuestionState(page)).toEqual(initialQuestionState);
   await expect(rail).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
-  await expect(page.locator("#inline-feedback-container")).not.toHaveClass(/\bcorrect\b/);
+  await expect(page.locator("#inline-feedback-container")).toHaveClass(/\bcorrect\b/);
 
   const cdp = await page.context().newCDPSession(page);
   const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
@@ -306,6 +317,11 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     inert: false,
   });
   expect(await snapshotLiveFeedbackState(page)).toEqual(initialFeedbackState);
+  expect(await snapshotLiveQuestionState(page)).toEqual(initialQuestionState);
+  await expect(page.locator("#live-question-container")).toHaveAttribute(
+    "class",
+    initialQuestionClasses ?? "",
+  );
 });
 
 test("masked review removes spoilers from display, AX, Find, selection, and print", async ({
@@ -757,4 +773,21 @@ async function snapshotLiveFeedbackState(
       };
     });
   });
+}
+
+async function snapshotLiveQuestionState(
+  page: import("@playwright/test").Page,
+): Promise<Array<{ attributes: Array<[string, string]>; text: string | null }>> {
+  return page
+    .locator(
+      "#live-question-region, #live-style-question, #live-question-image, #live-question-svg, #live-question-svg *",
+    )
+    .evaluateAll((elements) =>
+      elements.map((element) => ({
+        attributes: [...element.attributes]
+          .map(({ name, value }) => [name, value] as [string, string])
+          .sort(([left], [right]) => left.localeCompare(right)),
+        text: element.childElementCount === 0 ? element.textContent : null,
+      })),
+    );
 }
