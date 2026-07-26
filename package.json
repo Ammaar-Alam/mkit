@@ -1,7 +1,7 @@
 {
   "name": "mkit",
-  "version": "0.1.1",
-  "description": "A private, spoiler-safe study companion for completed MCAT practice reviews.",
+  "version": "0.1.2",
+  "description": "Retry completed AAMC MCAT questions without seeing your old answers or the solutions.",
   "type": "module",
   "private": true,
   "license": "MIT",
