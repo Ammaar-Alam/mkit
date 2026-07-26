@@ -654,7 +654,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     }
 
     const visibleCandidates = candidates.filter((element) =>
-      this.#isAuthoredVisible(this.#reviewSwitchControl(element)),
+      this.#isReviewSwitchControlShown(this.#reviewSwitchControl(element)),
     );
     this.#completedReviewSwitch =
       visibleCandidates.length === 1 ? (visibleCandidates[0] ?? null) : null;
@@ -666,14 +666,26 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   /**
    * The completed-review switch is a custom control: the native input is
-   * visually hidden and its owning `label.review-answer` paints the visible
-   * affordance. Authored visibility therefore has to be judged at the label,
-   * because a zero-opacity or zero-sized input is the authored design rather
-   * than a concealed control. Responsive duplicates still hide the label
-   * itself, so that boundary keeps distinguishing them.
+   * visually hidden and its owning `.review-answer` paints the visible
+   * affordance. Authored visibility therefore has to be resolved at that
+   * control rather than at a zero-opacity, zero-sized input.
    */
   #reviewSwitchControl(element: Element): Element {
     return element.closest(".review-answer") ?? element;
+  }
+
+  /**
+   * The switch selects between the answerable and reviewable views of a
+   * question, so a completed review reports the state that hides the answerable
+   * view the switch lives in. Judging the whole ancestor chain would therefore
+   * reject every copy of a control the page deliberately keeps mounted, while
+   * judging the control alone would admit responsive duplicates that are hidden
+   * at a wrapper. Visibility is resolved between those boundaries: from the
+   * control up to, but excluding, the view container the switch itself governs.
+   */
+  #isReviewSwitchControlShown(control: Element): boolean {
+    const viewContainer = control.closest(".answerable");
+    return this.#isAuthoredVisible(control, viewContainer ?? undefined);
   }
 
   #readExamIdentifier(): string | null {
@@ -827,11 +839,16 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return questionRoots.length === 1 ? (questionRoots[0] ?? null) : null;
   }
 
-  #isAuthoredVisible(element: Element): boolean {
+  /**
+   * `stopAt` bounds the ancestor walk when a container's own visibility is a
+   * page view state rather than concealment of the element being judged. The
+   * boundary itself is not examined.
+   */
+  #isAuthoredVisible(element: Element, stopAt?: Element): boolean {
     const view = this.#document.defaultView;
     const pageCoverActive = this.#isMKitPageCoverActive();
     let current: Element | null = element;
-    while (current) {
+    while (current && current !== stopAt) {
       if (
         current.hasAttribute("hidden") ||
         current.hasAttribute("data-mkit-hidden") ||

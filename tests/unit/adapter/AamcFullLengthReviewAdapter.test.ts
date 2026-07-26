@@ -483,6 +483,50 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     });
   });
 
+  it("admits the presented switch control inside a view container the page hides", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const duplicateToolbar = toolbar.cloneNode(true);
+    if (!(duplicateToolbar instanceof HTMLElement)) {
+      throw new Error("Expected an HTML toolbar clone.");
+    }
+    card.append(duplicateToolbar);
+    const duplicateControl = duplicateToolbar.querySelector<HTMLElement>(".review-answer");
+    if (!duplicateControl) throw new Error("Expected a duplicate review-answer control.");
+    duplicateControl.style.display = "none";
+    // The switch selects between the answerable and reviewable views, so on a
+    // completed review it reports the state that hides the answerable view its
+    // own toolbar sits in. That container must not disqualify the control the
+    // page still presents.
+    const viewContainer = document.createElement("div");
+    viewContainer.className = "answerable";
+    viewContainer.style.display = "none";
+    card.append(viewContainer);
+    viewContainer.append(toolbar, duplicateToolbar);
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(document.querySelectorAll(".view-answers.switchable")).toHaveLength(2);
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+
+    // Two presented controls stay ambiguous, and none presented stays missing.
+    duplicateControl.style.display = "";
+    expect(
+      new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL).inspectCapabilities(),
+    ).toMatchObject({ safeToReveal: false, issues: ["REVIEW_SWITCH_MISSING"] });
+
+    for (const control of document.querySelectorAll<HTMLElement>(".review-answer")) {
+      control.style.display = "none";
+    }
+    expect(
+      new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL).inspectCapabilities(),
+    ).toMatchObject({ safeToReveal: false, issues: ["REVIEW_SWITCH_MISSING"] });
+  });
+
   it("fails open when the external review switch is missing or ambiguous", () => {
     mountConfirmedProductionFixture();
     const toolbar = requiredElement(".answer-toolbar-wrapper");
