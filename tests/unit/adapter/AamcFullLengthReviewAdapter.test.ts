@@ -390,6 +390,50 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     });
   });
 
+  it("admits a visually hidden switch input whose owning control is visible", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const hiddenToolbar = toolbar.cloneNode(true);
+    if (!(hiddenToolbar instanceof HTMLElement)) {
+      throw new Error("Expected an HTML toolbar clone.");
+    }
+    card.append(hiddenToolbar);
+    // The live control paints its own affordance and leaves the native input at
+    // zero opacity in both the visible and the responsive duplicate copy.
+    for (const input of document.querySelectorAll<HTMLElement>(".view-answers.switchable")) {
+      input.style.opacity = "0";
+    }
+    const duplicateLabel = hiddenToolbar.querySelector<HTMLElement>(".review-answer");
+    if (!duplicateLabel) throw new Error("Expected a duplicate review-answer control.");
+    duplicateLabel.style.display = "none";
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(document.querySelectorAll(".view-answers.switchable")).toHaveLength(2);
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+  });
+
+  it("still fails open when two visually hidden inputs both have visible controls", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    card.append(toolbar.cloneNode(true));
+    for (const input of document.querySelectorAll<HTMLElement>(".view-answers.switchable")) {
+      input.style.opacity = "0";
+    }
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: false,
+      issues: ["REVIEW_SWITCH_MISSING"],
+    });
+  });
+
   it("fails open when the external review switch is missing or ambiguous", () => {
     mountConfirmedProductionFixture();
     const toolbar = requiredElement(".answer-toolbar-wrapper");

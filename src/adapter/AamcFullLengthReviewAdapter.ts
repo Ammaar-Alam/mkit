@@ -649,13 +649,27 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       return null;
     }
 
-    const visibleCandidates = candidates.filter((element) => this.#isAuthoredVisible(element));
+    const visibleCandidates = candidates.filter((element) =>
+      this.#isAuthoredVisible(this.#reviewSwitchControl(element)),
+    );
     this.#completedReviewSwitch =
       visibleCandidates.length === 1 ? (visibleCandidates[0] ?? null) : null;
     if (this.#completedReviewSwitch) {
       CONFIRMED_REVIEW_SWITCHES.add(this.#completedReviewSwitch);
     }
     return this.#completedReviewSwitch;
+  }
+
+  /**
+   * The completed-review switch is a custom control: the native input is
+   * visually hidden and its owning `label.review-answer` paints the visible
+   * affordance. Authored visibility therefore has to be judged at the label,
+   * because a zero-opacity or zero-sized input is the authored design rather
+   * than a concealed control. Responsive duplicates still hide the label
+   * itself, so that boundary keeps distinguishing them.
+   */
+  #reviewSwitchControl(element: Element): Element {
+    return element.closest(".review-answer") ?? element;
   }
 
   #readExamIdentifier(): string | null {
