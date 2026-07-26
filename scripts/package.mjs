@@ -1,8 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 
 const releaseDirectory = new URL("../release/", import.meta.url);
-const archive = new URL("../release/mkit-0.1.1.zip", import.meta.url);
+const packageMetadata = JSON.parse(
+  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
+if (typeof packageMetadata.version !== "string" || packageMetadata.version.length === 0) {
+  throw new Error("Package version is missing.");
+}
+const archive = new URL(`../release/mkit-${packageMetadata.version}.zip`, import.meta.url);
 
 await mkdir(releaseDirectory, { recursive: true });
 await rm(archive, { force: true });

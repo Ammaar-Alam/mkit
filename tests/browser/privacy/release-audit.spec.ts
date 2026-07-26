@@ -13,6 +13,7 @@ test("production manifest keeps the extension worker-free and narrowly permissio
   ) as Record<string, unknown>;
 
   expect(manifest.manifest_version).toBe(3);
+  expect(manifest.version).toBe(await readPackageVersion());
   expect(manifest.permissions).toEqual(["storage"]);
   expect(manifest).not.toHaveProperty("host_permissions");
   expect(manifest).not.toHaveProperty("optional_permissions");
@@ -82,9 +83,10 @@ test("built bundle and packaged ZIP contain no maps, test artifacts, remote code
     expect(file.replace(`${resolve(root, "dist")}/`, "")).not.toMatch(forbiddenPaths);
   }
 
+  const packageVersion = await readPackageVersion();
   const { stdout: zipListing } = await execFileAsync(
     "unzip",
-    ["-Z1", resolve(root, "release/mkit-0.1.1.zip")],
+    ["-Z1", resolve(root, `release/mkit-${packageVersion}.zip`)],
     { cwd: root },
   );
   const zipFiles = zipListing.split(/\r?\n/).filter(Boolean);
@@ -105,6 +107,14 @@ test("built bundle and packaged ZIP contain no maps, test artifacts, remote code
     /<script[^>]+src=["']https?:\/\/|@import\s+(?:url\()?["']?https?:\/\/|url\([^)]*https?:\/\//i,
   );
 });
+
+async function readPackageVersion(): Promise<string> {
+  const packageMetadata = JSON.parse(
+    await readFile(resolve(root, "package.json"), "utf8"),
+  ) as Record<string, unknown>;
+  expect(packageMetadata.version).toEqual(expect.any(String));
+  return packageMetadata.version as string;
+}
 
 async function walk(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

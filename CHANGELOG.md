@@ -4,6 +4,15 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-26
+
+### Changed
+
+- Replaced the extension icon and README header with the new MKit artwork.
+- Rewrote the README, extension description, and About text in clearer language.
+- Made build, package, test, and CI artifact naming read from the package version
+  instead of repeating a release number.
+
 ## [0.1.1] - 2026-07-26
 
 ### Fixed
