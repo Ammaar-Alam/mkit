@@ -1,6 +1,6 @@
 {
   "name": "mkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A private, spoiler-safe study companion for completed MCAT practice reviews.",
   "type": "module",
   "private": true,

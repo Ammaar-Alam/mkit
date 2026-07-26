@@ -17,4 +17,5 @@ Security-sensitive guarantees include:
 
 ## Supported versions
 
-Security fixes are provided for the most recent tagged release. MKit 0.1.0 is currently in development.
+Security fixes are provided for the most recent tagged release. MKit 0.1.1 is
+the current supported version.

@@ -4,6 +4,14 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-26
+
+### Fixed
+
+- Conceal the native solution and explanation on completed review questions
+  that were answered incorrectly in the original attempt. The feedback remains
+  hidden through Check and appears only after an explicit answer reveal.
+
 ## [0.1.0] - 2026-07-26
 
 First release. MKit lets you reattempt a completed AAMC full-length or section

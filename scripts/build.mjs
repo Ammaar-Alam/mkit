@@ -54,11 +54,11 @@ await Promise.all([
 
 const manifestPath = new URL("../dist/manifest.json", import.meta.url);
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-if (manifest.version !== "0.1.0" || manifest.manifest_version !== 3) {
+if (manifest.version !== "0.1.1" || manifest.manifest_version !== 3) {
   throw new Error("Manifest version does not match the package release.");
 }
 
 await writeFile(
   new URL("../dist/BUILD.txt", import.meta.url),
-  "MKit 0.1.0\nBuilt from local source with no remote runtime dependencies.\n",
+  "MKit 0.1.1\nBuilt from local source with no remote runtime dependencies.\n",
 );

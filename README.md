@@ -29,7 +29,10 @@ MKit fails closed. If a supported page changes and protection cannot be verified
 
 ## Status
 
-MKit 0.1.0 is a prerelease. The privacy core, exact completed full-length and section-review route families, local-first persistence, popup, options page, and package audit are implemented against synthetic fixtures. A post-fix live end-to-end pass of the production bundle remains required before release.
+MKit 0.1.1 is the current release. Its privacy core, exact completed full-length
+and section-review route families, local-first persistence, popup, options page,
+and package audit are covered by synthetic regression tests and live
+completed-review verification.
 
 The current support boundary is documented in [Supported pages](docs/supported-pages.md).
 
@@ -46,7 +49,8 @@ pnpm build
 pnpm check
 ```
 
-`pnpm build` writes an unpacked extension to `dist/`. `pnpm package` creates `release/mkit-0.1.0.zip`. Both directories are ignored.
+`pnpm build` writes an unpacked extension to `dist/`. `pnpm package` creates
+`release/mkit-0.1.1.zip`. Both directories are ignored.
 
 The production extension contains no network client and loads no remote fonts, scripts, styles, or images.
 

@@ -84,7 +84,7 @@ test("built bundle and packaged ZIP contain no maps, test artifacts, remote code
 
   const { stdout: zipListing } = await execFileAsync(
     "unzip",
-    ["-Z1", resolve(root, "release/mkit-0.1.0.zip")],
+    ["-Z1", resolve(root, "release/mkit-0.1.1.zip")],
     { cwd: root },
   );
   const zipFiles = zipListing.split(/\r?\n/).filter(Boolean);
