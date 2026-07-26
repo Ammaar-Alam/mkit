@@ -22,14 +22,14 @@ Read the complete [privacy policy](PRIVACY.md) and [security policy](SECURITY.md
 - Supports Practice and Test modes without changing the official submission.
 - Saves fresh choices, eliminations, confidence, flags, private notes, tags, and active-viewing time locally.
 - Keeps original-attempt content hidden until an explicit post-check reveal.
-- Produces factual section and timing summaries without scaled scores, percentiles, readiness estimates, or mastery claims.
-- Can hide score-report values behind Score Shield while a learner reviews first.
+- Computes factual outcome and timing summaries without scaled scores, percentiles, readiness estimates, or mastery claims.
+- Includes a fail-closed Score Shield implementation whose live score-report support remains pending separate verification.
 
 MKit fails closed. If a supported page changes and protection cannot be verified, the review remains covered until the learner chooses **Normal review**.
 
 ## Status
 
-MKit 0.1.0 is under active implementation. The public repository is being built in small, verified milestones; sideloading instructions will apply once the first complete release artifact is available.
+MKit 0.1.0 is a prerelease. The privacy core, exact completed answer-review route, local-first persistence, popup, options page, and package audit are implemented against synthetic fixtures. A post-fix live end-to-end pass of the production bundle remains required before release.
 
 The current support boundary is documented in [Supported pages](docs/supported-pages.md).
 
@@ -49,6 +49,8 @@ pnpm check
 `pnpm build` writes an unpacked extension to `dist/`. `pnpm package` creates `release/mkit-0.1.0.zip`. Both directories are ignored.
 
 The production extension contains no network client and loads no remote fonts, scripts, styles, or images.
+
+Every push and pull request runs linting, typechecking, unit tests, synthetic Chrome privacy tests, the release audit, and ZIP packaging in GitHub Actions.
 
 ## Install from source
 

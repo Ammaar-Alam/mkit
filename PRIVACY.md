@@ -14,7 +14,7 @@ MKit may store:
 
 - Extension settings
 - Fresh Attempt session status and timestamps
-- Opaque exam and question identifiers
+- One-way SHA-256 exam and question identifiers
 - Fresh answer letters and eliminated-choice letters
 - Confidence, flag, and review-again markers
 - Factual outcome labels: correct, needs review, or unknown
@@ -34,7 +34,7 @@ Browser vendors control their sync systems and account security. Sync failure ne
 
 ## Page access
 
-MKit runs only on explicitly supported completed-review and score-report pages. It reads page structure in memory to conceal prior-attempt material and calculate a fresh outcome. Official answer and explanation content is not copied into extension storage.
+MKit’s static content script is limited to the verified full-length practice-exam path family. Its adapter activates Fresh Attempt only on the confirmed completed-answer review route and reads page structure in memory to conceal prior-attempt material and calculate a fresh outcome. Official answer and explanation content is not copied into extension storage.
 
 MKit does not operate on active exams, submit answers, reset attempts, bypass access controls, or change account state.
 

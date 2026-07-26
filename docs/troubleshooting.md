@@ -2,7 +2,7 @@
 
 ## MKit is not shown
 
-Confirm that the extension is enabled and that the page is a supported completed full-length score report or Review All page. Active exams, registration, sample tests, question packs, and question banks are outside the 0.1 support boundary.
+Confirm that the extension is enabled and that the page is a completed full-length answer-review page on `www.mcatofficialprep.org`. In the extension manager, choose **Reload**, then reload the review page. Score reports, active exams, registration, sample tests, question packs, and question banks are not yet supported live in 0.1.
 
 ## The review remains covered
 
@@ -16,4 +16,4 @@ MKit always writes to the current device first. Browser sync is best-effort and 
 
 ## Reporting a compatibility issue
 
-Use the options page to download the compatibility log. It contains event codes and capability counts, never questions, answers, explanations, scores, or account data. Do not attach authenticated screenshots or copied practice content.
+Use the options page to review the compatibility log. It contains event codes and capability counts, never questions, answers, explanations, scores, or account data. Do not attach authenticated screenshots or copied practice content.
