@@ -63,6 +63,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       '[data-mkit-fixture="official-answer"]',
       '.answer-choice input[type="radio"]',
     ],
+    completedReviewSwitch: [".review-answer input.view-answers.switchable[role='switch']"],
     navigator: [".icon-bar.navigate", '[data-mkit-fixture="navigator"]', "#question-navigator"],
     navigatorSpoiler: ['[data-mkit-fixture="navigator"]', "#question-navigator"],
     resultRail: [
@@ -223,24 +224,57 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   inspectCapabilities(): CapabilityReport {
+    const confirmedRoute = parseConfirmedReviewRoute(this.#url());
+    const confirmedReviewRoot = confirmedRoute ? this.#activeReviewRoot() : null;
+    const confirmedAnswerChoices = confirmedRoute
+      ? this.#confirmedAnswerChoices(confirmedReviewRoot)
+      : null;
     const pageKind = this.classifyPage();
-    const questionRegionFound = Boolean(this.#queryAny(this.#selectors.questionRegion));
-    const answerChoiceCount = parseConfirmedReviewRoute(this.#url())
-      ? this.#confirmedAnswerChoices().length
+    const questionRegionFound = confirmedRoute
+      ? Boolean(
+          confirmedReviewRoot &&
+            this.#queryAnyWithin(confirmedReviewRoot, this.#selectors.questionRegion),
+        )
+      : Boolean(this.#queryAny(this.#selectors.questionRegion));
+    const answerChoiceCount = confirmedAnswerChoices
+      ? confirmedAnswerChoices.length
       : this.#queryAll(this.#selectors.answerChoices).length;
-    const navigatorFound = Boolean(this.#queryAny(this.#selectors.navigator));
-    const feedbackRegionFound =
-      this.#queryAll([
-        ...this.#selectors.status,
-        ...this.#selectors.correctMarker,
-        ...this.#selectors.explanation,
-        ...this.#selectors.inlineFeedback,
-      ]).length > 0;
-    const explanationFound = Boolean(this.#queryAny(this.#selectors.explanation));
-    const correctAnswerParseable = this.#readCorrectChoice() !== null;
-    const categoryCodeFound = this.#readCategoryCode() !== null;
+    const navigatorFound = confirmedRoute
+      ? Boolean(
+          confirmedReviewRoot &&
+            this.#queryAnyWithin(confirmedReviewRoot, this.#selectors.navigator),
+        )
+      : Boolean(this.#queryAny(this.#selectors.navigator));
+    const feedbackSelectors = [
+      ...this.#selectors.status,
+      ...this.#selectors.correctMarker,
+      ...this.#selectors.explanation,
+      ...this.#selectors.inlineFeedback,
+    ];
+    const feedbackRegionFound = confirmedRoute
+      ? Boolean(confirmedReviewRoot && this.#queryAnyWithin(confirmedReviewRoot, feedbackSelectors))
+      : Boolean(this.#queryAny(feedbackSelectors));
+    const explanationFound = confirmedRoute
+      ? Boolean(
+          confirmedReviewRoot &&
+            this.#queryAnyWithin(confirmedReviewRoot, this.#selectors.explanation),
+        )
+      : Boolean(this.#queryAny(this.#selectors.explanation));
+    const correctAnswerParseable =
+      (confirmedRoute && confirmedAnswerChoices
+        ? this.#readConfirmedCorrectChoice(confirmedRoute, confirmedAnswerChoices)
+        : this.#readCorrectChoice()) !== null;
+    const categoryCodeFound =
+      (confirmedRoute ? this.#readCategoryCode(confirmedReviewRoot) : this.#readCategoryCode()) !==
+      null;
     const scoreRegionCount = this.#queryAll(this.#selectors.scoreValue).length;
     const reviewControlFound = Boolean(this.#queryAny(this.#selectors.reviewControl));
+    const completedReviewSwitchFound = confirmedRoute
+      ? Boolean(
+          confirmedReviewRoot &&
+            this.#queryAnyWithin(confirmedReviewRoot, this.#selectors.completedReviewSwitch),
+        )
+      : false;
     const issues: AdapterIssueCode[] = [];
 
     if (pageKind === "review") {
@@ -248,6 +282,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       if (answerChoiceCount !== 4) issues.push("ANSWER_CHOICES_INCOMPLETE");
       if (!navigatorFound) issues.push("NAVIGATOR_MISSING");
       if (!feedbackRegionFound) issues.push("FEEDBACK_REGION_MISSING");
+      if (confirmedRoute && !completedReviewSwitchFound) {
+        issues.push("REVIEW_SWITCH_MISSING");
+      }
       if (!this.#readExamIdentifier()) issues.push("STABLE_EXAM_ID_MISSING");
       if (!this.#readQuestionIdentifier()) issues.push("STABLE_QUESTION_ID_MISSING");
     }
@@ -284,7 +321,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   async getQuestionContext(): Promise<SanitizedQuestionContext | null> {
     const examIdentifier = this.#readExamIdentifier();
     const questionIdentifier = this.#readQuestionIdentifier();
-    const sectionKey = this.#readSectionKey();
+    const sectionKey = await this.#readSectionKey();
     if (!examIdentifier || !questionIdentifier || !sectionKey) {
       return null;
     }
@@ -296,6 +333,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       sectionKey,
       categoryCode: this.#readCategoryCode(),
       passageOrDiscrete: this.#readPassageOrDiscrete(),
+      progress: {
+        scope: parseConfirmedReviewRoute(this.#url())?.kind ?? "unknown",
+        current: null,
+        total: null,
+      },
     };
   }
 
@@ -579,6 +621,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return [...elements];
   }
 
+  #queryAnyWithin(root: Element, selectors: readonly string[]): Element | null {
+    return this.#queryAll(selectors).find((element) => root.contains(element)) ?? null;
+  }
+
   #readExamIdentifier(): string | null {
     const route = parseConfirmedReviewRoute(this.#url());
     if (route) {
@@ -607,16 +653,24 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ]);
   }
 
-  #readSectionKey(): string | null {
-    const carrier =
-      this.#queryAny(this.#selectors.sectionCarrier) ??
-      this.#queryAny(this.#selectors.questionRegion);
+  async #readSectionKey(): Promise<string | null> {
+    const route = parseConfirmedReviewRoute(this.#url());
+    if (route?.sectionIdentifier) {
+      return sha256Guard(`section:${route.examIdentifier}:${route.sectionIdentifier}`);
+    }
+    const reviewRoot = route ? this.#activeReviewRoot() : null;
+    const carrier = route
+      ? reviewRoot &&
+        (this.#queryAnyWithin(reviewRoot, this.#selectors.sectionCarrier) ??
+          this.#queryAnyWithin(reviewRoot, this.#selectors.questionRegion))
+      : (this.#queryAny(this.#selectors.sectionCarrier) ??
+        this.#queryAny(this.#selectors.questionRegion));
     const raw = readFirstSafeAttribute(carrier, [
       "data-section-id",
       "data-section-code",
       "data-mkit-fixture-section",
     ]);
-    if (!raw) return parseConfirmedReviewRoute(this.#url()) ? "unknown" : null;
+    if (!raw) return route ? "unknown" : null;
     return (
       raw
         .toLowerCase()
@@ -625,8 +679,16 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     );
   }
 
-  #readCategoryCode(): string | null {
-    const carrier = this.#queryAny(this.#selectors.categoryCarrier);
+  #readCategoryCode(confirmedReviewRoot?: Element | null): string | null {
+    const route = parseConfirmedReviewRoute(this.#url());
+    const reviewRoot = route
+      ? confirmedReviewRoot === undefined
+        ? this.#activeReviewRoot()
+        : confirmedReviewRoot
+      : null;
+    const carrier = route
+      ? reviewRoot && this.#queryAnyWithin(reviewRoot, this.#selectors.categoryCarrier)
+      : this.#queryAny(this.#selectors.categoryCarrier);
     const raw = readFirstSafeAttribute(carrier, [
       "data-category-code",
       "data-content-category",
@@ -641,7 +703,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #readPassageOrDiscrete(): PassageOrDiscrete {
     if (parseConfirmedReviewRoute(this.#url())) {
-      return this.#document.querySelector(".reviewable .reading-passage") ? "passage" : "discrete";
+      return this.#activeReviewRoot()?.querySelector(".reading-passage") ? "passage" : "discrete";
     }
     const carrier =
       this.#queryAny(this.#selectors.passageCarrier) ??
@@ -657,20 +719,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #readCorrectChoice(): AnswerChoice | null {
     const route = parseConfirmedReviewRoute(this.#url());
     if (route) {
-      const choices = this.#confirmedAnswerChoices();
-      if (choices.length !== 4) {
-        return null;
-      }
-      const correctChoices = choices.filter(
-        (choice) =>
-          this.#mask.hasClass(choice, "corrected", FEEDBACK_GROUP) ||
-          (route.kind === "full-length" && this.#mask.hasClass(choice, "correct", FEEDBACK_GROUP)),
-      );
-      if (correctChoices.length !== 1) {
-        return null;
-      }
-      const index = choices.indexOf(correctChoices[0] as Element);
-      return (["A", "B", "C", "D"] as const)[index] ?? null;
+      return this.#readConfirmedCorrectChoice(route, this.#confirmedAnswerChoices());
     }
     const carrier =
       this.#queryAny(this.#selectors.correctChoiceCarrier) ??
@@ -685,8 +734,26 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       : null;
   }
 
-  #confirmedAnswerChoices(): Element[] {
-    const reviewRoot = this.#activeReviewRoot();
+  #readConfirmedCorrectChoice(
+    route: ConfirmedReviewRoute,
+    choices: readonly Element[],
+  ): AnswerChoice | null {
+    if (choices.length !== 4) {
+      return null;
+    }
+    const correctChoices = choices.filter(
+      (choice) =>
+        this.#mask.hasClass(choice, "corrected", FEEDBACK_GROUP) ||
+        (route.kind === "full-length" && this.#mask.hasClass(choice, "correct", FEEDBACK_GROUP)),
+    );
+    if (correctChoices.length !== 1) {
+      return null;
+    }
+    const index = choices.indexOf(correctChoices[0] as Element);
+    return (["A", "B", "C", "D"] as const)[index] ?? null;
+  }
+
+  #confirmedAnswerChoices(reviewRoot: Element | null = this.#activeReviewRoot()): Element[] {
     const questionRegion = reviewRoot?.querySelector(":scope > .question-content-container");
     if (!reviewRoot || !questionRegion || !this.#isAuthoredVisible(questionRegion)) {
       return [];
@@ -774,8 +841,9 @@ async function sha256Guard(value: string): Promise<string> {
 
 interface ConfirmedReviewRoute {
   examIdentifier: string;
-  kind: "full-length";
+  kind: "full-length" | "section";
   questionIdentifier: string;
+  sectionIdentifier: string | null;
 }
 
 function parseConfirmedReviewRoute(url: URL): ConfirmedReviewRoute | null {
@@ -783,22 +851,49 @@ function parseConfirmedReviewRoute(url: URL): ConfirmedReviewRoute | null {
     return null;
   }
   const pathMatch = /^\/app\/aamc-mcat-practice-exam-(\d{1,3})\/?$/.exec(url.pathname);
-  const hashMatch = /^#exams\/answers\/([a-zA-Z0-9_-]{1,128})\/([a-zA-Z0-9_-]{1,128})$/.exec(
-    url.hash,
-  );
-  if (!pathMatch || !hashMatch) {
+  if (!pathMatch) {
     return null;
   }
   const examNumber = pathMatch[1];
-  const examIdentifier = hashMatch[1];
-  const questionIdentifier = hashMatch[2];
-  if (!examNumber || !examIdentifier || !questionIdentifier) {
+  if (!examNumber) {
+    return null;
+  }
+
+  const fullLengthMatch = /^#exams\/answers\/([a-zA-Z0-9_-]{1,128})\/([a-zA-Z0-9_-]{1,128})$/.exec(
+    url.hash,
+  );
+  if (fullLengthMatch) {
+    const examIdentifier = fullLengthMatch[1];
+    const questionIdentifier = fullLengthMatch[2];
+    if (!examIdentifier || !questionIdentifier) {
+      return null;
+    }
+    return {
+      examIdentifier: `${examNumber}:${examIdentifier}`,
+      kind: "full-length",
+      questionIdentifier,
+      sectionIdentifier: null,
+    };
+  }
+
+  const sectionMatch =
+    /^#exams\/([a-zA-Z0-9_-]{1,128})\/exam_sections\/([a-zA-Z0-9_-]{1,128})\/([a-zA-Z0-9_-]{1,128})$/.exec(
+      url.hash,
+    );
+  if (!sectionMatch) {
+    return null;
+  }
+  const examIdentifier = sectionMatch[1];
+  const sectionIdentifier = sectionMatch[2];
+  const questionIdentifier = sectionMatch[3];
+  if (!examIdentifier || !sectionIdentifier || !questionIdentifier) {
     return null;
   }
   return {
     examIdentifier: `${examNumber}:${examIdentifier}`,
-    kind: "full-length",
+    kind: "section",
     questionIdentifier,
+    sectionIdentifier,
   };
 }
 

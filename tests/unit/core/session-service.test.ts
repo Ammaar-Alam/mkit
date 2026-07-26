@@ -22,7 +22,6 @@ describe("SessionService eliminations", () => {
     });
     const session = await service.start("synthetic-exam", "practice", "synthetic-question");
     await service.getOrCreateAttempt(session.id, {
-      examKey: "synthetic-exam",
       questionKey: "synthetic-question",
       sectionKey: "cp",
       categoryCode: null,
@@ -68,7 +67,6 @@ describe("SessionService eliminations", () => {
       "synthetic-toggle-question",
     );
     await service.getOrCreateAttempt(session.id, {
-      examKey: "synthetic-toggle-exam",
       questionKey: "synthetic-toggle-question",
       sectionKey: "cp",
       categoryCode: null,

@@ -71,6 +71,9 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
   await expect(host).toHaveCount(1);
   await expect(rail).toBeVisible();
   await expect(rail).toContainText("Practice");
+  await expect(rail.locator(".mkit-progress__copy")).toContainText("Full review");
+  await expect(rail.locator(".mkit-progress__copy")).toContainText("Current question");
+  await expect(rail.locator("progress")).toHaveCount(0);
   await expect(rail.locator("[data-focus-key='answer-A']")).toBeVisible();
   await expect(page.locator("#live-style-question")).toBeVisible();
   await expect(page.locator(".review-answer")).not.toHaveAttribute("data-mkit-hidden", "");
@@ -105,6 +108,34 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
       return rect.width > 0 && rect.height > 0;
     }),
   ).toBe(true);
+});
+
+test("completed section review uses Fresh Attempt with truthful scope and native navigation", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/section-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+
+  await expect(rail).toBeVisible();
+  await expect(rail.locator(".mkit-progress__copy")).toContainText("Section review");
+  await expect(rail.locator(".mkit-progress__copy")).toContainText("Current question");
+  await expect(rail.locator("progress")).toHaveCount(0);
+  await expect(page.locator("#live-style-question")).toBeVisible();
+  await expect(page.locator("#live-question-image")).toBeVisible();
+  await expect(page.locator(".sidebar-container")).toBeHidden();
+  await expect(page.locator("#inline-feedback")).toBeHidden();
+  await expect(page.locator("#known-feedback")).toBeHidden();
+
+  const nativeNext = page.locator(".toolbar-btn.next");
+  await expect(nativeNext).toBeVisible();
+  await expect(nativeNext).toBeEnabled();
+  await nativeNext.click();
+  await expect(nativeNext).toHaveAttribute("data-native-clicks", "1");
+  await expect(host).toHaveCount(1);
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
 });
 
 test("Practice keeps scroll stable while masking same-question mutations", async ({ page }) => {
@@ -504,6 +535,8 @@ test("Resume and Check share a readable primary treatment at rest", async ({ pag
   const resume = host.locator("[data-focus-key='resume']");
   await expect(resume).toBeVisible();
   await expect(resume).toHaveText("Resume");
+  await expect(host.locator(".mkit-resume")).toContainText("Current question");
+  await expect(host.locator(".mkit-resume")).not.toContainText("1 of 1");
   const resumeColors = await controlColors(resume);
   expect(resumeColors).toEqual(checkColors);
   await resume.click();

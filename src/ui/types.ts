@@ -18,8 +18,9 @@ export interface MKitViewHandle<Props> {
 export type SectionLabel = "C/P" | "CARS" | "B/B" | "P/S";
 
 export interface FreshProgress {
-  current: number;
-  total: number;
+  scope: "full-length" | "section" | "unknown";
+  current: number | null;
+  total: number | null;
   section?: SectionLabel;
 }
 

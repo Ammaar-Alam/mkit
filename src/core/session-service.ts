@@ -9,6 +9,11 @@ import type {
   SessionRecord,
 } from "../storage/schema";
 
+type AttemptContext = Pick<
+  SanitizedQuestionContext,
+  "questionKey" | "sectionKey" | "categoryCode" | "passageOrDiscrete"
+>;
+
 export interface SessionServiceOptions {
   now?: () => number;
   createId?: () => string;
@@ -88,10 +93,7 @@ export class SessionService {
     });
   }
 
-  async getOrCreateAttempt(
-    sessionId: string,
-    context: SanitizedQuestionContext,
-  ): Promise<AttemptRecord> {
+  async getOrCreateAttempt(sessionId: string, context: AttemptContext): Promise<AttemptRecord> {
     const existing = await this.#repository.getAttempt(sessionId, context.questionKey);
     if (existing) {
       return existing;

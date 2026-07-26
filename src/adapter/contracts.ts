@@ -7,6 +7,7 @@ export type AdapterIssueCode =
   | "ANSWER_CHOICES_INCOMPLETE"
   | "NAVIGATOR_MISSING"
   | "FEEDBACK_REGION_MISSING"
+  | "REVIEW_SWITCH_MISSING"
   | "SCORE_REGION_MISSING"
   | "REVIEW_CONTROL_MISSING"
   | "STABLE_EXAM_ID_MISSING"
@@ -35,6 +36,11 @@ export interface SanitizedQuestionContext {
   sectionKey: string;
   categoryCode: string | null;
   passageOrDiscrete: PassageOrDiscrete;
+  progress: {
+    scope: "full-length" | "section" | "unknown";
+    current: number | null;
+    total: number | null;
+  };
 }
 
 export type AdapterEvent =

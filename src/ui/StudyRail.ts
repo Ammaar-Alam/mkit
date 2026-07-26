@@ -157,25 +157,45 @@ function railToggle(
 }
 
 function progress(props: StudyRailProps): HTMLElement {
-  const current = Math.max(0, Math.min(props.progress.current, props.progress.total));
+  const { current, total } = props.progress;
+  const hasExactProgress =
+    current !== null &&
+    total !== null &&
+    Number.isInteger(current) &&
+    Number.isInteger(total) &&
+    current >= 1 &&
+    total >= current;
   const section = props.progress.section ? `${props.progress.section} · ` : "";
-  return element(
+  const scope =
+    props.progress.scope === "section"
+      ? "Section review"
+      : props.progress.scope === "full-length"
+        ? "Full review"
+        : "Fresh Attempt";
+  const container = element(
     "div",
     { className: "mkit-progress" },
     element(
       "div",
       { className: "mkit-progress__copy" },
-      element("span", { text: "Current session" }),
-      element("strong", { text: `${section}${current} of ${props.progress.total}` }),
+      element("span", { text: scope }),
+      element("strong", {
+        text: hasExactProgress ? `${section}${current} of ${total}` : `${section}Current question`,
+      }),
     ),
-    element("progress", {
-      attributes: {
-        max: Math.max(props.progress.total, 1),
-        value: current,
-        "aria-label": "Fresh Attempt progress",
-      },
-    }),
   );
+  if (hasExactProgress) {
+    container.append(
+      element("progress", {
+        attributes: {
+          max: total,
+          value: current,
+          "aria-label": `${scope} progress`,
+        },
+      }),
+    );
+  }
+  return container;
 }
 
 function answerControls(props: StudyRailProps): HTMLElement {

@@ -4,7 +4,7 @@
 
 # MKit — The MCAT Kit
 
-MKit is a private study companion for reviewing completed MCAT practice materials. Its first tool, Fresh Attempt, is designed to let a learner try completed full-length questions again without seeing the prior result first.
+MKit is a private study companion for reviewing completed MCAT practice materials. Its first tool, Fresh Attempt, is designed to let a learner try completed full-length or section-review questions again without seeing the prior result first.
 
 > MKit is an independent project. It is not affiliated with, endorsed by, or sponsored by the Association of American Medical Colleges.
 
@@ -29,7 +29,7 @@ MKit fails closed. If a supported page changes and protection cannot be verified
 
 ## Status
 
-MKit 0.1.0 is a prerelease. The privacy core, exact completed answer-review route, local-first persistence, popup, options page, and package audit are implemented against synthetic fixtures. A post-fix live end-to-end pass of the production bundle remains required before release.
+MKit 0.1.0 is a prerelease. The privacy core, exact completed full-length and section-review route families, local-first persistence, popup, options page, and package audit are implemented against synthetic fixtures. A post-fix live end-to-end pass of the production bundle remains required before release.
 
 The current support boundary is documented in [Supported pages](docs/supported-pages.md).
 

@@ -114,6 +114,11 @@ function context(questionKey: string): SanitizedQuestionContext {
     sectionKey: "cp",
     categoryCode: "1A",
     passageOrDiscrete: "passage",
+    progress: {
+      scope: "full-length",
+      current: null,
+      total: null,
+    },
   };
 }
 

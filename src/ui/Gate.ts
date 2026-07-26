@@ -185,7 +185,16 @@ function activeSession(
   showButton = true,
 ): HTMLElement {
   const { progress } = session;
-  const progressText = `${progress.current} of ${progress.total}`;
+  const hasExactProgress =
+    progress.current !== null &&
+    progress.total !== null &&
+    Number.isInteger(progress.current) &&
+    Number.isInteger(progress.total) &&
+    progress.current >= 1 &&
+    progress.total >= progress.current;
+  const progressText = hasExactProgress
+    ? `${progress.current} of ${progress.total}`
+    : "Current question";
   const sectionText = progress.section ? `${progress.section} · ` : "";
   const container = element("section", {
     className: `mkit-resume${showButton ? "" : " mkit-resume--summary"}`,

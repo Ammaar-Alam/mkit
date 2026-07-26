@@ -33,6 +33,8 @@ test("dashboard-like non-answer routes receive no MKit host, mask, marker, or ob
     "#exams/intro/synthetic",
     "#exams/take/synthetic",
     "#exams/results/synthetic",
+    "#exams/synthetic-exam/exam_sections/synthetic-section",
+    "#exams/details/exam_section/synthetic-section",
     "#dashboard",
   ]) {
     await page.evaluate((nextHash) => window.__mkitRouteGuardHarness.setHash(nextHash), hash);
@@ -89,6 +91,40 @@ test("exact answer route stays covered as completed-review anchors first appear"
   await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
   await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
   await expect(page.locator("#dashboard-root")).toBeHidden();
+});
+
+test("exact completed section review auto-attaches and cleans up across native routes", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section");
+
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).toBe("none");
+  const authoredMarkup = await page.evaluate(() => window.__mkitRouteGuardAuthoredMarkup);
+  const host = page.locator("[data-mkit-host]");
+  await expect(host).toHaveCount(1);
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
+  await expect(host.locator("[data-focus-key='practice']")).toBeVisible();
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toContainText("Section review");
+  await expect(host.locator(".mkit-study-rail")).toContainText("Current question");
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+
+  await page.evaluate(() =>
+    window.__mkitRouteGuardHarness.setHash(
+      "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question-2",
+    ),
+  );
+  await expect(host).toHaveCount(1);
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setHash("#exams"));
+  await expect(host).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#dashboard-root")).toBeVisible();
+  expect(await page.locator("#dashboard-root").evaluate((element) => element.outerHTML)).toBe(
+    authoredMarkup,
+  );
 });
 
 async function snapshotDashboard(page: import("@playwright/test").Page): Promise<string> {

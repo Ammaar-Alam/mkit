@@ -2,7 +2,7 @@
 
 ## MKit is not shown
 
-Confirm that the extension is enabled and that the page is a completed full-length answer-review page on `www.mcatofficialprep.org`. In the extension manager, choose **Reload**, then reload the review page. Score reports, active exams, registration, sample tests, question packs, and question banks are not yet supported live in 0.1.
+Confirm that the extension is enabled and that the page is a completed full-length answer review or a completed section Review All question on `www.mcatofficialprep.org`. In the extension manager, choose **Reload**, then reload the review page. Section-results overviews, score reports, active exams, registration, sample tests, question packs, and question banks are not yet supported live in 0.1.
 
 ## The review remains covered
 

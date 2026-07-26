@@ -38,6 +38,10 @@ const routes = new Map([
     { contentType: "text/html; charset=utf-8", file: "tests/fixtures/live-review.html" },
   ],
   [
+    "/section-review",
+    { contentType: "text/html; charset=utf-8", file: "tests/fixtures/live-review.html" },
+  ],
+  [
     "/route-guard",
     { contentType: "text/html; charset=utf-8", file: "tests/fixtures/route-guard.html" },
   ],

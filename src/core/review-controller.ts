@@ -421,8 +421,8 @@ export class ReviewController {
   }
 
   #railProps(): StudyRailProps {
-    if (!this.#session || !this.#attempt) {
-      throw new Error("Cannot render a study rail without an active attempt.");
+    if (!this.#session || !this.#attempt || !this.#context) {
+      throw new Error("Cannot render a study rail without an active question.");
     }
     const attempt = this.#attempt;
     const section = sectionLabel(attempt.sectionKey);
@@ -430,8 +430,7 @@ export class ReviewController {
       mode: this.#session.mode,
       stage: this.#railStage(),
       progress: {
-        current: 1,
-        total: 1,
+        ...this.#context.progress,
         ...(section ? { section } : {}),
       },
       selection: attempt.selection,
@@ -615,9 +614,10 @@ export class ReviewController {
   #activeSessionSummary(session: SessionRecord): ActiveSessionSummary {
     return {
       mode: session.mode,
-      progress: {
-        current: session.currentQuestionKey ? 1 : 0,
-        total: 1,
+      progress: this.#context?.progress ?? {
+        scope: "unknown",
+        current: null,
+        total: null,
       },
     };
   }

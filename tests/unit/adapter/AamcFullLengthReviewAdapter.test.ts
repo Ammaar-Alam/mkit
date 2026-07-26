@@ -15,6 +15,10 @@ const CONFIRMED_REVIEW_URL = () =>
   new URL(
     "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
   );
+const CONFIRMED_SECTION_REVIEW_URL = () =>
+  new URL(
+    "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question",
+  );
 
 describe("AamcFullLengthReviewAdapter capabilities", () => {
   it("recognizes a complete synthetic review without serializing page content or answer keys", async () => {
@@ -419,6 +423,63 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(snapshotTree(requiredElement(".reviewable"))).toEqual(original);
   });
 
+  it("admits only the exact completed section route with hashed section context", async () => {
+    mountConfirmedProductionFixture();
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_SECTION_REVIEW_URL);
+
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      pageKind: "review",
+      safeToReveal: true,
+      answerChoiceCount: 4,
+      navigatorFound: true,
+      feedbackRegionFound: true,
+      correctAnswerParseable: true,
+      issues: [],
+    });
+    expect(adapter.gradeFresh("B")).toBe("correct");
+
+    const context = await adapter.getQuestionContext();
+    expect(context).toMatchObject({
+      passageOrDiscrete: "passage",
+      progress: {
+        scope: "section",
+        current: null,
+        total: null,
+      },
+    });
+    expect(context?.examKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(context?.questionKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(context?.sectionKey).toMatch(/^[a-f0-9]{64}$/);
+    const serialized = JSON.stringify(context);
+    for (const rawIdentifier of ["synthetic-exam", "synthetic-section", "synthetic-question"]) {
+      expect(serialized).not.toContain(rawIdentifier);
+    }
+
+    const sectionCorrectChoice = requiredElement(".multi-choice.corrected");
+    sectionCorrectChoice.classList.replace("corrected", "correct");
+    expect(adapter.gradeFresh("B")).toBe("unknown");
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      correctAnswerParseable: false,
+    });
+
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `
+        <article class="reviewable" style="display: none">
+          <div class="review-answer">
+            <input class="view-answers switchable" role="switch">
+          </div>
+        </article>
+      `,
+    );
+    requiredElement(".view-answers.switchable").remove();
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: false,
+      issues: ["REVIEW_SWITCH_MISSING"],
+    });
+  });
+
   it("keeps the confirmed answer route covered until its review root exists", () => {
     document.body.innerHTML = "<main></main>";
     const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
@@ -438,6 +499,21 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
         ),
     );
     expect(unverifiedOrigin.classifyPage()).toBe("non-review");
+
+    for (const unsupportedHash of [
+      "#exams/synthetic-exam/exam_sections/synthetic-section",
+      "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question/extra",
+      "#exams/details/exam_section/synthetic-section",
+    ]) {
+      const unsupported = new AamcFullLengthReviewAdapter(
+        document,
+        () =>
+          new URL(
+            `https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${unsupportedHash}`,
+          ),
+      );
+      expect(unsupported.classifyPage(), unsupportedHash).toBe("non-review");
+    }
   });
 });
 

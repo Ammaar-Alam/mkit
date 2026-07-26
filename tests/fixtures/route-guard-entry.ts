@@ -11,6 +11,7 @@ interface RouteGuardHarness {
 
 declare global {
   interface Window {
+    __mkitRouteGuardAuthoredMarkup: string;
     __mkitRouteGuardHarness: RouteGuardHarness;
     __mkitRouteGuardSyncDisplay: string;
   }
@@ -40,9 +41,12 @@ class MemoryStorageArea implements StorageAreaLike {
   }
 }
 
-const initialHash = new URL(location.href).searchParams.has("answer")
-  ? "#exams/answers/synthetic-exam/synthetic-question"
-  : "#exams";
+const searchParams = new URL(location.href).searchParams;
+const initialHash = searchParams.has("section")
+  ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
+  : searchParams.has("answer")
+    ? "#exams/answers/synthetic-exam/synthetic-question"
+    : "#exams";
 let route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${initialHash}`);
 const repository = new StorageRepository({ local: new MemoryStorageArea() });
 const lifecycle = startContentLifecycle({

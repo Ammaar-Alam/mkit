@@ -157,18 +157,22 @@ function startReviewController(): void {
   }
   reviewRepository ??= new StorageRepository({ local: new MemoryStorageArea() });
   reviewController = new ReviewController({
-    adapter: new AamcFullLengthReviewAdapter(
-      document,
-      () =>
-        new URL(
-          "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
-        ),
+    adapter: new AamcFullLengthReviewAdapter(document, () =>
+      confirmedReviewUrl(location.pathname === "/section-review" ? "section" : "full-length"),
     ),
     preflight,
     repository: reviewRepository,
     uiCss: __MKIT_UI_CSS__,
   });
   reviewController.start();
+}
+
+function confirmedReviewUrl(scope: "full-length" | "section"): URL {
+  const hash =
+    scope === "section"
+      ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
+      : "#exams/answers/synthetic-exam/synthetic-question";
+  return new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${hash}`);
 }
 
 class MemoryStorageArea implements StorageAreaLike {

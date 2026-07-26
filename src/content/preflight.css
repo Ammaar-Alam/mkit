@@ -1,11 +1,4 @@
-html[data-mkit-route="answer-review"]:not([data-mkit-protection]):has(
-    .reviewable > .question-content-container
-  ):has(.reviewable .multi-choice):has(.reviewable .icon-bar.navigate):has(
-    .reviewable .result-wrapper,
-    .reviewable .expander-content
-  )
-  body
-  > :not([data-mkit-host]),
+html[data-mkit-route="answer-review"]:not([data-mkit-protection]) body > :not([data-mkit-host]),
 html[data-mkit-protection="boot"] body > :not([data-mkit-host]),
 html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   display: none !important;
