@@ -89,7 +89,34 @@ describe("content lifecycle status", () => {
       },
     });
 
-    expect(lifecycle.status()).toEqual({ attached: false, route: "review", issues: [] });
+    expect(lifecycle.status()).toEqual({
+      attached: false,
+      route: "review",
+      issues: ["STARTUP_FAILED"],
+    });
+    lifecycle.dispose();
+  });
+
+  it("reports a detection failure as a recognized route without claiming attachment", () => {
+    const lifecycle = startContentLifecycle({
+      createAdapter: () => {
+        const adapter = stubAdapter("review", true);
+        return {
+          ...adapter,
+          inspectCapabilities: () => {
+            throw new Error("Synthetic detection failure.");
+          },
+        } as unknown as FullLengthReviewAdapter;
+      },
+      createPreflight: stubPreflight,
+      createController: stubController,
+    });
+
+    expect(lifecycle.status()).toEqual({
+      attached: false,
+      route: "review",
+      issues: ["DETECTION_FAILED"],
+    });
     lifecycle.dispose();
   });
 });

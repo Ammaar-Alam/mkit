@@ -1,6 +1,11 @@
 import type { FullLengthReviewAdapter } from "../adapter/contracts";
 import type { ReviewController } from "../core/review-controller";
-import type { ContentRouteKind, ContentStatusResponse } from "../shared/popup-status";
+import {
+  CONTENT_DETECTION_FAILED_ISSUE,
+  CONTENT_STARTUP_FAILED_ISSUE,
+  type ContentRouteKind,
+  type ContentStatusResponse,
+} from "../shared/popup-status";
 import type { DisposableMKitPreflight } from "./preflight";
 
 export interface ContentLifecycleDependencies {
@@ -145,6 +150,7 @@ export function startContentLifecycle(
         return;
       }
     } catch {
+      routeIssues = [CONTENT_DETECTION_FAILED_ISSUE];
       if (controller || adapter || preflight) {
         deactivate();
       } else {
@@ -177,6 +183,7 @@ export function startContentLifecycle(
         throw new Error("MKit preflight host disconnected during startup.");
       }
     } catch {
+      routeIssues = [CONTENT_STARTUP_FAILED_ISSUE];
       restoreNativePage(candidate, nextController, nextPreflight);
       scheduleProbe();
       return;
