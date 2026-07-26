@@ -93,6 +93,83 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
   ).toBe(true);
 });
 
+test("Practice keeps scroll stable while masking same-question mutations", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+
+  const initialScroll = await page.evaluate(() => {
+    scrollTo(0, 720);
+    return scrollY;
+  });
+  expect(initialScroll).toBeGreaterThan(500);
+
+  await page.evaluate(() => {
+    const spoiler = document.createElement("div");
+    spoiler.id = "same-question-delayed-status";
+    spoiler.className = "review-status is-correct";
+    spoiler.textContent = "Synthetic delayed status.";
+    document.querySelector(".question-container")?.append(spoiler);
+  });
+  await expect(page.locator("#same-question-delayed-status")).toBeHidden();
+  await page.waitForTimeout(300);
+
+  const settled = await page.evaluate(() => ({
+    protection: document.documentElement.dataset.mkitProtection,
+    scrollY,
+  }));
+  expect(settled.protection).toBe("masked");
+  expect(Math.abs(settled.scrollY - initialScroll)).toBeLessThanOrEqual(1);
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+});
+
+test("Practice neutralizes source correctness visuals without removing layout styles", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+
+  const maskedStyles = await page.evaluate(() => {
+    const question = document.querySelector<HTMLElement>(".answer-container.question-container");
+    const choices = document.querySelector<HTMLElement>("ul.question-choices-multi.results");
+    if (!question || !choices) throw new Error("Synthetic workspace is missing.");
+    return {
+      question: {
+        boxShadow: question.style.boxShadow,
+        outline: question.style.outline,
+        padding: question.style.padding,
+      },
+      choices: {
+        backgroundColor: choices.style.backgroundColor,
+        border: choices.style.border,
+        paddingLeft: choices.style.paddingLeft,
+      },
+    };
+  });
+  expect(maskedStyles).toEqual({
+    question: { boxShadow: "", outline: "", padding: "16px" },
+    choices: { backgroundColor: "", border: "", paddingLeft: "32px" },
+  });
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
+  const restoredStyles = await page.evaluate(() => ({
+    question: document
+      .querySelector<HTMLElement>(".answer-container.question-container")
+      ?.getAttribute("style"),
+    choices: document
+      .querySelector<HTMLElement>("ul.question-choices-multi.results")
+      ?.getAttribute("style"),
+  }));
+  expect(restoredStyles).toEqual({
+    question: "padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red",
+    choices: "padding-left: 32px; border: 5px solid red; background-color: pink",
+  });
+});
+
 test("masked review removes spoilers from display, AX, Find, selection, and print", async ({
   page,
 }) => {

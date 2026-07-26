@@ -11,11 +11,17 @@ interface AttributeSnapshot {
   value: string;
 }
 
+interface SanitizedStyleSnapshot {
+  authored: string | null;
+  masked: string | null;
+}
+
 export class ReversibleDomMask {
   readonly #hiddenByGroup = new Map<string, Map<Element, ElementSnapshot>>();
   readonly #attributesByGroup = new Map<string, Map<Element, Map<string, AttributeSnapshot>>>();
   readonly #classesByGroup = new Map<string, Map<Element, Set<string>>>();
   readonly #stylesByGroup = new Map<string, Map<HTMLElement, string | null>>();
+  readonly #sanitizedStylesByGroup = new Map<string, Map<HTMLElement, SanitizedStyleSnapshot>>();
   readonly #originalClassAttributes = new WeakMap<Element, string | null>();
 
   hide(elements: Iterable<Element>, group: string): void {
@@ -108,6 +114,53 @@ export class ReversibleDomMask {
     }
   }
 
+  sanitizeInlineStyles(
+    elements: Iterable<Element>,
+    properties: readonly string[],
+    group: string,
+  ): void {
+    const snapshots = getOrCreate(this.#sanitizedStylesByGroup, group, () => new Map());
+    for (const element of elements) {
+      if (!(element instanceof HTMLElement)) {
+        continue;
+      }
+      const current = element.getAttribute("style");
+      const existing = snapshots.get(element);
+      const snapshot = existing ?? { authored: current, masked: null };
+      if (existing && current !== existing.masked) {
+        snapshot.authored = current;
+      }
+      const authoredProperties = Array.from({ length: element.style.length }, (_, index) =>
+        element.style.item(index),
+      );
+      const retainedProperties = authoredProperties
+        .filter(
+          (authoredProperty) =>
+            !properties.some(
+              (property) =>
+                authoredProperty === property || authoredProperty.startsWith(`${property}-`),
+            ),
+        )
+        .map(
+          (authoredProperty) =>
+            [
+              authoredProperty,
+              element.style.getPropertyValue(authoredProperty),
+              element.style.getPropertyPriority(authoredProperty),
+            ] as const,
+        );
+      element.removeAttribute("style");
+      for (const [property, value, priority] of retainedProperties) {
+        element.style.setProperty(property, value, priority);
+      }
+      if (element.getAttribute("style")?.trim() === "") {
+        element.removeAttribute("style");
+      }
+      snapshot.masked = element.getAttribute("style");
+      snapshots.set(element, snapshot);
+    }
+  }
+
   restoreGroup(group: string): void {
     for (const [element, snapshot] of this.#hiddenByGroup.get(group) ?? []) {
       if (!snapshot.hadMarker) {
@@ -143,6 +196,11 @@ export class ReversibleDomMask {
       restoreAttribute(element, "style", style);
     }
     this.#stylesByGroup.delete(group);
+
+    for (const [element, snapshot] of this.#sanitizedStylesByGroup.get(group) ?? []) {
+      restoreAttribute(element, "style", snapshot.authored);
+    }
+    this.#sanitizedStylesByGroup.delete(group);
   }
 
   restoreAll(): void {
@@ -151,6 +209,7 @@ export class ReversibleDomMask {
       ...this.#attributesByGroup.keys(),
       ...this.#classesByGroup.keys(),
       ...this.#stylesByGroup.keys(),
+      ...this.#sanitizedStylesByGroup.keys(),
     ]);
     for (const group of groups) {
       this.restoreGroup(group);

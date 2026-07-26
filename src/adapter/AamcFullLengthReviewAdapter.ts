@@ -13,6 +13,15 @@ const FEEDBACK_GROUP = "feedback";
 const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
+const CORRECTNESS_VISUAL_PROPERTIES = [
+  "background",
+  "background-color",
+  "border",
+  "border-color",
+  "box-shadow",
+  "outline",
+  "outline-color",
+] as const;
 
 export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   readonly #document: Document;
@@ -104,6 +113,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     feedbackClassCarrier: [
       ".multi-choice.corrected",
+      ".question-content-container.corrected",
+      ".answer-container.question-container.corrected",
+      "ul.question-choices-multi.results.corrected",
       ".is-correct",
       ".is-correct-answer",
       ".correct-answer",
@@ -111,6 +123,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     originalClassCarrier: [
       ".multi-choice.incorrect",
+      ".question-content-container.incorrect",
+      ".answer-container.question-container.incorrect",
+      "ul.question-choices-multi.results.incorrect",
       ".result-wrapper .is-incorrect",
       ".is-incorrect",
       ".was-selected",
@@ -124,6 +139,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".eliminated",
       ".strikethrough",
       ".highlighted",
+    ],
+    correctnessVisualCarrier: [
+      ".reviewable > .question-content-container:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
+      ".reviewable .answer-container.question-container:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
+      ".reviewable ul.question-choices-multi.results:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
+      ".reviewable .choice-content:not(.corrected):not(.incorrect):not(.is-correct):not(.is-incorrect)",
     ],
     scoreRegion: [
       ".score-reports-wrapper",
@@ -303,6 +324,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const feedbackClassCarriers = this.#queryAll(this.#selectors.feedbackClassCarrier);
     const originalClassCarriers = this.#queryAll(this.#selectors.originalClassCarrier);
     const staleClassCarriers = this.#queryAll(this.#selectors.staleClassCarrier);
+    this.#mask.sanitizeInlineStyles(
+      this.#queryAll(this.#selectors.correctnessVisualCarrier),
+      CORRECTNESS_VISUAL_PROPERTIES,
+      CLEAN_SLATE_GROUP,
+    );
     this.#mask.clearInlineStyles(
       [...feedbackClassCarriers, ...originalClassCarriers, ...staleClassCarriers],
       CLEAN_SLATE_GROUP,
@@ -419,17 +445,21 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#observer?.disconnect();
       try {
         const pageKind = this.classifyPage();
+        const questionKey = this.#readQuestionIdentifier();
+        const pageChanged = pageKind !== lastPageKind;
+        const questionChanged = questionKey !== lastQuestionKey;
         if (pageKind === "review") {
-          document.documentElement.dataset.mkitProtection = "boot";
+          if (pageChanged || questionChanged) {
+            document.documentElement.dataset.mkitProtection = "boot";
+          }
           const report = this.applyCleanSlate();
           listener({ type: "capability-change", report });
         }
-        if (pageKind !== lastPageKind) {
+        if (pageChanged) {
           lastPageKind = pageKind;
           listener({ type: "page-change", pageKind });
         }
-        const questionKey = this.#readQuestionIdentifier();
-        if (questionKey !== lastQuestionKey) {
+        if (questionChanged) {
           lastQuestionKey = questionKey;
           listener({ type: "question-change" });
         }

@@ -112,8 +112,12 @@ window.__mkitPrivacyHarness = {
     return report;
   },
   normalReview: () => {
-    adapter.restoreNormalReview();
-    globalThis.__mkitPreflight?.setProtection("normal-review");
+    if (reviewController) {
+      reviewController.normalReview();
+    } else {
+      adapter.restoreNormalReview();
+      globalThis.__mkitPreflight?.setProtection("normal-review");
+    }
   },
   scoreShield: () => {
     const report = adapter.applyScoreShield();

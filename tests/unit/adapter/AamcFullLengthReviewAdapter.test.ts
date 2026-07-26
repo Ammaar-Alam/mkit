@@ -335,6 +335,12 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(requiredElement(".expander-content").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
     expect(document.querySelector(".multi-choice.incorrect")).toBeNull();
+    expect(requiredElement<HTMLElement>(".answer-container").style.outline).toBe("");
+    expect(requiredElement<HTMLElement>(".answer-container").style.boxShadow).toBe("");
+    expect(requiredElement<HTMLElement>(".answer-container").style.padding).toBe("12px");
+    expect(requiredElement<HTMLElement>(".question-choices-multi").style.border).toBe("");
+    expect(requiredElement<HTMLElement>(".question-choices-multi").style.backgroundColor).toBe("");
+    expect(requiredElement<HTMLElement>(".question-choices-multi").style.paddingLeft).toBe("24px");
     expect(requiredElement(".toolbar-btn.previous").hasAttribute("data-mkit-hidden")).toBe(false);
     expect(requiredElement(".toolbar-btn.next").hasAttribute("data-mkit-hidden")).toBe(false);
     expect(adapter.navigate("previous")).toBe(false);
@@ -446,9 +452,15 @@ function mountConfirmedProductionFixture(): void {
       <article class="reviewable sidebar-shown">
         <div class="question-content-container">
           <div class="answer-set-content">
-            <div class="answer-container question-container">
+            <div
+              class="answer-container question-container"
+              style="padding: 12px; outline: 4px solid green; box-shadow: 0 0 0 3px red"
+            >
               <div class="reading-passage">Synthetic passage.</div>
-              <ul class="question-choices-multi results">
+              <ul
+                class="question-choices-multi results"
+                style="padding-left: 24px; border: 4px solid red; background-color: pink"
+              >
                 <li class="multi-choice incorrect" data-choice="D">
                   <span class="choice-content">Synthetic choice A.</span>
                 </li>

@@ -77,6 +77,40 @@ describe("ReversibleDomMask", () => {
     expect(element.title).toBe("latest");
     expect(element.getAttribute("style")).toBe("border: 6px solid blue");
   });
+
+  it("removes only correctness visuals and restores the latest authored style exactly", () => {
+    document.body.innerHTML = `
+      <div
+        id="workspace"
+        style="padding: 12px; outline: 4px solid green; box-shadow: 0 0 0 3px red; background-color: pink"
+      >
+        Synthetic
+      </div>
+    `;
+    const element = document.querySelector<HTMLElement>("#workspace");
+    if (!element) throw new Error("Fixture element is missing.");
+    const mask = new ReversibleDomMask();
+    const properties = ["background-color", "box-shadow", "outline", "outline-color"] as const;
+
+    mask.sanitizeInlineStyles([element], properties, "clean");
+    expect(element.style.padding).toBe("12px");
+    expect(element.style.outline).toBe("");
+    expect(element.style.boxShadow).toBe("");
+    expect(element.style.backgroundColor).toBe("");
+
+    mask.sanitizeInlineStyles([element], properties, "clean");
+    element.setAttribute(
+      "style",
+      "padding: 18px; outline: 2px solid blue; background-color: yellow",
+    );
+    mask.sanitizeInlineStyles([element], properties, "clean");
+    expect(element.getAttribute("style")).toBe("padding: 18px;");
+
+    mask.restoreGroup("clean");
+    expect(element.getAttribute("style")).toBe(
+      "padding: 18px; outline: 2px solid blue; background-color: yellow",
+    );
+  });
 });
 
 function snapshotElement(element: HTMLElement): object {
