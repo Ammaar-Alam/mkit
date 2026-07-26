@@ -78,6 +78,20 @@ describe("ReversibleDomMask", () => {
     expect(element.getAttribute("style")).toBe("border: 6px solid blue");
   });
 
+  it("can inspect a masked authored class without restoring it", () => {
+    document.body.innerHTML = '<div id="choice" class="multi-choice correct">Synthetic</div>';
+    const element = document.querySelector<HTMLElement>("#choice");
+    if (!element) throw new Error("Fixture element is missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.removeClasses([element], ["correct"], "feedback");
+
+    expect(element.classList.contains("correct")).toBe(false);
+    expect(mask.hasClass(element, "correct", "feedback")).toBe(true);
+    expect(mask.hasClass(element, "incorrect", "feedback")).toBe(false);
+    expect(element.classList.contains("correct")).toBe(false);
+  });
+
   it("removes only correctness visuals and restores the latest authored style exactly", () => {
     document.body.innerHTML = `
       <div

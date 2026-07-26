@@ -9,7 +9,7 @@ export type ProtectionState =
 
 export type SessionState = "NONE" | "PRACTICE_ACTIVE" | "TEST_ACTIVE" | "TEST_FINISHED";
 
-export type QuestionRevealState = "CONCEALED" | "FEEDBACK" | "ORIGINAL";
+export type QuestionRevealState = "CONCEALED" | "OUTCOME" | "FEEDBACK" | "ORIGINAL";
 
 export interface ReviewState {
   protection: ProtectionState;
@@ -28,6 +28,7 @@ export type ReviewAction =
   | { type: "RESTORE_SELECTION"; selection: AnswerChoice | null }
   | { type: "SELECT"; selection: AnswerChoice | null }
   | { type: "CHECK" }
+  | { type: "REVEAL_FEEDBACK" }
   | { type: "REVEAL_ORIGINAL" }
   | { type: "RETRY" }
   | { type: "FINISH_TEST" }
@@ -98,6 +99,19 @@ export function reduceReviewState(state: ReviewState, action: ReviewAction): Rev
     case "CHECK":
       if (state.session !== "PRACTICE_ACTIVE" || !state.selection) {
         throw new Error("Practice Check requires an active session and a fresh selection.");
+      }
+      return {
+        ...state,
+        reveal: "OUTCOME",
+      };
+    case "REVEAL_FEEDBACK":
+      if (
+        !(
+          (state.session === "PRACTICE_ACTIVE" && state.reveal === "OUTCOME") ||
+          (state.session === "TEST_FINISHED" && state.reveal === "CONCEALED")
+        )
+      ) {
+        throw new Error("Answers are available only after Practice Check or a finished Test.");
       }
       return {
         ...state,

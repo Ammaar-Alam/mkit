@@ -20,7 +20,7 @@ export function mountStudyRail(
   props: StudyRailProps,
 ): MKitViewHandle<StudyRailProps> {
   const headingId = nextId("rail-heading");
-  const explanationId = nextId("explanation");
+  const answersId = nextId("answers");
   const noteId = nextId("note");
   const reflectionId = nextId("reflection");
   const contentId = nextId("rail-content");
@@ -67,23 +67,24 @@ export function mountStudyRail(
     );
 
     const feedbackVisible =
+      next.stage === "practice-checked" ||
       next.stage === "practice-revealed" ||
       next.stage === "original-revealed" ||
       next.stage === "test-finished";
     if (feedbackVisible && next.outcome) content.append(outcome(next.outcome));
 
     if (next.mode === "practice") {
-      content.append(practiceActions(next, reflectionId));
+      content.append(practiceActions(next, answersId, reflectionId));
     } else {
-      content.append(testActions(next, explanationId, reflectionId));
+      content.append(testActions(next, answersId, reflectionId));
     }
 
-    if (next.explanationExpanded) {
+    if (next.answersRevealed) {
       content.append(
         element("p", {
           className: "mkit-reveal-status",
-          text: "Explanation shown in the review.",
-          attributes: { id: explanationId, role: "status", "aria-live": "polite" },
+          text: "Answers shown in the review.",
+          attributes: { id: answersId, role: "status", "aria-live": "polite" },
         }),
       );
     }
@@ -111,6 +112,8 @@ export function mountStudyRail(
     if (previousStage !== next.stage) {
       if (next.stage === "original-revealed") {
         scheduleFocus(root.querySelector<HTMLElement>("[data-focus-key='private-note']"));
+      } else if (next.stage === "practice-checked" || next.stage === "test-finished") {
+        scheduleFocus(root.querySelector<HTMLElement>("[data-focus-key='reveal-answers']"));
       } else if (next.stage === "masked" && previousStage !== undefined) {
         scheduleFocus(root.querySelector<HTMLElement>("[data-focus-key='answer-A']"));
       }
@@ -339,9 +342,9 @@ function toggleButton(
 function outcome(value: NonNullable<StudyRailProps["outcome"]>): HTMLElement {
   const copy =
     value === "correct"
-      ? { label: "Got it", icon: "check" as const }
+      ? { label: "Correct", icon: "check" as const }
       : value === "needs-review"
-        ? { label: "Needs review", icon: "circle" as const }
+        ? { label: "Incorrect", icon: "circle" as const }
         : { label: "Couldn’t auto-check this question.", icon: "warning" as const };
   return element(
     "div",
@@ -354,10 +357,17 @@ function outcome(value: NonNullable<StudyRailProps["outcome"]>): HTMLElement {
   );
 }
 
-function practiceActions(props: StudyRailProps, reflectionId: string): HTMLElement {
-  const revealed = props.stage === "practice-revealed" || props.stage === "original-revealed";
+function practiceActions(
+  props: StudyRailProps,
+  answersId: string,
+  reflectionId: string,
+): HTMLElement {
+  const checked =
+    props.stage === "practice-checked" ||
+    props.stage === "practice-revealed" ||
+    props.stage === "original-revealed";
   const actions = element("div", { className: "mkit-actions mkit-actions--stacked" });
-  if (!revealed) {
+  if (!checked) {
     actions.append(
       primaryButton("Check", props.onCheck, {
         disabled: props.selection === null,
@@ -368,7 +378,16 @@ function practiceActions(props: StudyRailProps, reflectionId: string): HTMLEleme
     return actions;
   }
 
-  if (props.stage !== "original-revealed") {
+  if (props.stage === "practice-checked") {
+    actions.append(
+      primaryButton("Reveal answers", props.onRevealAnswers, {
+        expanded: false,
+        controls: answersId,
+        focusKey: "reveal-answers",
+        icon: "arrow",
+      }),
+    );
+  } else if (props.stage === "practice-revealed") {
     actions.append(
       button(
         "Reveal original attempt",
@@ -392,27 +411,20 @@ function practiceActions(props: StudyRailProps, reflectionId: string): HTMLEleme
   return actions;
 }
 
-function testActions(
-  props: StudyRailProps,
-  explanationId: string,
-  reflectionId: string,
-): HTMLElement {
+function testActions(props: StudyRailProps, answersId: string, reflectionId: string): HTMLElement {
   const actions = element("div", { className: "mkit-actions mkit-actions--stacked" });
   if (props.stage === "test-finished" || props.stage === "original-revealed") {
-    actions.append(
-      button(
-        props.explanationExpanded ? "Hide explanation" : "Show explanation",
-        "mkit-button mkit-button--primary",
-        () => props.onToggleExplanation(!props.explanationExpanded),
-        {
-          expanded: props.explanationExpanded,
-          controls: explanationId,
-          focusKey: "toggle-explanation",
-          icon: props.explanationExpanded ? null : "arrow",
-        },
-      ),
-    );
-    if (props.explanationExpanded && props.stage !== "original-revealed") {
+    if (!props.answersRevealed && props.stage !== "original-revealed") {
+      actions.append(
+        primaryButton("Reveal answers", props.onRevealAnswers, {
+          expanded: false,
+          controls: answersId,
+          focusKey: "reveal-answers",
+          icon: "arrow",
+        }),
+      );
+    }
+    if (props.answersRevealed && props.stage !== "original-revealed") {
       actions.append(
         button(
           "Reveal original attempt",

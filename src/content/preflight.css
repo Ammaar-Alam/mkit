@@ -21,6 +21,7 @@ html[data-mkit-protection="masked"]
     .question-content-container,
     .answer-container.question-container,
     ul.question-choices-multi.results,
+    ul.question-choices-multi.results > .multi-choice,
     .choice-content
   ):is(.correct, .incorrect, .corrected, .is-correct, .is-incorrect) {
   border-color: transparent !important;

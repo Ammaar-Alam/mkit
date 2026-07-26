@@ -193,6 +193,9 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   const initialQuestionClasses = await page
     .locator("#live-question-container")
     .getAttribute("class");
+  const initialChoiceClasses = await page
+    .locator(".multi-choice")
+    .evaluateAll((choices) => choices.map((choice) => choice.getAttribute("class")));
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());
   const host = page.locator("[data-mkit-host]");
   await host.locator("[data-focus-key='practice']").click();
@@ -255,44 +258,43 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   await expect(rail).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
 
-  const cdp = await page.context().newCDPSession(page);
-  const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
-  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
-    expect(axText).not.toContain(sentinel);
-  }
-
-  const absentFromFind = await page.evaluate((sentinels) => {
-    return sentinels.every(
-      (sentinel) => !window.find(sentinel, false, false, true, false, false, false),
-    );
-  }, LIVE_FEEDBACK_SPOILERS);
-  expect(absentFromFind).toBe(true);
-
-  const selectedText = await page.evaluate(() => {
-    const range = document.createRange();
-    range.selectNodeContents(document.documentElement);
-    const selection = getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-    return selection?.toString() ?? "";
-  });
-  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
-    expect(selectedText).not.toContain(sentinel);
-  }
-
-  await page.emulateMedia({ media: "print" });
-  const pdf = await page.pdf({ printBackground: true });
-  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
-    expect(pdf.includes(Buffer.from(sentinel))).toBe(false);
-  }
-  await page.emulateMedia({ media: "screen" });
+  await expectLiveFeedbackAbsent(page);
 
   await rail.locator("[data-focus-key='check']").click();
+  await expect(rail.locator(".mkit-outcome--needs-review")).toHaveText("Incorrect");
+  await expect(rail.locator("[data-focus-key='reveal-answers']")).toBeVisible();
+  await expect(rail.locator("[data-focus-key='reveal-original']")).toHaveCount(0);
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(0);
+  for (const selector of [
+    ".sidebar-container",
+    ".result-wrapper",
+    "#inline-feedback",
+    "#known-feedback",
+    "#delayed-live-result",
+    "#delayed-inline-feedback",
+    "#delayed-live-explanation",
+  ]) {
+    await expect(page.locator(selector).first(), `${selector} after Check`).toBeHidden();
+  }
+  const nativeNext = page.locator(".toolbar-btn.next");
+  await expect(nativeNext).toBeVisible();
+  await expect(nativeNext).toBeEnabled();
+  await nativeNext.click();
+  await expect(nativeNext).toHaveAttribute("data-native-clicks", "1");
+  await expectLiveFeedbackAbsent(page);
+
+  await rail.locator("[data-focus-key='reveal-answers']").click();
   await expect(page.locator("#inline-feedback")).toBeVisible();
   await expect(page.locator("#delayed-inline-feedback")).toBeVisible();
   await expect(page.locator("#known-feedback")).toBeVisible();
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(1);
   await expect(page.locator(".sidebar-container")).toBeHidden();
   await expect(page.locator("#fallback-solution")).toBeHidden();
+  await expect(rail.locator("[data-focus-key='reveal-original']")).toBeVisible();
+
+  await rail.locator("[data-focus-key='reveal-original']").click();
+  await expect(page.locator(".sidebar-container")).toBeVisible();
+  await expect(page.locator("#fallback-solution")).toBeVisible();
 
   await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
   await expect(page.locator(".sidebar-container")).toBeVisible();
@@ -322,6 +324,43 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     "class",
     initialQuestionClasses ?? "",
   );
+  expect(
+    await page
+      .locator(".multi-choice")
+      .evaluateAll((choices) => choices.map((choice) => choice.getAttribute("class"))),
+  ).toEqual(initialChoiceClasses);
+});
+
+test("Test keeps feedback concealed until finish and an explicit answer reveal", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='test']").click();
+  const rail = host.locator(".mkit-study-rail");
+
+  await rail.locator("[data-focus-key='answer-A']").click();
+  await expect(rail.locator("[data-focus-key='reveal-answers']")).toHaveCount(0);
+  await expect(page.locator("#inline-feedback")).toBeHidden();
+  await expect(page.locator("#known-feedback")).toBeHidden();
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(0);
+
+  await rail.locator("[data-focus-key='finish-request']").click();
+  await rail.locator("[data-focus-key='finish-confirm']").click();
+  await expect(rail.locator("[data-focus-key='reveal-answers']")).toBeVisible();
+  await expect(rail.locator(".mkit-outcome")).toHaveCount(0);
+  await expect(page.locator("#inline-feedback")).toBeHidden();
+  await expect(page.locator("#known-feedback")).toBeHidden();
+  await expectLiveFeedbackAbsent(page);
+
+  await rail.locator("[data-focus-key='reveal-answers']").click();
+  await expect(rail.locator(".mkit-outcome--needs-review")).toHaveText("Incorrect");
+  await expect(page.locator("#inline-feedback")).toBeVisible();
+  await expect(page.locator("#known-feedback")).toBeVisible();
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(1);
+  await expect(page.locator(".sidebar-container")).toBeHidden();
+  await expect(rail.locator("[data-focus-key='reveal-original']")).toBeVisible();
 });
 
 test("Practice rail distinguishes selection, elimination, and primary action states", async ({
@@ -1057,6 +1096,41 @@ async function snapshotLiveQuestionState(
         text: element.childElementCount === 0 ? element.textContent : null,
       })),
     );
+}
+
+async function expectLiveFeedbackAbsent(page: import("@playwright/test").Page): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
+  await cdp.detach();
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(axText).not.toContain(sentinel);
+  }
+
+  const absentFromFind = await page.evaluate((sentinels) => {
+    return sentinels.every(
+      (sentinel) => !window.find(sentinel, false, false, true, false, false, false),
+    );
+  }, LIVE_FEEDBACK_SPOILERS);
+  expect(absentFromFind).toBe(true);
+
+  const selectedText = await page.evaluate(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.documentElement);
+    const selection = getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return selection?.toString() ?? "";
+  });
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(selectedText).not.toContain(sentinel);
+  }
+
+  await page.emulateMedia({ media: "print" });
+  const pdf = await page.pdf({ printBackground: true });
+  await page.emulateMedia({ media: "screen" });
+  for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
+    expect(pdf.includes(Buffer.from(sentinel))).toBe(false);
+  }
 }
 
 async function controlColors(locator: import("@playwright/test").Locator): Promise<{

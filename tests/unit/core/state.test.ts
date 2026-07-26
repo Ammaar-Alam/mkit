@@ -7,7 +7,8 @@ describe("review state", () => {
     const practice = reduceReviewState(masked, { type: "START_PRACTICE" });
     const selected = reduceReviewState(practice, { type: "SELECT", selection: "B" });
     const checked = reduceReviewState(selected, { type: "CHECK" });
-    const original = reduceReviewState(checked, { type: "REVEAL_ORIGINAL" });
+    const feedback = reduceReviewState(checked, { type: "REVEAL_FEEDBACK" });
+    const original = reduceReviewState(feedback, { type: "REVEAL_ORIGINAL" });
 
     expect(original).toEqual({
       protection: "MASKED",
@@ -15,6 +16,21 @@ describe("review state", () => {
       reveal: "ORIGINAL",
       selection: "B",
     });
+  });
+
+  it("keeps Practice outcome separate from native answer feedback", () => {
+    const checked = reduceReviewState(
+      {
+        protection: "MASKED",
+        session: "PRACTICE_ACTIVE",
+        reveal: "CONCEALED",
+        selection: "A",
+      },
+      { type: "CHECK" },
+    );
+
+    expect(checked.reveal).toBe("OUTCOME");
+    expect(reduceReviewState(checked, { type: "REVEAL_FEEDBACK" }).reveal).toBe("FEEDBACK");
   });
 
   it("remasks and clears only the fresh selection on Retry", () => {
@@ -41,6 +57,25 @@ describe("review state", () => {
     };
 
     expect(() => reduceReviewState(state, { type: "CHECK" })).toThrow("Practice Check requires");
+    expect(() => reduceReviewState(state, { type: "REVEAL_FEEDBACK" })).toThrow(
+      "Answers are available",
+    );
+  });
+
+  it("keeps Test feedback concealed until the Test is finished", () => {
+    const active = {
+      protection: "MASKED" as const,
+      session: "TEST_ACTIVE" as const,
+      reveal: "CONCEALED" as const,
+      selection: "C" as const,
+    };
+
+    expect(() => reduceReviewState(active, { type: "REVEAL_FEEDBACK" })).toThrow(
+      "Answers are available",
+    );
+    const finished = reduceReviewState(active, { type: "FINISH_TEST" });
+    expect(finished.reveal).toBe("CONCEALED");
+    expect(reduceReviewState(finished, { type: "REVEAL_FEEDBACK" }).reveal).toBe("FEEDBACK");
   });
 
   it("allows an active concealed answer to be explicitly cleared", () => {

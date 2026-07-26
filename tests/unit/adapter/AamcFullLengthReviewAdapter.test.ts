@@ -293,6 +293,26 @@ describe("AamcFullLengthReviewAdapter score shielding", () => {
 });
 
 describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
+  it("grades one live full-review multi-choice correct class without restoring it", () => {
+    mountConfirmedProductionFixture();
+    const correctChoice = requiredElement(".multi-choice.corrected");
+    correctChoice.classList.replace("corrected", "correct");
+    const structuralQuestion = requiredElement("#confirmed-question-container");
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    adapter.applyCleanSlate();
+
+    expect(correctChoice.classList.contains("correct")).toBe(false);
+    expect(structuralQuestion.classList.contains("correct")).toBe(true);
+    expect(adapter.gradeFresh("A")).toBe("needs-review");
+    expect(adapter.gradeFresh("B")).toBe("correct");
+    expect(correctChoice.classList.contains("correct")).toBe(false);
+
+    requiredElement(".multi-choice").classList.add("correct");
+    adapter.applyCleanSlate();
+    expect(adapter.gradeFresh("B")).toBe("unknown");
+  });
+
   it("recognizes only the confirmed route and masks confirmed anchors without reading data-choice", async () => {
     mountConfirmedProductionFixture();
     let nativeNavigationEvents = 0;

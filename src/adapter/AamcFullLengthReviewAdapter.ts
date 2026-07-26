@@ -125,6 +125,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ],
     feedbackClassCarrier: [
       ".multi-choice.corrected",
+      ".multi-choice.correct",
       "ul.question-choices-multi.results.corrected",
       ".is-correct:not(.answer-container):not(.question-container):not(.question-content-container)",
       ".is-correct-answer:not(.answer-container):not(.question-container):not(.question-content-container)",
@@ -152,6 +153,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".reviewable > .question-content-container",
       ".reviewable .answer-container.question-container",
       ".reviewable ul.question-choices-multi.results",
+      ".reviewable ul.question-choices-multi.results > .multi-choice",
       ".reviewable .choice-content",
     ],
     scoreRegion: [
@@ -347,7 +349,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     );
     this.#mask.removeClasses(
       feedbackClassCarriers,
-      ["corrected", "is-correct", "is-correct-answer", "correct-answer", "answer-correct"],
+      [
+        "corrected",
+        "correct",
+        "is-correct",
+        "is-correct-answer",
+        "correct-answer",
+        "answer-correct",
+      ],
       FEEDBACK_GROUP,
     );
     this.#mask.removeClasses(
@@ -642,13 +651,18 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #readCorrectChoice(): AnswerChoice | null {
-    if (parseConfirmedReviewRoute(this.#url())) {
+    const route = parseConfirmedReviewRoute(this.#url());
+    if (route) {
       const choices = this.#queryAll(["ul.question-choices-multi.results > .multi-choice"]);
-      const corrected = choices.filter((choice) => choice.classList.contains("corrected"));
-      if (corrected.length !== 1) {
+      const correctChoices = choices.filter(
+        (choice) =>
+          this.#mask.hasClass(choice, "corrected", FEEDBACK_GROUP) ||
+          (route.kind === "full-length" && this.#mask.hasClass(choice, "correct", FEEDBACK_GROUP)),
+      );
+      if (correctChoices.length !== 1) {
         return null;
       }
-      const index = choices.indexOf(corrected[0] as Element);
+      const index = choices.indexOf(correctChoices[0] as Element);
       return (["A", "B", "C", "D"] as const)[index] ?? null;
     }
     const carrier =
@@ -684,6 +698,7 @@ async function sha256Guard(value: string): Promise<string> {
 
 interface ConfirmedReviewRoute {
   examIdentifier: string;
+  kind: "full-length";
   questionIdentifier: string;
 }
 
@@ -706,6 +721,7 @@ function parseConfirmedReviewRoute(url: URL): ConfirmedReviewRoute | null {
   }
   return {
     examIdentifier: `${examNumber}:${examIdentifier}`,
+    kind: "full-length",
     questionIdentifier,
   };
 }

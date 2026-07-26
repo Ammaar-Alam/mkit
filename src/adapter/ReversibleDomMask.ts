@@ -99,6 +99,13 @@ export class ReversibleDomMask {
     }
   }
 
+  hasClass(element: Element, className: string, group: string): boolean {
+    return (
+      element.classList.contains(className) ||
+      (this.#classesByGroup.get(group)?.get(element)?.has(className) ?? false)
+    );
+  }
+
   clearInlineStyles(elements: Iterable<Element>, group: string): void {
     const snapshots = getOrCreate(this.#stylesByGroup, group, () => new Map());
     for (const element of elements) {

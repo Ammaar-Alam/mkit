@@ -80,7 +80,7 @@
                             <li class="multi-choice incorrect">
                               <span class="choice-content">Synthetic choice A.</span>
                             </li>
-                            <li class="multi-choice corrected">
+                            <li class="multi-choice correct">
                               <span class="choice-content">Synthetic choice B.</span>
                             </li>
                             <li class="multi-choice">
@@ -142,5 +142,13 @@
         </div>
       </article>
     </main>
+    <script>
+      for (const control of document.querySelectorAll(".toolbar-btn")) {
+        control.addEventListener("click", () => {
+          const clicks = Number(control.getAttribute("data-native-clicks") ?? "0");
+          control.setAttribute("data-native-clicks", String(clicks + 1));
+        });
+      }
+    </script>
   </body>
 </html>

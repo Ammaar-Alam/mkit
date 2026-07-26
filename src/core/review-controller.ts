@@ -56,7 +56,7 @@ export class ReviewController {
   #availableSession: SessionRecord | null = null;
   #pendingMode: FreshAttemptMode | null = null;
   #saveState: SaveState = "idle";
-  #explanationExpanded = false;
+  #answersRevealed = false;
   #finishConfirmationOpen = false;
   #view: ViewHandle | null = null;
   #gateView: MKitViewHandle<GateProps> | null = null;
@@ -368,6 +368,7 @@ export class ReviewController {
         ...this.#state,
         selection: this.#attempt.selection,
       };
+      this.#answersRevealed = false;
       this.#showRail();
     } catch {
       this.#saveState = "error";
@@ -398,6 +399,7 @@ export class ReviewController {
         this.#context.questionKey,
       );
     }
+    this.#answersRevealed = false;
     this.#showRail();
   }
 
@@ -439,7 +441,7 @@ export class ReviewController {
       reviewAgain: attempt.reviewAgain,
       outcome: this.#state.reveal === "CONCEALED" ? null : attempt.outcome,
       saveState: this.#saveState,
-      explanationExpanded: this.#explanationExpanded,
+      answersRevealed: this.#answersRevealed,
       note: attempt.note ?? "",
       tags: attempt.tags,
       canNavigatePrevious: false,
@@ -466,7 +468,7 @@ export class ReviewController {
       onCheck: () => {
         void this.#checkPractice();
       },
-      onToggleExplanation: (expanded) => this.#toggleExplanation(expanded),
+      onRevealAnswers: () => this.#revealAnswers(),
       onRevealOriginal: () => this.#revealOriginal(),
       onRetry: () => {
         void this.#retryPractice();
@@ -531,23 +533,24 @@ export class ReviewController {
     const outcome = this.#adapter.gradeFresh(this.#attempt.selection);
     await this.#updateAttempt({ outcome });
     this.#state = reduceReviewState(this.#state, { type: "CHECK" });
-    this.#adapter.revealFeedback();
-    this.#explanationExpanded = true;
+    this.#answersRevealed = false;
     this.#timer.setSessionActive(false);
     this.#showRail();
   }
 
-  #toggleExplanation(expanded: boolean): void {
-    this.#explanationExpanded = expanded;
-    if (expanded) {
-      this.#adapter.revealFeedback();
-      if (this.#state.session === "TEST_FINISHED") {
-        this.#state = { ...this.#state, reveal: "FEEDBACK" };
-      }
-    } else {
-      this.#adapter.remaskQuestion();
-      this.#state = { ...this.#state, reveal: "CONCEALED" };
+  #revealAnswers(): void {
+    if (
+      !(
+        (this.#state.session === "PRACTICE_ACTIVE" && this.#state.reveal === "OUTCOME") ||
+        (this.#state.session === "TEST_FINISHED" && this.#state.reveal === "CONCEALED")
+      )
+    ) {
+      return;
     }
+    this.#state = reduceReviewState(this.#state, { type: "REVEAL_FEEDBACK" });
+    this.#adapter.revealFeedback();
+    this.#answersRevealed = true;
+    this.#timer.setSessionActive(false);
     this.#showRail();
   }
 
@@ -563,7 +566,7 @@ export class ReviewController {
     this.#adapter.remaskQuestion();
     this.#attempt = await this.#sessions.retry(this.#session.id, this.#attempt.questionKey);
     this.#state = reduceReviewState(this.#state, { type: "RETRY" });
-    this.#explanationExpanded = false;
+    this.#answersRevealed = false;
     this.#showRail();
   }
 
@@ -604,6 +607,7 @@ export class ReviewController {
     if (this.#state.reveal === "ORIGINAL") return "original-revealed";
     if (this.#state.session === "TEST_FINISHED") return "test-finished";
     if (this.#state.reveal === "FEEDBACK") return "practice-revealed";
+    if (this.#state.reveal === "OUTCOME") return "practice-checked";
     if (this.#state.session === "TEST_ACTIVE") return "test-active";
     return this.#state.selection ? "selected" : "masked";
   }

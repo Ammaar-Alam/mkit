@@ -53,6 +53,7 @@ export type SaveState = "idle" | "saving" | "saved" | "error";
 export type StudyRailStage =
   | "masked"
   | "selected"
+  | "practice-checked"
   | "practice-revealed"
   | "original-revealed"
   | "test-active"
@@ -69,7 +70,7 @@ export interface StudyRailProps {
   reviewAgain: boolean;
   outcome: AttemptOutcome | null;
   saveState: SaveState;
-  explanationExpanded: boolean;
+  answersRevealed: boolean;
   note: string;
   tags: readonly AttemptTag[];
   canNavigatePrevious: boolean;
@@ -83,7 +84,7 @@ export interface StudyRailProps {
   onFlagChange(flagged: boolean): void;
   onReviewAgainChange(reviewAgain: boolean): void;
   onCheck(): void;
-  onToggleExplanation(expanded: boolean): void;
+  onRevealAnswers(): void;
   onRevealOriginal(): void;
   onRetry(): void;
   onFinishRequest(): void;
