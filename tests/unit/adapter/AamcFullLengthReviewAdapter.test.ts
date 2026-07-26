@@ -320,6 +320,11 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
             <div class="multi-choice"></div>
           </div>
         </article>
+        <aside class="reviewable">
+          <div class="result-wrapper">
+            <div class="result"></div>
+          </div>
+        </aside>
       `,
     );
     const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
@@ -342,6 +347,18 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     activeChoices[0]?.classList.add("correct");
     adapter.applyCleanSlate();
     expect(adapter.gradeFresh("B")).toBe("unknown");
+  });
+
+  it("rejects multiple visible review roots that each own answer choices", () => {
+    mountConfirmedProductionFixture();
+    const duplicate = requiredElement(".reviewable").cloneNode(true);
+    document.body.append(duplicate);
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      answerChoiceCount: 0,
+      safeToReveal: false,
+    });
   });
 
   it("recognizes only the confirmed route and masks confirmed anchors without reading data-choice", async () => {

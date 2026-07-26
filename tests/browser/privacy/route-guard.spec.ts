@@ -90,6 +90,8 @@ test("valid wrapperless answer review mounts protection once the host is ready",
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncQuestionVisibility)).toBe("visible");
+  await expect(page.locator(".reviewable")).toHaveCount(2);
+  await expect(page.locator(".reviewable:has(> .question-content-container)")).toHaveCount(1);
   await expect(page.locator("ul.question-choices-multi.results")).toHaveCount(0);
   await expect(page.locator(".multi-choice")).toHaveCount(4);
   await expect(page.locator("[data-mkit-host]")).toHaveCount(1);

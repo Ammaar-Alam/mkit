@@ -754,8 +754,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #confirmedAnswerChoices(reviewRoot: Element | null = this.#activeReviewRoot()): Element[] {
-    const questionRegion = reviewRoot?.querySelector(":scope > .question-content-container");
-    if (!reviewRoot || !questionRegion || !this.#isAuthoredVisible(questionRegion)) {
+    return reviewRoot ? this.#structuralAnswerChoices(reviewRoot) : [];
+  }
+
+  #structuralAnswerChoices(reviewRoot: Element): Element[] {
+    const questionRegion = reviewRoot.querySelector(":scope > .question-content-container");
+    if (!questionRegion || !this.#isAuthoredVisible(questionRegion)) {
       return [];
     }
     return [...questionRegion.querySelectorAll(".multi-choice")].filter(
@@ -766,10 +770,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #activeReviewRoot(): Element | null {
-    const visibleRoots = [...this.#document.querySelectorAll(".reviewable")].filter((root) =>
-      this.#isAuthoredVisible(root),
+    const questionRoots = [...this.#document.querySelectorAll(".reviewable")].filter(
+      (root) => this.#isAuthoredVisible(root) && this.#structuralAnswerChoices(root).length > 0,
     );
-    return visibleRoots.length === 1 ? (visibleRoots[0] ?? null) : null;
+    return questionRoots.length === 1 ? (questionRoots[0] ?? null) : null;
   }
 
   #isAuthoredVisible(element: Element): boolean {
