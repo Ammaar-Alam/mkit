@@ -361,6 +361,59 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     });
   });
 
+  it("admits one visible external review switch and ignores its hidden responsive duplicate", () => {
+    mountConfirmedProductionFixture();
+    const reviewRoot = requiredElement(".reviewable");
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const hiddenToolbar = toolbar.cloneNode(true);
+    if (!(hiddenToolbar instanceof HTMLElement)) {
+      throw new Error("Expected an HTML toolbar clone.");
+    }
+    hiddenToolbar.style.display = "none";
+    card.append(hiddenToolbar);
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(reviewRoot.querySelector(".view-answers.switchable")).toBeNull();
+    expect(document.querySelectorAll(".view-answers.switchable")).toHaveLength(2);
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+
+    adapter.applyCleanSlate();
+    const replacementAdapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(replacementAdapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+  });
+
+  it("fails open when the external review switch is missing or ambiguous", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const duplicateToolbar = toolbar.cloneNode(true);
+    card.append(duplicateToolbar);
+    const ambiguousAdapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(ambiguousAdapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: false,
+      issues: ["REVIEW_SWITCH_MISSING"],
+    });
+
+    for (const input of document.querySelectorAll(".view-answers.switchable")) {
+      input.remove();
+    }
+    const missingAdapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(missingAdapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: false,
+      issues: ["REVIEW_SWITCH_MISSING"],
+    });
+  });
+
   it("recognizes only the confirmed route and masks confirmed anchors without reading data-choice", async () => {
     mountConfirmedProductionFixture();
     let nativeNavigationEvents = 0;

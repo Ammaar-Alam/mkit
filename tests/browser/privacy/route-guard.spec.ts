@@ -92,6 +92,10 @@ test("valid wrapperless answer review mounts protection once the host is ready",
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncQuestionVisibility)).toBe("visible");
   await expect(page.locator(".reviewable")).toHaveCount(2);
   await expect(page.locator(".reviewable:has(> .question-content-container)")).toHaveCount(1);
+  await expect(
+    page.locator(".reviewable:has(> .question-content-container) .view-answers.switchable"),
+  ).toHaveCount(0);
+  await expect(page.locator(".view-answers.switchable")).toHaveCount(2);
   await expect(page.locator("ul.question-choices-multi.results")).toHaveCount(0);
   await expect(page.locator(".multi-choice")).toHaveCount(4);
   await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
@@ -144,6 +148,24 @@ test("accepted answer route fails open when a completed-review capability is abs
 
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
   expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  await expect(page.locator("#main-footer")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+  expect(await snapshotAuthoredSurface(page)).toBe(
+    await page.evaluate(() => window.__mkitRouteGuardAuthoredSurface),
+  );
+});
+
+test("answer review with two visible external switches remains fail-open", async ({ page }) => {
+  await page.goto(
+    "http://127.0.0.1:4173/route-guard?answer&ambiguous-switch&stale-route&stale-protection",
+  );
+  await waitForTwoFrames(page);
+
+  await expect(page.locator(".view-answers.switchable")).toHaveCount(2);
   await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
   await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
   await expect(page.locator("#wrapper")).toBeVisible();

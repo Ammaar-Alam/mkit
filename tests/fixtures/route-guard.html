@@ -45,15 +45,6 @@
                     <div class="multi-choice" data-choice="C">Synthetic stale choice D.</div>
                   </div>
                 </div>
-                <label class="review-answer">
-                  Review
-                  <input
-                    class="view-answers switchable"
-                    role="switch"
-                    type="checkbox"
-                    aria-checked="false"
-                  >
-                </label>
                 <div class="fixed-width-sidebar-columns">
                   <aside class="sidebar-column">
                     <div class="sidebar-container">
@@ -73,6 +64,26 @@
               </nav>
             </div>
           </div>
+          <div class="external-review-controls">
+            <label class="review-answer">
+              Review
+              <input
+                class="view-answers switchable"
+                role="switch"
+                type="checkbox"
+                aria-checked="false"
+              >
+            </label>
+            <label class="review-answer" style="display: none">
+              Review
+              <input
+                class="view-answers switchable"
+                role="switch"
+                type="checkbox"
+                aria-checked="false"
+              >
+            </label>
+          </div>
         </article>
         <aside class="reviewable" id="secondary-review-shell">
           <div class="choices-container">
@@ -87,7 +98,14 @@
     <script>
       const fixtureParams = new URL(location.href).searchParams;
       if (fixtureParams.has("missing-capability")) {
-        document.querySelector(".view-answers.switchable")?.remove();
+        for (const input of document.querySelectorAll(".view-answers.switchable")) {
+          input.remove();
+        }
+      }
+      if (fixtureParams.has("ambiguous-switch")) {
+        for (const label of document.querySelectorAll(".external-review-controls label")) {
+          label.removeAttribute("style");
+        }
       }
       if (fixtureParams.has("incomplete-choices")) {
         document.querySelector(".multi-choice:last-of-type")?.remove();

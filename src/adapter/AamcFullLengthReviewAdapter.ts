@@ -13,6 +13,7 @@ const FEEDBACK_GROUP = "feedback";
 const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
+const CONFIRMED_REVIEW_SWITCHES = new WeakSet<Element>();
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -31,6 +32,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #locationPoll: number | null = null;
   #lastLocation = "";
   #processing = false;
+  #completedReviewSwitch: Element | null = null;
 
   readonly #selectors = {
     page: {
@@ -270,10 +272,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const scoreRegionCount = this.#queryAll(this.#selectors.scoreValue).length;
     const reviewControlFound = Boolean(this.#queryAny(this.#selectors.reviewControl));
     const completedReviewSwitchFound = confirmedRoute
-      ? Boolean(
-          confirmedReviewRoot &&
-            this.#queryAnyWithin(confirmedReviewRoot, this.#selectors.completedReviewSwitch),
-        )
+      ? Boolean(confirmedReviewRoot && this.#resolveCompletedReviewSwitch(confirmedReviewRoot))
       : false;
     const issues: AdapterIssueCode[] = [];
 
@@ -623,6 +622,40 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #queryAnyWithin(root: Element, selectors: readonly string[]): Element | null {
     return this.#queryAll(selectors).find((element) => root.contains(element)) ?? null;
+  }
+
+  #resolveCompletedReviewSwitch(reviewRoot: Element): Element | null {
+    const candidates = this.#queryAll(this.#selectors.completedReviewSwitch).filter((element) => {
+      const owner = element.closest(".reviewable");
+      return owner === null || owner === reviewRoot;
+    });
+    if (
+      this.#completedReviewSwitch?.isConnected &&
+      candidates.includes(this.#completedReviewSwitch)
+    ) {
+      return this.#completedReviewSwitch;
+    }
+
+    const maskedConfirmedCandidates = candidates.filter(
+      (element) =>
+        element.hasAttribute("data-mkit-hidden") && CONFIRMED_REVIEW_SWITCHES.has(element),
+    );
+    if (maskedConfirmedCandidates.length === 1) {
+      this.#completedReviewSwitch = maskedConfirmedCandidates[0] ?? null;
+      return this.#completedReviewSwitch;
+    }
+    if (maskedConfirmedCandidates.length > 1) {
+      this.#completedReviewSwitch = null;
+      return null;
+    }
+
+    const visibleCandidates = candidates.filter((element) => this.#isAuthoredVisible(element));
+    this.#completedReviewSwitch =
+      visibleCandidates.length === 1 ? (visibleCandidates[0] ?? null) : null;
+    if (this.#completedReviewSwitch) {
+      CONFIRMED_REVIEW_SWITCHES.add(this.#completedReviewSwitch);
+    }
+    return this.#completedReviewSwitch;
   }
 
   #readExamIdentifier(): string | null {
