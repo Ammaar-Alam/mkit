@@ -846,10 +846,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
           return false;
         }
       }
-      if (view && !pageCoverActive) {
+      if (view) {
         const style = view.getComputedStyle(current);
         if (
-          style.display === "none" ||
+          (style.display === "none" && !this.#isHiddenByPageCover(current, pageCoverActive)) ||
           style.visibility === "hidden" ||
           style.visibility === "collapse" ||
           Number.parseFloat(style.opacity || "1") === 0
@@ -860,6 +860,22 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       current = current.parentElement;
     }
     return true;
+  }
+
+  /**
+   * The boot and unsupported covers hide every direct body child that is not an
+   * MKit host, so that single rule must not read as authored concealment: the
+   * page wrapper MKit itself just covered would otherwise report every review
+   * anchor as hidden and startup could never complete. Computed `display` is not
+   * inherited by descendants, so exempting the covered element alone still
+   * judges responsive duplicates and page-authored hiding by their own styles.
+   */
+  #isHiddenByPageCover(element: Element, pageCoverActive: boolean): boolean {
+    return (
+      pageCoverActive &&
+      element.parentElement === this.#document.body &&
+      !element.hasAttribute("data-mkit-host")
+    );
   }
 
   #isMKitPageCoverActive(): boolean {

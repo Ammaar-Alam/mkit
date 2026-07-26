@@ -434,6 +434,55 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     });
   });
 
+  it("judges the same page identically while MKit's own boot cover is applied", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const duplicateToolbar = toolbar.cloneNode(true);
+    if (!(duplicateToolbar instanceof HTMLElement)) {
+      throw new Error("Expected an HTML toolbar clone.");
+    }
+    card.append(duplicateToolbar);
+    // The live page hides the responsive duplicate control through a stylesheet
+    // rule rather than an inline style, so authored concealment is only visible
+    // through computed style.
+    const stylesheet = document.createElement("style");
+    stylesheet.textContent = ".mkit-test-responsive-duplicate { display: none; }";
+    document.head.append(stylesheet);
+    const duplicateLabel = duplicateToolbar.querySelector(".review-answer");
+    if (!duplicateLabel) throw new Error("Expected a duplicate review-answer control.");
+    duplicateLabel.classList.add("mkit-test-responsive-duplicate");
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(document.querySelectorAll(".view-answers.switchable")).toHaveLength(2);
+    expect(adapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+
+    // Startup arms the boot cover before capabilities are inspected. That cover
+    // hides every direct body child, so it must not read as authored
+    // concealment of the review anchors underneath it. A fresh adapter carries
+    // no confirmed switch, matching the instance startup actually inspects with.
+    document.documentElement.dataset.mkitProtection = "boot";
+    const bootAdapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(bootAdapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: true,
+      issues: [],
+    });
+
+    // The cover must not loosen admission either. Startup builds a fresh adapter
+    // per reconciliation, so a genuinely visible duplicate control stays
+    // ambiguous while the cover is applied.
+    duplicateLabel.classList.remove("mkit-test-responsive-duplicate");
+    const coveredAdapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(coveredAdapter.inspectCapabilities()).toMatchObject({
+      safeToReveal: false,
+      issues: ["REVIEW_SWITCH_MISSING"],
+    });
+  });
+
   it("fails open when the external review switch is missing or ambiguous", () => {
     mountConfirmedProductionFixture();
     const toolbar = requiredElement(".answer-toolbar-wrapper");
