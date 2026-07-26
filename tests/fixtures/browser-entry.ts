@@ -5,6 +5,8 @@ import {
   type FreshAttemptKeyboardActions,
   FreshAttemptKeyboardController,
 } from "../../src/core/keyboard";
+import { ReviewController } from "../../src/core/review-controller";
+import { type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface KeyboardLog {
   checks: number;
@@ -27,6 +29,8 @@ interface PrivacyHarness {
   keyboardLog(): KeyboardLog;
   navigate(direction: "previous" | "next"): boolean;
   setKeyboardEnabled(enabled: boolean): void;
+  startController(): void;
+  stopController(): void;
   stop(): void;
 }
 
@@ -59,6 +63,7 @@ declare global {
 const adapter = new AamcFullLengthReviewAdapter(document, () => new URL(location.href));
 const events: AdapterEvent[] = [];
 let stopObserver: (() => void) | null = null;
+let reviewController: ReviewController | null = null;
 const keyboardLog: KeyboardLog = {
   checks: 0,
   eliminations: [],
@@ -120,8 +125,56 @@ window.__mkitPrivacyHarness = {
   keyboardLog: () => structuredClone(keyboardLog),
   navigate: (direction) => adapter.navigate(direction),
   setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
+  startController: () => {
+    if (reviewController) return;
+    const preflight = globalThis.__mkitPreflight;
+    if (!preflight) {
+      throw new Error("Synthetic preflight is unavailable.");
+    }
+    reviewController = new ReviewController({
+      adapter: new AamcFullLengthReviewAdapter(
+        document,
+        () =>
+          new URL(
+            "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
+          ),
+      ),
+      preflight,
+      repository: new StorageRepository({ local: new MemoryStorageArea() }),
+      uiCss: __MKIT_UI_CSS__,
+    });
+    reviewController.start();
+  },
+  stopController: () => {
+    reviewController?.dispose();
+    reviewController = null;
+  },
   stop: () => {
     stopObserver?.();
     stopObserver = null;
   },
 };
+
+class MemoryStorageArea implements StorageAreaLike {
+  readonly #values: Record<string, unknown> = {};
+
+  async get(keys: string | string[] | null = null): Promise<Record<string, unknown>> {
+    if (keys === null) return structuredClone(this.#values);
+    const selected = Array.isArray(keys) ? keys : [keys];
+    return Object.fromEntries(
+      selected
+        .filter((key) => Object.hasOwn(this.#values, key))
+        .map((key) => [key, structuredClone(this.#values[key])]),
+    );
+  }
+
+  async set(items: Record<string, unknown>): Promise<void> {
+    Object.assign(this.#values, structuredClone(items));
+  }
+
+  async remove(keys: string | string[]): Promise<void> {
+    for (const key of Array.isArray(keys) ? keys : [keys]) {
+      delete this.#values[key];
+    }
+  }
+}

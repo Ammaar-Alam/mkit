@@ -330,6 +330,7 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
 
     adapter.applyCleanSlate();
     expect(requiredElement(".review-answer").hasAttribute("data-mkit-hidden")).toBe(true);
+    expect(requiredElement(".view-answers.switchable").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".result-wrapper").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(requiredElement(".expander-content").hasAttribute("data-mkit-hidden")).toBe(true);
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
@@ -339,6 +340,16 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(adapter.navigate("previous")).toBe(false);
     expect(adapter.navigate("next")).toBe(false);
     expect(nativeNavigationEvents).toBe(0);
+
+    const host = document.createElement("div");
+    expect(adapter.mountStudyRail(host)).toBe(true);
+    expect(host.parentElement).toBe(document.body);
+    expect(requiredElement(".reviewable").contains(host)).toBe(false);
+    const hostObserver = new MutationObserver(() => undefined);
+    hostObserver.observe(document.body, { childList: true });
+    expect(adapter.mountStudyRail(host)).toBe(true);
+    expect(hostObserver.takeRecords()).toEqual([]);
+    hostObserver.disconnect();
 
     adapter.revealFeedback();
     expect(document.querySelector(".multi-choice.corrected")).not.toBeNull();

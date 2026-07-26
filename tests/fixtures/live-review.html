@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MKit live-style synthetic review</title>
+    <link rel="stylesheet" href="/preflight.css">
+    <style>
+      body {
+        margin: 0;
+        background: white;
+        color: #171714;
+        font: 16px/1.5 sans-serif;
+      }
+
+      .question-content-container {
+        max-width: 72rem;
+        min-height: 100vh;
+        padding: 2rem;
+      }
+    </style>
+    <script src="/browser-entry.js"></script>
+  </head>
+  <body>
+    <main class="luca-ui-card">
+      <article class="reviewable sidebar-shown">
+        <div
+          class="question-content-container"
+          data-exam-id="synthetic-exam"
+          data-question-id="synthetic-question"
+          data-section-id="cp"
+        >
+          <div class="answer-set-content">
+            <section class="review-answer">
+              <div class="answer-toolbar-wrapper">
+                <label>
+                  Review
+                  <input
+                    class="view-answers switchable"
+                    role="switch"
+                    type="checkbox"
+                    aria-checked="false"
+                  >
+                </label>
+              </div>
+
+              <div class="answer-container question-container reading-passage">
+                <p id="live-style-question">Synthetic question workspace.</p>
+                <ul class="question-choices-multi results">
+                  <li class="multi-choice incorrect">
+                    <span class="choice-content">Synthetic choice A.</span>
+                  </li>
+                  <li class="multi-choice corrected">
+                    <span class="choice-content">Synthetic choice B.</span>
+                  </li>
+                  <li class="multi-choice">
+                    <span class="choice-content">Synthetic choice C.</span>
+                  </li>
+                  <li class="multi-choice">
+                    <span class="choice-content">Synthetic choice D.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="choices-container">
+                <section class="result-wrapper" role="region">
+                  <div class="result is-incorrect">Synthetic prior result.</div>
+                  <div class="result-group">
+                    <span class="result-label user-label">Synthetic original label.</span>
+                    <div class="answers">
+                      <span class="answer-set">Synthetic comparison.</span>
+                    </div>
+                  </div>
+                  <div class="removed-choice">Synthetic removed choice.</div>
+                </section>
+              </div>
+
+              <section class="expander-content">
+                <div class="benchprep-content-editor expanded">Synthetic explanation.</div>
+              </section>
+            </section>
+          </div>
+
+          <nav class="icon-bar navigate" aria-label="Synthetic navigation">
+            <!-- biome-ignore lint/a11y/noRedundantRoles: mirrors the confirmed live role attribute -->
+            <button class="toolbar-btn previous" role="button" type="button">Previous</button>
+            <!-- biome-ignore lint/a11y/noRedundantRoles: mirrors the confirmed live role attribute -->
+            <button class="toolbar-btn next" role="button" type="button">Next</button>
+          </nav>
+        </div>
+      </article>
+    </main>
+  </body>
+</html>

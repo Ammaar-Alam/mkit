@@ -4,8 +4,16 @@ import { build } from "esbuild";
 
 const root = new URL("../../", import.meta.url);
 const port = 4173;
+const uiCss = await readFile(new URL("src/content/ui.css", root), "utf8");
 const browserEntry = await build({
   bundle: true,
+  define: {
+    __MKIT_UI_CSS__: JSON.stringify(
+      uiCss
+        .replaceAll("__MKIT_ATKINSON_URL__", "data:font/ttf;base64,AA==")
+        .replaceAll("__MKIT_LITERATA_URL__", "data:font/ttf;base64,AA=="),
+    ),
+  },
   entryPoints: [new URL("./browser-entry.ts", import.meta.url).pathname],
   format: "iife",
   legalComments: "none",
@@ -21,6 +29,10 @@ if (!browserScript) {
 
 const routes = new Map([
   ["/", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/review.html" }],
+  [
+    "/live-review",
+    { contentType: "text/html; charset=utf-8", file: "tests/fixtures/live-review.html" },
+  ],
   ["/review", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/review.html" }],
   ["/score", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/score.html" }],
   ["/preflight.css", { contentType: "text/css; charset=utf-8", file: "src/content/preflight.css" }],

@@ -376,15 +376,20 @@
 
 .mkit-study-rail {
   container: mkit-rail / inline-size;
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
   display: grid;
-  width: 100%;
+  width: min(23rem, calc(100vw - 2rem));
   min-width: 16rem;
-  max-width: 23rem;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
   gap: var(--mkit-space-lg);
   padding: var(--mkit-space-lg);
   border: 1px solid var(--mkit-rule);
   background: var(--mkit-paper);
   box-shadow: 0 0.75rem 2.5rem color-mix(in oklch, var(--mkit-ink) 8%, transparent);
+  pointer-events: auto;
 }
 
 .mkit-progress {

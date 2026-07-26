@@ -48,7 +48,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".answer-choice",
     ],
     officialInputs: [
-      ".review-answer",
+      "label.review-answer:has(input.view-answers.switchable[role='switch'])",
+      ".review-answer label:has(input.view-answers.switchable[role='switch'])",
       ".review-answer input.view-answers.switchable[role='switch']",
       '[data-mkit-fixture="official-answer"]',
       '.answer-choice input[type="radio"]',
@@ -382,16 +383,20 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (!(control instanceof HTMLElement) || !control.parentElement) {
       return false;
     }
-    control.insertAdjacentElement("afterend", host);
+    if (control.nextElementSibling !== host) {
+      control.insertAdjacentElement("afterend", host);
+    }
     return true;
   }
 
   mountStudyRail(host: HTMLElement): boolean {
     const mount = this.#queryAny(this.#selectors.studyRailMount);
-    if (!(mount instanceof HTMLElement) || !mount.parentElement) {
+    if (!(mount instanceof HTMLElement) || !this.#document.body) {
       return false;
     }
-    mount.insertAdjacentElement("afterend", host);
+    if (host.parentElement !== this.#document.body) {
+      this.#document.body.append(host);
+    }
     return true;
   }
 

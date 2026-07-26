@@ -41,6 +41,58 @@ test("default-deny CSS prevents first-paint spoiler exposure", async ({ page }) 
   expect(await page.evaluate(() => window.__mkitLeaks)).toEqual([]);
 });
 
+test("starting Practice keeps a live-style question workspace and MKit rail visible", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  const practice = host.locator("[data-focus-key='practice']");
+  await expect(practice).toBeVisible();
+  await practice.click();
+
+  const rail = host.locator(".mkit-study-rail");
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+  await expect(host).toHaveCount(1);
+  await expect(rail).toBeVisible();
+  await expect(rail).toContainText("Practice");
+  await expect(rail.locator("[data-focus-key='answer-A']")).toBeVisible();
+  await expect(page.locator("#live-style-question")).toBeVisible();
+  await expect(page.locator(".review-answer")).not.toHaveAttribute("data-mkit-hidden", "");
+  await expect(page.locator(".review-answer label")).toBeHidden();
+  await expect(page.locator(".view-answers.switchable")).toBeHidden();
+
+  expect(
+    await page.evaluate(() => {
+      const hostElement = document.querySelector<HTMLElement>("[data-mkit-host]");
+      const railElement = hostElement?.shadowRoot?.querySelector<HTMLElement>(".mkit-study-rail");
+      const hostStyle = hostElement ? getComputedStyle(hostElement) : null;
+      const railStyle = railElement ? getComputedStyle(railElement) : null;
+      return {
+        bodyTextLength: document.body.innerText.trim().length,
+        hostParent: hostElement?.parentElement?.localName ?? null,
+        hostPointerEvents: hostStyle?.pointerEvents ?? null,
+        railHeight: railElement?.getBoundingClientRect().height ?? 0,
+        railPointerEvents: railStyle?.pointerEvents ?? null,
+        railWidth: railElement?.getBoundingClientRect().width ?? 0,
+      };
+    }),
+  ).toMatchObject({
+    bodyTextLength: expect.any(Number),
+    hostParent: "body",
+    hostPointerEvents: "none",
+    railPointerEvents: "auto",
+  });
+  expect(await page.evaluate(() => document.body.innerText.trim().length)).toBeGreaterThan(0);
+  expect(
+    await rail.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    }),
+  ).toBe(true);
+});
+
 test("masked review removes spoilers from display, AX, Find, selection, and print", async ({
   page,
 }) => {
