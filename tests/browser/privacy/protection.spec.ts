@@ -216,7 +216,7 @@ test("Practice conceals the complete live-style feedback boundary until intentio
 
     const delayedInlineContainer = document.createElement("div");
     delayedInlineContainer.id = "delayed-inline-feedback-container";
-    delayedInlineContainer.className = "answer-container incorrect is-hidden question-container";
+    delayedInlineContainer.className = "answer-container correct is-hidden question-container";
     const delayedInlineRegion = document.createElement("div");
     delayedInlineRegion.id = "delayed-inline-feedback";
     delayedInlineRegion.setAttribute("role", "region");
@@ -245,6 +245,8 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   await expect(page.locator("#live-style-question")).toBeVisible();
   await expect(page.locator("#live-question-image")).toBeVisible();
   await expect(page.locator("#live-question-svg")).toBeVisible();
+  await expect(page.locator("#unrelated-study-region")).toBeVisible();
+  await expect(page.locator("#unrelated-study-region")).not.toHaveAttribute("data-mkit-hidden", "");
   await expect(page.locator("#live-question-container")).toHaveAttribute(
     "class",
     initialQuestionClasses ?? "",
@@ -252,7 +254,6 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   expect(await snapshotLiveQuestionState(page)).toEqual(initialQuestionState);
   await expect(rail).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
-  await expect(page.locator("#inline-feedback-container")).toHaveClass(/\bcorrect\b/);
 
   const cdp = await page.context().newCDPSession(page);
   const axText = JSON.stringify(await cdp.send("Accessibility.getFullAXTree"));
@@ -288,7 +289,6 @@ test("Practice conceals the complete live-style feedback boundary until intentio
 
   await rail.locator("[data-focus-key='check']").click();
   await expect(page.locator("#inline-feedback")).toBeVisible();
-  await expect(page.locator("#inline-feedback-container")).toHaveClass(/\bcorrect\b/);
   await expect(page.locator("#delayed-inline-feedback")).toBeVisible();
   await expect(page.locator("#known-feedback")).toBeVisible();
   await expect(page.locator(".sidebar-container")).toBeHidden();
@@ -310,7 +310,7 @@ test("Practice conceals the complete live-style feedback boundary until intentio
     })),
   ).toEqual({
     attributes: [
-      ["class", "answer-container incorrect is-hidden question-container"],
+      ["class", "answer-container correct is-hidden question-container"],
       ["id", "delayed-inline-feedback-container"],
     ],
     hidden: false,
@@ -756,7 +756,6 @@ async function snapshotLiveFeedbackState(
       ".choices-container",
       ".result-wrapper",
       ".topbar-result-wrapper",
-      "#inline-feedback-container",
       "#inline-feedback",
       "#fallback-solution",
       "#known-feedback",

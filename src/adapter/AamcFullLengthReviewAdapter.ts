@@ -13,13 +13,6 @@ const FEEDBACK_GROUP = "feedback";
 const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
-const INLINE_FEEDBACK_STATE_CLASSES = [
-  "correct",
-  "incorrect",
-  "corrected",
-  "is-correct",
-  "is-incorrect",
-] as const;
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -97,10 +90,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       '[data-mkit-fixture="explanation"]',
       "#official-solution",
     ],
-    inlineFeedbackCandidate: [
-      ".reviewable > .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.question-container > [role='region']",
-      ".reviewable .fixed-width-sidebar-columns > .content-column .questions-container > .content-container > .answer-container.question-container > [role='region']",
-      ".reviewable .content-column .answer-container.question-container > [role='region']",
+    inlineFeedback: [
+      ".reviewable .question-content-container > .answer-set-content > .fixed-width-sidebar-columns > .content-column > .questions-container > .content-container > .answer-container.correct.is-hidden.question-container > div[role='region']",
     ],
     correctMarker: ['[data-mkit-fixture="correct-marker"]', ".correct-marker"],
     originalMarker: [
@@ -239,7 +230,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         ...this.#selectors.status,
         ...this.#selectors.correctMarker,
         ...this.#selectors.explanation,
-      ]).length > 0 || this.#queryInlineFeedback().length > 0;
+        ...this.#selectors.inlineFeedback,
+      ]).length > 0;
     const explanationFound = Boolean(this.#queryAny(this.#selectors.explanation));
     const correctAnswerParseable = this.#readCorrectChoice() !== null;
     const categoryCodeFound = this.#readCategoryCode() !== null;
@@ -322,7 +314,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#mask.hide(this.#queryAll(this.#selectors.officialInputs), CLEAN_SLATE_GROUP);
 
     this.#mask.hide(this.#queryAll(this.#selectors.explanation), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryInlineFeedback(), FEEDBACK_GROUP);
+    this.#mask.hide(this.#queryAll(this.#selectors.inlineFeedback), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.correctMarker), FEEDBACK_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.originalMarker), ORIGINAL_GROUP);
 
@@ -572,22 +564,6 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       }
     }
     return [...elements];
-  }
-
-  #queryInlineFeedback(): Element[] {
-    return this.#queryAll(this.#selectors.inlineFeedbackCandidate).filter((region) => {
-      const container = region.parentElement;
-      if (
-        !container?.matches(".answer-container.question-container") ||
-        container.classList.contains("reading-passage") ||
-        !INLINE_FEEDBACK_STATE_CLASSES.some((className) => container.classList.contains(className))
-      ) {
-        return false;
-      }
-      return !container.querySelector(
-        "ul.question-choices-multi.results, .choice-content, .reading-passage",
-      );
-    });
   }
 
   #readExamIdentifier(): string | null {

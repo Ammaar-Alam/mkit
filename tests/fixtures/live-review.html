@@ -43,8 +43,9 @@
                   >
                 </label>
               </div>
+            </section>
 
-              <div class="fixed-width-sidebar-columns">
+            <div class="fixed-width-sidebar-columns">
                 <div class="content-column">
                   <div class="questions-container">
                     <div class="content-container">
@@ -53,8 +54,7 @@
                         id="live-question-container"
                         style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
                       >
-                        <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
-                        <div id="live-question-region" role="region">
+                        <div id="live-question-region">
                           <p id="live-style-question">Synthetic question workspace.</p>
                           <img
                             id="live-question-image"
@@ -91,11 +91,6 @@
                             </li>
                           </ul>
                         </div>
-                      </div>
-                      <div
-                        class="answer-container correct is-hidden question-container"
-                        id="inline-feedback-container"
-                      >
                         <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
                         <div id="inline-feedback" role="region">
                           MKIT_LIVE_INLINE_SOLUTION_4B76
@@ -108,6 +103,10 @@
                       </section>
                     </div>
                   </div>
+                </div>
+                <!-- biome-ignore lint/a11y/useSemanticElements: proves unrelated regions remain untouched -->
+                <div id="unrelated-study-region" role="region">
+                  Synthetic allowed study region.
                 </div>
                 <aside class="sidebar-column">
                   <div class="sidebar-container">
@@ -131,8 +130,7 @@
                     </section>
                   </div>
                 </aside>
-              </div>
-            </section>
+            </div>
           </div>
 
           <nav class="icon-bar navigate" aria-label="Synthetic navigation">

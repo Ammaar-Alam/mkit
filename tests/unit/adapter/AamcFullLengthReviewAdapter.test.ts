@@ -340,7 +340,6 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     expect(document.querySelector(".multi-choice.corrected")).toBeNull();
     expect(document.querySelector(".multi-choice.incorrect")).toBeNull();
     expect(document.querySelector("#confirmed-question-container.correct")).not.toBeNull();
-    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).not.toBeNull();
     expect(requiredElement("#confirmed-question-region").hasAttribute("data-mkit-hidden")).toBe(
       false,
     );
@@ -369,7 +368,6 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
 
     adapter.revealFeedback();
     expect(document.querySelector(".multi-choice.corrected")).not.toBeNull();
-    expect(document.querySelector("#confirmed-inline-feedback-container.correct")).not.toBeNull();
     expect(requiredElement<HTMLElement>("#confirmed-inline-feedback").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".expander-content").hidden).toBe(false);
     expect(requiredElement<HTMLElement>(".result-wrapper").hidden).toBe(true);
@@ -501,7 +499,7 @@ function mountConfirmedProductionFixture(): void {
                       class="answer-container correct is-hidden question-container"
                       id="confirmed-question-container"
                     >
-                      <div id="confirmed-question-region" role="region">
+                      <div id="confirmed-question-region">
                         <p id="confirmed-question-copy">Synthetic question workspace.</p>
                         <span class="choice-content">Synthetic visible choice.</span>
                         <svg
@@ -511,11 +509,6 @@ function mountConfirmedProductionFixture(): void {
                           viewBox="0 0 10 10"
                         ></svg>
                       </div>
-                    </div>
-                    <div
-                      class="answer-container correct is-hidden question-container"
-                      id="confirmed-inline-feedback-container"
-                    >
                       <div id="confirmed-inline-feedback" role="region">
                         Synthetic inline solution.
                       </div>
