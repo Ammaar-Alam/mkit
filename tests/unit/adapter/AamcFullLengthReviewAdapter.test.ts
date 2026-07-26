@@ -483,6 +483,48 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
     });
   });
 
+  it("still resolves its own masked switch when the content script restarts", () => {
+    mountConfirmedProductionFixture();
+    const toolbar = requiredElement(".answer-toolbar-wrapper");
+    const card = requiredElement(".luca-ui-card");
+    card.append(toolbar);
+    const duplicateToolbar = toolbar.cloneNode(true);
+    if (!(duplicateToolbar instanceof HTMLElement)) {
+      throw new Error("Expected an HTML toolbar clone.");
+    }
+    card.append(duplicateToolbar);
+    const duplicateControl = duplicateToolbar.querySelector<HTMLElement>(".review-answer");
+    if (!duplicateControl) throw new Error("Expected a duplicate review-answer control.");
+    duplicateControl.style.display = "none";
+
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(adapter.inspectCapabilities()).toMatchObject({ safeToReveal: true, issues: [] });
+    adapter.applyCleanSlate();
+
+    // Masking hides both controls, so computed style can no longer tell the
+    // presented control from its duplicate. A restarted content script has no
+    // in-memory record of the earlier confirmation and must rely on the marker.
+    const marked = document.querySelectorAll("[data-mkit-review-switch]");
+    expect(marked).toHaveLength(1);
+    for (const control of document.querySelectorAll<HTMLElement>(".review-answer")) {
+      expect(getComputedStyle(control).display).toBe("none");
+    }
+
+    // A restart loses the in-memory record, so the marker is replaced onto a
+    // fresh clone of the confirmed control: the marker alone must carry it.
+    const confirmed = marked[0];
+    if (!(confirmed instanceof HTMLElement)) throw new Error("Expected a marked control.");
+    const reloadedControl = confirmed.cloneNode(true);
+    confirmed.replaceWith(reloadedControl);
+
+    const restarted = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+    expect(restarted.inspectCapabilities()).toMatchObject({ safeToReveal: true, issues: [] });
+
+    // Normal review leaves no MKit marker on the restored page.
+    restarted.restoreNormalReview();
+    expect(document.querySelectorAll("[data-mkit-review-switch]")).toHaveLength(0);
+  });
+
   it("admits the presented switch control inside a view container the page hides", () => {
     mountConfirmedProductionFixture();
     const toolbar = requiredElement(".answer-toolbar-wrapper");

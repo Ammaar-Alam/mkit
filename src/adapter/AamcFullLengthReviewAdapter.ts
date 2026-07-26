@@ -14,6 +14,7 @@ const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
 const CONFIRMED_REVIEW_SWITCHES = new WeakSet<Element>();
+const CONFIRMED_REVIEW_SWITCH_MARKER = "data-mkit-review-switch";
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -351,6 +352,15 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       return report;
     }
 
+    // Masking hides the switch and its control, after which computed style can no
+    // longer tell the presented control from its responsive duplicate. The
+    // confirmed switch is marked first so a restarted content script reading an
+    // already-masked page can still resolve it. Marking only happens here, where
+    // protection is actually applied, so a fail-open page keeps no MKit marker.
+    if (report.safeToReveal && this.#completedReviewSwitch?.isConnected) {
+      this.#completedReviewSwitch.setAttribute(CONFIRMED_REVIEW_SWITCH_MARKER, "");
+    }
+
     this.#mask.hide(this.#queryAll(this.#selectors.navigatorSpoiler), CLEAN_SLATE_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.resultRail), ORIGINAL_GROUP);
     this.#mask.hide(this.#queryAll(this.#selectors.status), FEEDBACK_GROUP);
@@ -466,6 +476,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   restoreNormalReview(): void {
     this.#withoutObservation(() => {
       this.#mask.restoreAll();
+      for (const marked of this.#document.querySelectorAll(`[${CONFIRMED_REVIEW_SWITCH_MARKER}]`)) {
+        marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
+      }
+      this.#completedReviewSwitch = null;
       window.getSelection()?.removeAllRanges();
     });
   }
@@ -640,9 +654,15 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       return this.#completedReviewSwitch;
     }
 
+    // Masking the switch erases the only signal that distinguished it from its
+    // responsive duplicate: both then compute `display: none`. The confirmed
+    // control therefore carries MKit's own marker, which survives a restarted
+    // content script reading an already-masked page.
     const maskedConfirmedCandidates = candidates.filter(
       (element) =>
-        element.hasAttribute("data-mkit-hidden") && CONFIRMED_REVIEW_SWITCHES.has(element),
+        element.hasAttribute("data-mkit-hidden") &&
+        (CONFIRMED_REVIEW_SWITCHES.has(element) ||
+          element.hasAttribute(CONFIRMED_REVIEW_SWITCH_MARKER)),
     );
     if (maskedConfirmedCandidates.length === 1) {
       this.#completedReviewSwitch = maskedConfirmedCandidates[0] ?? null;
@@ -683,9 +703,41 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
    * at a wrapper. Visibility is resolved between those boundaries: from the
    * control up to, but excluding, the view container the switch itself governs.
    */
+  /**
+   * Judged from the control up to, but excluding, the view container the switch
+   * governs. A completed review reports the state that hides its own answerable
+   * view, through either the `.answerable` region or the card wrapping it, so
+   * that container's visibility is page view state rather than concealment of
+   * the control. Everything below it, including responsive duplicates hidden at
+   * a wrapper, is still judged normally.
+   */
   #isReviewSwitchControlShown(control: Element): boolean {
-    const viewContainer = control.closest(".answerable");
-    return this.#isAuthoredVisible(control, viewContainer ?? undefined);
+    const boundary = control.closest(".answerable, .luca-ui-card");
+    const view = this.#document.defaultView;
+    let current: Element | null = control;
+    while (current && current !== boundary) {
+      if (
+        current.hasAttribute("hidden") ||
+        current.hasAttribute("data-mkit-hidden") ||
+        current.getAttribute("aria-hidden") === "true" ||
+        (current instanceof HTMLElement && current.inert)
+      ) {
+        return false;
+      }
+      if (view) {
+        const style = view.getComputedStyle(current);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse" ||
+          Number.parseFloat(style.opacity || "1") === 0
+        ) {
+          return false;
+        }
+      }
+      current = current.parentElement;
+    }
+    return true;
   }
 
   #readExamIdentifier(): string | null {
@@ -839,16 +891,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return questionRoots.length === 1 ? (questionRoots[0] ?? null) : null;
   }
 
-  /**
-   * `stopAt` bounds the ancestor walk when a container's own visibility is a
-   * page view state rather than concealment of the element being judged. The
-   * boundary itself is not examined.
-   */
-  #isAuthoredVisible(element: Element, stopAt?: Element): boolean {
+  #isAuthoredVisible(element: Element): boolean {
     const view = this.#document.defaultView;
     const pageCoverActive = this.#isMKitPageCoverActive();
     let current: Element | null = element;
-    while (current && current !== stopAt) {
+    while (current) {
       if (
         current.hasAttribute("hidden") ||
         current.hasAttribute("data-mkit-hidden") ||
