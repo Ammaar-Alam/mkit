@@ -1,5 +1,14 @@
 import type { AnswerSelection, AttemptTag, Confidence } from "../storage/schema";
-import { button, element, folioHeader, icon, mountView, nextId, scheduleFocus } from "./dom";
+import {
+  button,
+  element,
+  folioHeader,
+  icon,
+  mountView,
+  nextId,
+  primaryButton,
+  scheduleFocus,
+} from "./dom";
 import type { MKitViewHandle, StudyRailProps } from "./types";
 
 const ANSWERS: readonly AnswerSelection[] = ["A", "B", "C", "D"];
@@ -14,17 +23,43 @@ export function mountStudyRail(
   const explanationId = nextId("explanation");
   const noteId = nextId("note");
   const reflectionId = nextId("reflection");
+  const contentId = nextId("rail-content");
   let previousStage: StudyRailProps["stage"] | undefined;
   let previousFinishConfirmation = false;
+  let minimized = false;
 
   return mountView(target, "mkit-surface mkit-study-rail", props, (root, next) => {
     root.replaceChildren();
+    root.classList.toggle("is-minimized", minimized);
     root.setAttribute("role", "region");
     root.setAttribute("aria-labelledby", headingId);
 
     const modeLabel = next.mode === "practice" ? "Practice" : "Test";
+    const content = element("div", {
+      className: "mkit-study-rail__body",
+      attributes: {
+        id: contentId,
+        "aria-hidden": minimized ? "true" : undefined,
+      },
+    });
+    content.inert = minimized;
     root.append(
-      folioHeader("Fresh Attempt", modeLabel, headingId),
+      folioHeader(
+        "Fresh Attempt",
+        modeLabel,
+        headingId,
+        railToggle(
+          root,
+          content,
+          contentId,
+          () => minimized,
+          (value) => {
+            minimized = value;
+          },
+        ),
+      ),
+    );
+    content.append(
       progress(next),
       answerControls(next),
       confidenceControls(next),
@@ -35,16 +70,16 @@ export function mountStudyRail(
       next.stage === "practice-revealed" ||
       next.stage === "original-revealed" ||
       next.stage === "test-finished";
-    if (feedbackVisible && next.outcome) root.append(outcome(next.outcome));
+    if (feedbackVisible && next.outcome) content.append(outcome(next.outcome));
 
     if (next.mode === "practice") {
-      root.append(practiceActions(next, reflectionId));
+      content.append(practiceActions(next, reflectionId));
     } else {
-      root.append(testActions(next, explanationId, reflectionId));
+      content.append(testActions(next, explanationId, reflectionId));
     }
 
     if (next.explanationExpanded) {
-      root.append(
+      content.append(
         element("p", {
           className: "mkit-reveal-status",
           text: "Explanation shown in the review.",
@@ -54,11 +89,11 @@ export function mountStudyRail(
     }
 
     if (next.stage === "original-revealed") {
-      root.append(reflectionEditor(next, noteId, reflectionId));
+      content.append(reflectionEditor(next, noteId, reflectionId));
     }
 
     if (next.encouragement) {
-      root.append(
+      content.append(
         element("p", {
           className: "mkit-encouragement",
           text: encouragementCopy(next.encouragement),
@@ -66,7 +101,13 @@ export function mountStudyRail(
       );
     }
 
-    root.append(navigation(next), saveStatus(next.saveState));
+    if (next.canNavigatePrevious || next.canNavigateNext) {
+      content.append(navigation(next));
+    }
+    if (next.saveState !== "idle") {
+      content.append(saveStatus(next.saveState));
+    }
+    root.append(content);
     if (previousStage !== next.stage) {
       if (next.stage === "original-revealed") {
         scheduleFocus(root.querySelector<HTMLElement>("[data-focus-key='private-note']"));
@@ -79,6 +120,37 @@ export function mountStudyRail(
     previousStage = next.stage;
     previousFinishConfirmation = next.finishConfirmationOpen ?? false;
   });
+}
+
+function railToggle(
+  root: HTMLElement,
+  content: HTMLElement,
+  contentId: string,
+  getMinimized: () => boolean,
+  setMinimized: (value: boolean) => void,
+): HTMLButtonElement {
+  const control = button(
+    getMinimized() ? "Expand" : "Collapse",
+    "mkit-rail-toggle",
+    () => {
+      const minimize = !getMinimized();
+      setMinimized(minimize);
+      root.classList.toggle("is-minimized", minimize);
+      control.setAttribute("aria-expanded", String(!minimize));
+      control.setAttribute("aria-label", `${minimize ? "Expand" : "Collapse"} Fresh Attempt rail`);
+      control.querySelector("span")?.replaceChildren(minimize ? "Expand" : "Collapse");
+      content.setAttribute("aria-hidden", String(minimize));
+      content.inert = minimize;
+    },
+    {
+      expanded: !getMinimized(),
+      controls: contentId,
+      focusKey: "rail-toggle",
+      ariaLabel: `${getMinimized() ? "Expand" : "Collapse"} Fresh Attempt rail`,
+      icon: "plus-minus",
+    },
+  );
+  return control;
 }
 
 function progress(props: StudyRailProps): HTMLElement {
@@ -109,23 +181,28 @@ function answerControls(props: StudyRailProps): HTMLElement {
     attributes: { role: "radiogroup", "aria-label": "Fresh answer" },
   });
   for (const choice of ANSWERS) {
-    const selected = props.selection === choice;
     const eliminated = props.eliminations.includes(choice);
+    const selected = !eliminated && props.selection === choice;
     const answer = element(
       "button",
       {
-        className: `mkit-answer${selected ? " is-selected" : ""}`,
+        className: `mkit-answer${selected ? " is-selected" : ""}${
+          eliminated ? " is-eliminated" : ""
+        }`,
         attributes: {
           type: "button",
           role: "radio",
           "aria-checked": String(selected),
+          "aria-disabled": eliminated ? "true" : undefined,
+          "aria-label": eliminated ? `Choice ${choice}, eliminated` : undefined,
+          disabled: eliminated,
           "data-focus-key": `answer-${choice}`,
         },
       },
       element("span", { className: "mkit-answer__letter", text: choice }),
       element("span", {
         className: "mkit-answer__state",
-        text: selected ? "Selected" : "Choose",
+        text: eliminated ? "" : selected ? "Selected" : "Choose",
       }),
     );
     answer.addEventListener("click", () => props.onSelect(choice));
@@ -143,10 +220,21 @@ function answerControls(props: StudyRailProps): HTMLElement {
         },
       },
       icon("slash"),
-      element("span", { text: eliminated ? "Eliminated" : "Eliminate" }),
+      element("span", { text: eliminated ? "Restore" : "Eliminate" }),
     );
     eliminate.addEventListener("click", () => props.onToggleElimination(choice));
-    group.append(element("div", { className: "mkit-answer-row" }, answer, eliminate));
+    group.append(
+      element(
+        "div",
+        {
+          className: `mkit-answer-row${selected ? " is-selected" : ""}${
+            eliminated ? " is-eliminated" : ""
+          }`,
+        },
+        answer,
+        eliminate,
+      ),
+    );
   }
   return element(
     "fieldset",
@@ -170,8 +258,13 @@ function moveWithinAnswers(
   if (delta === 0) return;
   event.preventDefault();
   const index = ANSWERS.indexOf(current);
-  const next = ANSWERS[(index + delta + ANSWERS.length) % ANSWERS.length];
-  if (next) props.onSelect(next);
+  for (let offset = 1; offset <= ANSWERS.length; offset += 1) {
+    const next = ANSWERS[(index + delta * offset + ANSWERS.length) % ANSWERS.length];
+    if (next && !props.eliminations.includes(next)) {
+      props.onSelect(next);
+      return;
+    }
+  }
 }
 
 function confidenceControls(props: StudyRailProps): HTMLElement {
@@ -266,7 +359,7 @@ function practiceActions(props: StudyRailProps, reflectionId: string): HTMLEleme
   const actions = element("div", { className: "mkit-actions mkit-actions--stacked" });
   if (!revealed) {
     actions.append(
-      button("Check", "mkit-button mkit-button--primary", props.onCheck, {
+      primaryButton("Check", props.onCheck, {
         disabled: props.selection === null,
         focusKey: "check",
         icon: "check",

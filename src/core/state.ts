@@ -26,7 +26,7 @@ export type ReviewAction =
   | { type: "START_PRACTICE" }
   | { type: "START_TEST" }
   | { type: "RESTORE_SELECTION"; selection: AnswerChoice | null }
-  | { type: "SELECT"; selection: AnswerChoice }
+  | { type: "SELECT"; selection: AnswerChoice | null }
   | { type: "CHECK" }
   | { type: "REVEAL_ORIGINAL" }
   | { type: "RETRY" }

@@ -494,10 +494,11 @@ export class ReviewController {
 
   async #selectAnswer(choice: AnswerChoice): Promise<void> {
     if (!this.#session || !this.#attempt || this.#state.reveal !== "CONCEALED") return;
-    this.#state = reduceReviewState(this.#state, { type: "SELECT", selection: choice });
-    const patch: Partial<AttemptRecord> = { selection: choice };
+    const selection = this.#attempt.selection === choice ? null : choice;
+    this.#state = reduceReviewState(this.#state, { type: "SELECT", selection });
+    const patch: Partial<AttemptRecord> = { selection };
     if (this.#session.mode === "test") {
-      patch.outcome = this.#adapter.gradeFresh(choice);
+      patch.outcome = selection ? this.#adapter.gradeFresh(selection) : "unknown";
     }
     await this.#updateAttempt(patch);
   }
@@ -510,6 +511,7 @@ export class ReviewController {
         this.#attempt?.questionKey ?? "",
         choice,
       );
+      this.#state = { ...this.#state, selection: this.#attempt.selection };
     });
   }
 

@@ -6,6 +6,7 @@ import {
   icon,
   mountView,
   nextId,
+  primaryButton,
   scheduleFocus,
   trapFocus,
 } from "./dom";
@@ -76,7 +77,7 @@ export function mountGate(
         element(
           "div",
           { className: "mkit-actions mkit-actions--stacked" },
-          button("Resume", "mkit-button mkit-button--primary", next.onResume, {
+          primaryButton("Resume", next.onResume, {
             focusKey: "resume",
           }),
           button("Archive attempt", "mkit-button mkit-button--secondary", next.onArchive, {
@@ -200,7 +201,7 @@ function activeSession(
   );
   if (showButton) {
     container.append(
-      button("Resume", "mkit-button mkit-button--primary", onResume, {
+      primaryButton("Resume", onResume, {
         focusKey: "resume",
       }),
     );

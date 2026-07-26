@@ -324,6 +324,274 @@ test("Practice conceals the complete live-style feedback boundary until intentio
   );
 });
 
+test("Practice rail distinguishes selection, elimination, and primary action states", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const check = rail.locator("[data-focus-key='check']");
+  const answerA = rail.locator("[data-focus-key='answer-A']");
+  const eliminateA = rail.locator("[data-focus-key='eliminate-A']");
+
+  await expect(check).toBeDisabled();
+  await expect(check).toContainText("Check");
+  const disabledCheck = await controlColors(check);
+  expect(disabledCheck.color).not.toBe(disabledCheck.backgroundColor);
+  expect(disabledCheck.contrastRatio).toBeGreaterThanOrEqual(4.5);
+  expect(disabledCheck.opacity).toBe("1");
+
+  await answerA.click();
+  await expect(answerA).toHaveClass(/is-selected/);
+  await expect(answerA).toHaveAttribute("aria-checked", "true");
+  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Selected");
+  expect(
+    await answerA.locator(".mkit-answer__state").evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    })),
+  ).toMatchObject({
+    clientWidth: expect.any(Number),
+    scrollWidth: expect.any(Number),
+  });
+  expect(
+    await answerA
+      .locator(".mkit-answer__state")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  await expect(check).toBeEnabled();
+  const selectedVisual = await answerA.evaluate((element) => {
+    const row = element.closest<HTMLElement>(".mkit-answer-row");
+    const style = getComputedStyle(element);
+    const rowStyle = row ? getComputedStyle(row) : null;
+    return {
+      backgroundColor: style.backgroundColor,
+      boxShadow: rowStyle?.boxShadow ?? "",
+      color: style.color,
+    };
+  });
+  expect(selectedVisual.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(selectedVisual.backgroundColor).not.toBe(selectedVisual.color);
+  expect(selectedVisual.boxShadow).not.toBe("none");
+
+  const enabledCheck = await controlColors(check);
+  expect(enabledCheck.color).not.toBe(enabledCheck.backgroundColor);
+  expect(enabledCheck.backgroundColor).not.toBe(disabledCheck.backgroundColor);
+  expect(enabledCheck.contrastRatio).toBeGreaterThanOrEqual(4.5);
+  expect(enabledCheck.opacity).toBe("1");
+
+  await answerA.click();
+  await expect(answerA).not.toHaveClass(/is-selected/);
+  await expect(answerA).toHaveAttribute("aria-checked", "false");
+  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Choose");
+  await expect(check).toBeDisabled();
+
+  await answerA.click();
+  await expect(answerA).toHaveClass(/is-selected/);
+  await expect(check).toBeEnabled();
+
+  await eliminateA.click();
+  await expect(answerA).toBeDisabled();
+  await expect(answerA).toHaveClass(/is-eliminated/);
+  await expect(answerA).toHaveAttribute("aria-checked", "false");
+  await expect(answerA).toHaveAttribute("aria-disabled", "true");
+  await expect(answerA.locator(".mkit-answer__state")).toBeEmpty();
+  await expect(rail).not.toContainText("Eliminated");
+  await expect(answerA.locator(".mkit-answer__letter")).toHaveCSS(
+    "text-decoration-line",
+    "line-through",
+  );
+  await expect(eliminateA).toHaveAttribute("aria-pressed", "true");
+  await expect(eliminateA).toHaveAttribute("aria-label", "Restore choice A");
+  await expect(check).toBeDisabled();
+  const eliminatedVisual = await answerA.evaluate((element) => {
+    const row = element.closest<HTMLElement>(".mkit-answer-row");
+    const style = getComputedStyle(element);
+    const rowStyle = row ? getComputedStyle(row) : null;
+    return {
+      backgroundColor: style.backgroundColor,
+      boxShadow: rowStyle?.boxShadow ?? "",
+      color: style.color,
+    };
+  });
+  expect(eliminatedVisual).not.toEqual(selectedVisual);
+  expect(eliminatedVisual.boxShadow).toBe("none");
+
+  await eliminateA.click();
+  await expect(answerA).toBeEnabled();
+  await expect(answerA).not.toHaveClass(/is-eliminated/);
+  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Choose");
+  await expect(eliminateA).toHaveAttribute("aria-pressed", "false");
+
+  await rail.locator("[data-focus-key='eliminate-B']").click();
+  await answerA.click();
+  await answerA.press("ArrowRight");
+  await expect(rail.locator("[data-focus-key='answer-C']")).toHaveAttribute("aria-checked", "true");
+  await expect(rail.locator("[data-focus-key='answer-B']")).toBeDisabled();
+});
+
+test("Resume and Check share a readable primary treatment at rest", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  await rail.locator("[data-focus-key='answer-A']").click();
+  const check = rail.locator("[data-focus-key='check']");
+  await expect(check).toBeEnabled();
+  const checkColors = await controlColors(check);
+  expect(checkColors.color).not.toBe(checkColors.backgroundColor);
+  expect(checkColors.contrastRatio).toBeGreaterThanOrEqual(4.5);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.restartController());
+  const resume = host.locator("[data-focus-key='resume']");
+  await expect(resume).toBeVisible();
+  await expect(resume).toHaveText("Resume");
+  const resumeColors = await controlColors(resume);
+  expect(resumeColors).toEqual(checkColors);
+  await resume.click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+});
+
+test("Practice rail minimizes accessibly without moving the page or viewport bounds", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const toggle = rail.locator("[data-focus-key='rail-toggle']");
+  const contentId = await toggle.getAttribute("aria-controls");
+  expect(contentId).not.toBeNull();
+  const content = rail.locator(`#${contentId}`);
+
+  await expect(toggle).toHaveText("Collapse");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveAttribute("aria-label", "Collapse Fresh Attempt rail");
+  await expect(toggle.locator(".mkit-icon--plus-minus")).toBeVisible();
+  await expect(toggle.locator(".mkit-icon--plus-minus path").nth(1)).toHaveCSS("opacity", "0");
+  expect(
+    await toggle.locator(":scope > span").evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        clip: style.clip,
+        height: style.height,
+        position: style.position,
+        width: style.width,
+      };
+    }),
+  ).toEqual({
+    clip: "rect(0px, 0px, 0px, 0px)",
+    height: "1px",
+    position: "absolute",
+    width: "1px",
+  });
+  await expect(content).toBeVisible();
+  const bounds = await rail.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      bottom: rect.bottom,
+      height: rect.height,
+      left: rect.left,
+      right: rect.right,
+      toggleHeight:
+        element
+          .querySelector<HTMLElement>("[data-focus-key='rail-toggle']")
+          ?.getBoundingClientRect().height ?? 0,
+      top: rect.top,
+    };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.top).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(320);
+  expect(bounds.bottom).toBeLessThanOrEqual(640);
+  expect(bounds.toggleHeight).toBeGreaterThanOrEqual(44);
+
+  const initialScroll = await page.evaluate(() => {
+    scrollTo(0, 720);
+    return scrollY;
+  });
+  const collapseMotion = await railMotion(toggle, true);
+  expect(collapseMotion).toEqual({
+    opacity: { delay: 0, duration: 150, frames: ["1", "0"] },
+    transform: {
+      delay: 0,
+      duration: 150,
+      frames: ["translateY(0px)", "translateY(-6px)"],
+    },
+  });
+  await expect(toggle).toHaveText("Expand");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAttribute("aria-label", "Expand Fresh Attempt rail");
+  await expect(toggle.locator(".mkit-icon--plus-minus path").nth(1)).toHaveCSS("opacity", "1");
+  await expect(content).toBeHidden();
+  expect(Math.abs((await page.evaluate(() => scrollY)) - initialScroll)).toBeLessThanOrEqual(1);
+  expect(await host.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+
+  const expandMotion = await railMotion(toggle, true);
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveAttribute("aria-label", "Collapse Fresh Attempt rail");
+  await expect(content).toBeVisible();
+  expect(expandMotion).toEqual({
+    opacity: { delay: 0, duration: 150, frames: ["0", "1"] },
+    transform: {
+      delay: 0,
+      duration: 150,
+      frames: ["translateY(-6px)", "translateY(0px)"],
+    },
+  });
+
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(
+    await host.evaluate((element) => {
+      const root = element.shadowRoot;
+      return root?.activeElement?.getAttribute("data-focus-key") ?? null;
+    }),
+  ).toBe("rail-toggle");
+  expect(Math.abs((await page.evaluate(() => scrollY)) - initialScroll)).toBeLessThanOrEqual(1);
+});
+
+test("Practice rail minimize uses the reduced-motion alternative", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const toggle = rail.locator("[data-focus-key='rail-toggle']");
+  const contentId = await toggle.getAttribute("aria-controls");
+  if (!contentId) throw new Error("Rail toggle is missing its controlled region.");
+  const content = rail.locator(`#${contentId}`);
+  const initialScroll = await page.evaluate(() => {
+    scrollTo(0, 720);
+    return scrollY;
+  });
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(content).toBeHidden();
+  expect(await content.evaluate((element) => element.getAnimations().length)).toBe(0);
+  expect(await toggle.evaluate((element) => element.getAnimations().length)).toBe(0);
+  expect(
+    await toggle
+      .locator(".mkit-icon--plus-minus path")
+      .nth(1)
+      .evaluate((element) => element.getAnimations().length),
+  ).toBe(0);
+  expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(
+    true,
+  );
+  expect(Math.abs((await page.evaluate(() => scrollY)) - initialScroll)).toBeLessThanOrEqual(1);
+});
+
 test("masked review removes spoilers from display, AX, Find, selection, and print", async ({
   page,
 }) => {
@@ -789,4 +1057,90 @@ async function snapshotLiveQuestionState(
         text: element.childElementCount === 0 ? element.textContent : null,
       })),
     );
+}
+
+async function controlColors(locator: import("@playwright/test").Locator): Promise<{
+  backgroundColor: string;
+  color: string;
+  contrastRatio: number;
+  opacity: string;
+}> {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Canvas color sampling is unavailable.");
+    const sample = (color: string): [number, number, number] => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data;
+      return [red, green, blue];
+    };
+    const luminance = ([red, green, blue]: [number, number, number]): number => {
+      const channels = [red, green, blue].map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return (
+        0.2126 * (channels[0] ?? 0) + 0.7152 * (channels[1] ?? 0) + 0.0722 * (channels[2] ?? 0)
+      );
+    };
+    const foreground = luminance(sample(style.color));
+    const background = luminance(sample(style.backgroundColor));
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      contrastRatio:
+        (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      opacity: style.opacity,
+    };
+  });
+}
+
+async function railMotion(
+  locator: import("@playwright/test").Locator,
+  activateControlledRegion = false,
+): Promise<{
+  opacity: { delay: number; duration: number; frames: string[] } | null;
+  transform: { delay: number; duration: number; frames: string[] } | null;
+}> {
+  return locator.evaluate((element, activate) => {
+    let motionElement: Element | null = element;
+    if (activate) {
+      const control = element as HTMLElement;
+      control.click();
+      const controlled = control.getAttribute("aria-controls");
+      const root = control.getRootNode();
+      motionElement =
+        controlled && root instanceof ShadowRoot
+          ? root.querySelector<HTMLElement>(`#${controlled}`)
+          : null;
+    }
+    const readProperty = (property: "opacity" | "transform") => {
+      for (const animation of motionElement?.getAnimations() ?? []) {
+        const effect = animation.effect;
+        if (!(effect instanceof KeyframeEffect)) continue;
+        const frames = effect
+          .getKeyframes()
+          .map((frame) => frame[property])
+          .filter((value): value is string | number => value !== undefined)
+          .map(String);
+        if (frames.length === 0) continue;
+        const timing = effect.getTiming();
+        return {
+          delay: Number(timing.delay),
+          duration: Number(timing.duration),
+          frames,
+        };
+      }
+      return null;
+    };
+    return {
+      opacity: readProperty("opacity"),
+      transform: readProperty("transform"),
+    };
+  }, activateControlledRegion);
 }

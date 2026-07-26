@@ -43,6 +43,20 @@ describe("review state", () => {
     expect(() => reduceReviewState(state, { type: "CHECK" })).toThrow("Practice Check requires");
   });
 
+  it("allows an active concealed answer to be explicitly cleared", () => {
+    const state = {
+      protection: "MASKED" as const,
+      session: "PRACTICE_ACTIVE" as const,
+      reveal: "CONCEALED" as const,
+      selection: "A" as const,
+    };
+
+    expect(reduceReviewState(state, { type: "SELECT", selection: null })).toEqual({
+      ...state,
+      selection: null,
+    });
+  });
+
   it("keeps unsupported and Normal review explicit", () => {
     const unsupported = reduceReviewState(INITIAL_REVIEW_STATE, {
       type: "MASK_UNSUPPORTED",

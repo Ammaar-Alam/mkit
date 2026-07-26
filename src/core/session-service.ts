@@ -127,7 +127,7 @@ export class SessionService {
     const updatedAt = nextTimestamp(current.updatedAt, this.#now());
     const next: AttemptRecord = {
       ...current,
-      selection: patch.selection ?? current.selection,
+      selection: patch.selection !== undefined ? patch.selection : current.selection,
       eliminations: patch.eliminations
         ? normalizeChoices(patch.eliminations)
         : [...current.eliminations],
@@ -164,10 +164,16 @@ export class SessionService {
     choice: AnswerChoice,
   ): Promise<AttemptRecord> {
     const current = await this.#requireAttempt(sessionId, questionKey);
-    const eliminations = current.eliminations.includes(choice)
+    const restoring = current.eliminations.includes(choice);
+    const eliminations = restoring
       ? current.eliminations.filter((item) => item !== choice)
       : [...current.eliminations, choice];
-    return this.updateAttempt(sessionId, questionKey, { eliminations });
+    return this.updateAttempt(sessionId, questionKey, {
+      eliminations,
+      ...(!restoring && current.selection === choice
+        ? { selection: null, outcome: "unknown" as const }
+        : {}),
+    });
   }
 
   async setConfidence(

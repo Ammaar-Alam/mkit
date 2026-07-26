@@ -36,26 +36,30 @@ export function append(parent: Node, ...children: Child[]): void {
   }
 }
 
+interface ButtonOptions {
+  disabled?: boolean;
+  pressed?: boolean;
+  expanded?: boolean;
+  controls?: string;
+  focusKey?: string;
+  title?: string;
+  ariaLabel?: string;
+  type?: "button" | "submit";
+  icon?: IconName | null;
+}
+
 export function button(
   label: string,
   className: string,
   onClick: () => void,
-  options: {
-    disabled?: boolean;
-    pressed?: boolean;
-    expanded?: boolean;
-    controls?: string;
-    focusKey?: string;
-    title?: string;
-    type?: "button" | "submit";
-    icon?: IconName | null;
-  } = {},
+  options: ButtonOptions = {},
 ): HTMLButtonElement {
   const node = element("button", {
     className,
     attributes: {
       type: options.type ?? "button",
       disabled: options.disabled,
+      "aria-label": options.ariaLabel,
       "aria-pressed": options.pressed === undefined ? undefined : String(options.pressed),
       "aria-expanded": options.expanded === undefined ? undefined : String(options.expanded),
       "aria-controls": options.controls,
@@ -69,11 +73,20 @@ export function button(
   return node;
 }
 
+export function primaryButton(
+  label: string,
+  onClick: () => void,
+  options: ButtonOptions = {},
+): HTMLButtonElement {
+  return button(label, "mkit-button mkit-button--primary", onClick, options);
+}
+
 export type IconName =
   | "arrow"
   | "check"
   | "circle"
   | "flag"
+  | "plus-minus"
   | "slash"
   | "shield"
   | "spark"
@@ -98,6 +111,7 @@ export function icon(name: IconName): SVGSVGElement {
     check: ["m5 12 4 4L19 6"],
     circle: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"],
     flag: ["M6 21V4", "M6 5h10l-2 4 2 4H6"],
+    "plus-minus": ["M5 12h14", "M12 5v14"],
     slash: ["M5 19 19 5"],
     shield: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z", "m9 12 2 2 4-5"],
     spark: ["M12 3v4", "M12 17v4", "M3 12h4", "M17 12h4"],
@@ -115,7 +129,12 @@ export function icon(name: IconName): SVGSVGElement {
   return svg;
 }
 
-export function folioHeader(eyebrow: string, heading: string, headingId: string): HTMLElement {
+export function folioHeader(
+  eyebrow: string,
+  heading: string,
+  headingId: string,
+  action?: HTMLElement,
+): HTMLElement {
   return element(
     "header",
     { className: "mkit-folio" },
@@ -130,12 +149,13 @@ export function folioHeader(eyebrow: string, heading: string, headingId: string)
       element("span", { className: "mkit-eyebrow", text: eyebrow }),
       element("h2", { className: "mkit-heading", text: heading, attributes: { id: headingId } }),
     ),
-    element(
-      "span",
-      { className: "mkit-folio__registration", attributes: { "aria-hidden": true } },
-      element("i"),
-      element("i"),
-    ),
+    action ??
+      element(
+        "span",
+        { className: "mkit-folio__registration", attributes: { "aria-hidden": true } },
+        element("i"),
+        element("i"),
+      ),
   );
 }
 

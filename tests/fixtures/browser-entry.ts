@@ -30,6 +30,7 @@ interface PrivacyHarness {
   grade(selection: "A" | "B" | "C" | "D"): string;
   keyboardLog(): KeyboardLog;
   navigate(direction: "previous" | "next"): boolean;
+  restartController(): void;
   setKeyboardEnabled(enabled: boolean): void;
   startController(): void;
   stopController(): void;
@@ -66,6 +67,7 @@ const adapter = new AamcFullLengthReviewAdapter(document, () => new URL(location
 const events: AdapterEvent[] = [];
 let stopObserver: (() => void) | null = null;
 let reviewController: ReviewController | null = null;
+let reviewRepository: StorageRepository | null = null;
 const keyboardLog: KeyboardLog = {
   checks: 0,
   eliminations: [],
@@ -130,27 +132,13 @@ window.__mkitPrivacyHarness = {
   grade: (selection) => adapter.gradeFresh(selection),
   keyboardLog: () => structuredClone(keyboardLog),
   navigate: (direction) => adapter.navigate(direction),
-  setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
-  startController: () => {
-    if (reviewController) return;
-    const preflight = globalThis.__mkitPreflight;
-    if (!preflight) {
-      throw new Error("Synthetic preflight is unavailable.");
-    }
-    reviewController = new ReviewController({
-      adapter: new AamcFullLengthReviewAdapter(
-        document,
-        () =>
-          new URL(
-            "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
-          ),
-      ),
-      preflight,
-      repository: new StorageRepository({ local: new MemoryStorageArea() }),
-      uiCss: __MKIT_UI_CSS__,
-    });
-    reviewController.start();
+  restartController: () => {
+    reviewController?.dispose();
+    reviewController = null;
+    startReviewController();
   },
+  setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
+  startController: () => startReviewController(),
   stopController: () => {
     reviewController?.dispose();
     reviewController = null;
@@ -160,6 +148,28 @@ window.__mkitPrivacyHarness = {
     stopObserver = null;
   },
 };
+
+function startReviewController(): void {
+  if (reviewController) return;
+  const preflight = globalThis.__mkitPreflight;
+  if (!preflight) {
+    throw new Error("Synthetic preflight is unavailable.");
+  }
+  reviewRepository ??= new StorageRepository({ local: new MemoryStorageArea() });
+  reviewController = new ReviewController({
+    adapter: new AamcFullLengthReviewAdapter(
+      document,
+      () =>
+        new URL(
+          "https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/synthetic-question",
+        ),
+    ),
+    preflight,
+    repository: reviewRepository,
+    uiCss: __MKIT_UI_CSS__,
+  });
+  reviewController.start();
+}
 
 class MemoryStorageArea implements StorageAreaLike {
   readonly #values: Record<string, unknown> = {};

@@ -58,9 +58,9 @@
   text-align: left;
 }
 
-.mkit-surface button,
-.mkit-surface input,
-.mkit-surface textarea {
+:where(.mkit-surface) button,
+:where(.mkit-surface) input,
+:where(.mkit-surface) textarea {
   color: inherit;
   font: inherit;
 }
@@ -191,6 +191,13 @@
 .mkit-button--primary {
   background: var(--mkit-ink);
   color: var(--mkit-paper-raised);
+}
+
+.mkit-button--primary:disabled {
+  border-color: var(--mkit-rule);
+  background: var(--mkit-paper-quiet);
+  color: var(--mkit-ink-muted);
+  opacity: 1;
 }
 
 .mkit-button--primary:hover:not(:disabled) {
@@ -380,16 +387,98 @@
   inset-block-start: 1rem;
   inset-inline-end: 1rem;
   display: grid;
-  width: min(23rem, calc(100vw - 2rem));
+  width: min(22rem, calc(100vw - 2rem));
   min-width: 16rem;
   max-height: calc(100vh - 2rem);
   overflow: auto;
-  gap: var(--mkit-space-lg);
-  padding: var(--mkit-space-lg);
+  gap: var(--mkit-space-md);
+  padding: var(--mkit-space-md);
   border: 1px solid var(--mkit-rule);
   background: var(--mkit-paper);
   box-shadow: 0 0.75rem 2.5rem color-mix(in oklch, var(--mkit-ink) 8%, transparent);
   pointer-events: auto;
+}
+
+.mkit-study-rail.is-minimized {
+  gap: 0;
+  overflow: visible;
+}
+
+.mkit-study-rail > .mkit-folio {
+  padding-block-end: var(--mkit-space-sm);
+}
+
+.mkit-study-rail.is-minimized > .mkit-folio {
+  padding-block-end: 0;
+  border-bottom-color: transparent;
+}
+
+.mkit-study-rail .mkit-heading {
+  font-size: 1.25rem;
+}
+
+.mkit-study-rail__body {
+  display: grid;
+  gap: var(--mkit-space-md);
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 150ms cubic-bezier(0.25, 1, 0.5, 1),
+    transform 150ms cubic-bezier(0.25, 1, 0.5, 1),
+    visibility 0s linear;
+}
+
+.mkit-study-rail.is-minimized .mkit-study-rail__body {
+  position: absolute;
+  inset-block-start: calc(100% + var(--mkit-space-xs));
+  inset-inline: var(--mkit-space-md);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-0.375rem);
+  pointer-events: none;
+  transition-delay: 0s, 0s, 150ms;
+}
+
+.mkit-rail-toggle {
+  display: inline-grid;
+  min-width: 2.75rem;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--mkit-rule);
+  border-radius: 0.45rem;
+  background: var(--mkit-paper-raised);
+  color: var(--mkit-ink);
+  cursor: pointer;
+}
+
+.mkit-rail-toggle:hover {
+  border-color: var(--mkit-moss);
+  background: var(--mkit-moss-quiet);
+}
+
+.mkit-rail-toggle .mkit-icon path:last-child {
+  opacity: 0;
+  transform: scaleY(0.25);
+  transform-origin: center;
+  transition:
+    opacity 150ms cubic-bezier(0.25, 1, 0.5, 1),
+    transform 150ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.mkit-study-rail.is-minimized .mkit-rail-toggle .mkit-icon path:last-child {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.mkit-rail-toggle > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .mkit-progress {
@@ -462,6 +551,15 @@
   background: var(--mkit-paper-raised);
 }
 
+.mkit-answer-row.is-selected {
+  border-color: var(--mkit-ink);
+  box-shadow: 0 0 0 1px var(--mkit-ink);
+}
+
+.mkit-answer-row.is-eliminated {
+  background: var(--mkit-paper-quiet);
+}
+
 .mkit-answer,
 .mkit-eliminate,
 .mkit-segment,
@@ -478,14 +576,14 @@
   gap: var(--mkit-space-xs);
   align-items: center;
   min-width: 0;
-  padding: var(--mkit-space-xs) var(--mkit-space-sm);
+  padding: var(--mkit-space-xs);
   text-align: left;
 }
 
 .mkit-answer__letter {
   display: inline-grid;
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   place-items: center;
   border: 1px solid var(--mkit-ink-muted);
   border-radius: 50%;
@@ -493,20 +591,36 @@
 }
 
 .mkit-answer__state {
-  overflow: hidden;
   color: var(--mkit-ink-muted);
   font-size: 0.75rem;
-  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mkit-answer.is-selected {
-  background: var(--mkit-moss-quiet);
+  background: var(--mkit-ink);
+  color: var(--mkit-paper-raised);
 }
 
 .mkit-answer.is-selected .mkit-answer__letter {
-  border-color: var(--mkit-moss);
-  background: var(--mkit-moss);
+  border-color: var(--mkit-paper-raised);
+  background: var(--mkit-paper-raised);
+  color: var(--mkit-ink);
+}
+
+.mkit-answer.is-selected .mkit-answer__state {
   color: var(--mkit-paper-raised);
+}
+
+.mkit-answer.is-eliminated {
+  grid-template-columns: auto;
+  color: var(--mkit-ink-muted);
+  cursor: not-allowed;
+}
+
+.mkit-answer.is-eliminated .mkit-answer__letter {
+  border-color: var(--mkit-ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .mkit-eliminate {
@@ -984,7 +1098,7 @@
   }
 
   .mkit-folio__mark,
-  .mkit-answer.is-selected .mkit-answer__letter,
+  .mkit-answer.is-selected,
   .mkit-segment.is-selected,
   .mkit-button--primary,
   .mkit-button--fresh {
@@ -1005,6 +1119,11 @@
   .mkit-surface *::after {
     scroll-behavior: auto;
     transition-duration: 0.01ms;
+  }
+
+  .mkit-study-rail__body,
+  .mkit-rail-toggle .mkit-icon path:last-child {
+    transition: none;
   }
 }
 
