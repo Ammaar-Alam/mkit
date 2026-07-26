@@ -50,6 +50,9 @@ describe("document-start preflight", () => {
     expect(PREFLIGHT_CSS).toMatch(/\[data-mkit-hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
     expect(PREFLIGHT_CSS).toMatch(/data-mkit-protection="boot"/);
     expect(PREFLIGHT_CSS).toMatch(/data-mkit-protection="unsupported"/);
+    expect(PREFLIGHT_CSS).not.toMatch(
+      /data-mkit-route="answer-review"[^,{]*:not\(\[data-mkit-protection\]\)/,
+    );
     expect(PREFLIGHT_CSS).not.toMatch(/filter\s*:\s*blur|opacity\s*:\s*0|visibility\s*:\s*hidden/);
   });
 

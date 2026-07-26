@@ -6,14 +6,21 @@ import { type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface RouteGuardHarness {
   dispose(): void;
+  restoreCompletedReviewCapability(): {
+    footerDisplay: string;
+    hostConnected: boolean;
+    wrapperDisplay: string;
+  };
   setHash(hash: string): void;
 }
 
 declare global {
   interface Window {
     __mkitRouteGuardAuthoredMarkup: string;
+    __mkitRouteGuardAuthoredSurface: string;
     __mkitRouteGuardHarness: RouteGuardHarness;
     __mkitRouteGuardSyncDisplay: string;
+    __mkitRouteGuardSyncFooterDisplay: string;
   }
 }
 
@@ -42,6 +49,9 @@ class MemoryStorageArea implements StorageAreaLike {
 }
 
 const searchParams = new URL(location.href).searchParams;
+const bootstrapFailure = searchParams.has("bootstrap-fail");
+const controllerFailure = searchParams.has("controller-fail");
+const disconnectedPreflight = searchParams.has("disconnected-preflight");
 const initialHash = searchParams.has("section")
   ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
   : searchParams.has("answer")
@@ -51,18 +61,51 @@ let route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exa
 const repository = new StorageRepository({ local: new MemoryStorageArea() });
 const lifecycle = startContentLifecycle({
   createAdapter: () => new AamcFullLengthReviewAdapter(document, () => new URL(route.href)),
-  createPreflight,
-  createController: (adapter, preflight) =>
-    new ReviewController({
+  createPreflight: () => {
+    if (bootstrapFailure) {
+      throw new Error("Synthetic preflight failure.");
+    }
+    const preflight = createPreflight();
+    if (disconnectedPreflight) {
+      preflight.host.remove();
+    }
+    return preflight;
+  },
+  createController: (adapter, preflight) => {
+    if (controllerFailure) {
+      throw new Error("Synthetic controller failure.");
+    }
+    return new ReviewController({
       adapter,
       preflight,
       repository,
       uiCss: __MKIT_UI_CSS__,
-    }),
+    });
+  },
 });
 
 window.__mkitRouteGuardHarness = {
   dispose: () => lifecycle.dispose(),
+  restoreCompletedReviewCapability: () => {
+    const reviewControl = document.querySelector(".review-answer");
+    if (reviewControl && !reviewControl.querySelector(".view-answers.switchable")) {
+      const input = document.createElement("input");
+      input.className = "view-answers switchable";
+      input.type = "checkbox";
+      input.setAttribute("role", "switch");
+      input.setAttribute("aria-checked", "false");
+      reviewControl.append(input);
+    }
+    lifecycle.reconcile();
+    const host = document.querySelector("[data-mkit-host]");
+    const wrapper = document.querySelector("#wrapper");
+    const footer = document.querySelector("#main-footer");
+    return {
+      footerDisplay: footer ? getComputedStyle(footer).display : "",
+      hostConnected: Boolean(host?.isConnected),
+      wrapperDisplay: wrapper ? getComputedStyle(wrapper).display : "",
+    };
+  },
   setHash: (hash) => {
     route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${hash}`);
     dispatchEvent(new HashChangeEvent("hashchange"));

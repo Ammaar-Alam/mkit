@@ -87,10 +87,12 @@ test("exact answer route stays covered as completed-review anchors first appear"
 }) => {
   await page.goto("http://127.0.0.1:4173/route-guard?answer");
 
-  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).toBe("none");
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
   await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
   await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
-  await expect(page.locator("#dashboard-root")).toBeHidden();
+  await expect(page.locator("#wrapper")).toBeHidden();
+  await expect(page.locator("#main-footer")).toBeHidden();
 });
 
 test("exact completed section review auto-attaches and cleans up across native routes", async ({
@@ -98,7 +100,7 @@ test("exact completed section review auto-attaches and cleans up across native r
 }) => {
   await page.goto("http://127.0.0.1:4173/route-guard?section");
 
-  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).toBe("none");
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
   const authoredMarkup = await page.evaluate(() => window.__mkitRouteGuardAuthoredMarkup);
   const host = page.locator("[data-mkit-host]");
   await expect(host).toHaveCount(1);
@@ -127,6 +129,89 @@ test("exact completed section review auto-attaches and cleans up across native r
   );
 });
 
+test("accepted answer route fails open when a completed-review capability is absent", async ({
+  page,
+}) => {
+  await page.goto(
+    "http://127.0.0.1:4173/route-guard?answer&missing-capability&stale-route&stale-protection",
+  );
+  await waitForTwoFrames(page);
+
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).not.toBe("none");
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncFooterDisplay)).not.toBe("none");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  await expect(page.locator("#main-footer")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+  expect(await snapshotAuthoredSurface(page)).toBe(
+    await page.evaluate(() => window.__mkitRouteGuardAuthoredSurface),
+  );
+});
+
+for (const failureMode of [
+  "bootstrap-fail",
+  "controller-fail",
+  "disconnected-preflight",
+] as const) {
+  test(`accepted answer route fails open after ${failureMode}`, async ({ page }) => {
+    await page.goto(
+      `http://127.0.0.1:4173/route-guard?answer&stale-route&stale-protection&${failureMode}`,
+    );
+    await waitForTwoFrames(page);
+
+    await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+    await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+    await expect(page.locator("#wrapper")).toBeVisible();
+    await expect(page.locator("#main-footer")).toBeVisible();
+    expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+    expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+    expect(await snapshotAuthoredSurface(page)).toBe(
+      await page.evaluate(() => window.__mkitRouteGuardAuthoredSurface),
+    );
+  });
+}
+
+test("delayed capability recovery covers only after its host is connected", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?answer&missing-capability&stale-route");
+  await waitForTwoFrames(page);
+
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+
+  const recovered = await page.evaluate(() =>
+    window.__mkitRouteGuardHarness.restoreCompletedReviewCapability(),
+  );
+  expect(recovered).toEqual({
+    footerDisplay: "none",
+    hostConnected: true,
+    wrapperDisplay: "none",
+  });
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "boot");
+  await expect(page.locator("#wrapper")).toBeHidden();
+  await expect(page.locator("#main-footer")).toBeHidden();
+});
+
 async function snapshotDashboard(page: import("@playwright/test").Page): Promise<string> {
   return page.locator("#dashboard-root").evaluate((element) => element.outerHTML);
+}
+
+async function snapshotAuthoredSurface(page: import("@playwright/test").Page): Promise<string> {
+  return page
+    .locator("#wrapper, #main-footer")
+    .evaluateAll((elements) => elements.map((element) => element.outerHTML).join(""));
+}
+
+async function waitForTwoFrames(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
 }

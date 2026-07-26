@@ -118,9 +118,9 @@ export function createPreflight(): DisposableMKitPreflight {
     }
   };
 
-  document.documentElement.dataset.mkitProtection = "boot";
   showPreparing();
   mount();
+  setProtection("boot");
 
   const mountObserver = new MutationObserver(() => {
     if (!host.isConnected) {

@@ -812,13 +812,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #isMKitPageCoverActive(): boolean {
-    const root = this.#document.documentElement;
-    const protection = root.dataset.mkitProtection;
-    return (
-      (root.dataset.mkitRoute === "answer-review" && protection === undefined) ||
-      protection === "boot" ||
-      protection === "unsupported"
-    );
+    const protection = this.#document.documentElement.dataset.mkitProtection;
+    return protection === "boot" || protection === "unsupported";
   }
 }
 

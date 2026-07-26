@@ -1,4 +1,3 @@
-html[data-mkit-route="answer-review"]:not([data-mkit-protection]) body > :not([data-mkit-host]),
 html[data-mkit-protection="boot"] body > :not([data-mkit-host]),
 html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   display: none !important;

@@ -32,16 +32,67 @@ export function startContentLifecycle(
     probeFrame = null;
   };
 
+  const clearPageMarkers = (): void => {
+    document.documentElement.removeAttribute("data-mkit-route");
+    document.documentElement.removeAttribute("data-mkit-protection");
+  };
+
+  const restoreNativePage = (
+    targetAdapter: FullLengthReviewAdapter | null,
+    targetController: ReviewController | null,
+    targetPreflight: DisposableMKitPreflight | null,
+  ): void => {
+    clearPageMarkers();
+
+    let restoredByController = false;
+    if (targetController) {
+      try {
+        targetController.normalReview();
+        restoredByController = true;
+      } catch {
+        // Continue fail-open cleanup even if a partial controller cannot restore itself.
+      }
+    }
+    if (!restoredByController && targetAdapter) {
+      try {
+        targetAdapter.restoreNormalReview();
+      } catch {
+        // Marker and host cleanup below still restores the native page-level surface.
+      }
+    }
+    try {
+      targetController?.dispose();
+    } catch {
+      // A failed disposal must not leave the native page covered.
+    }
+
+    const preflights = new Set<DisposableMKitPreflight>();
+    if (targetPreflight) preflights.add(targetPreflight);
+    if (globalThis.__mkitPreflight) preflights.add(globalThis.__mkitPreflight);
+    for (const ownedPreflight of preflights) {
+      try {
+        ownedPreflight.destroy();
+      } catch {
+        // Remove any remaining owned host directly below.
+      }
+    }
+    globalThis.__mkitPreflight = undefined;
+    for (const host of document.querySelectorAll("[data-mkit-host]")) {
+      host.remove();
+    }
+
+    clearPageMarkers();
+  };
+
   const deactivate = (): void => {
     stopProbe();
-    if (controller) {
-      controller.normalReview();
-      controller.dispose();
-    }
+    const currentAdapter = adapter;
+    const currentController = controller;
+    const currentPreflight = preflight;
     controller = null;
     adapter = null;
-    preflight?.destroy();
     preflight = null;
+    restoreNativePage(currentAdapter, currentController, currentPreflight);
   };
 
   const scheduleProbe = (): void => {
@@ -54,33 +105,76 @@ export function startContentLifecycle(
 
   const reconcile = (): void => {
     if (disposed) return;
-    const candidate = dependencies.createAdapter();
-    const pageKind = candidate.classifyPage();
-    const report = candidate.inspectCapabilities();
-    const ready = pageKind === "review" && report.safeToReveal;
-    const answerRoute = pageKind === "review" || pageKind === "unknown-review";
-    if (answerRoute) {
-      document.documentElement.dataset.mkitRoute = routeMarker;
-    } else {
-      document.documentElement.removeAttribute("data-mkit-route");
+
+    if (!controller) {
+      clearPageMarkers();
     }
 
-    if (!ready) {
-      if (controller) deactivate();
-      if (pageKind === "review" || pageKind === "unknown-review") {
-        scheduleProbe();
-      } else {
-        stopProbe();
+    let candidate: FullLengthReviewAdapter;
+    let pageKind: ReturnType<FullLengthReviewAdapter["classifyPage"]>;
+    let answerRoute = false;
+    try {
+      candidate = dependencies.createAdapter();
+      pageKind = candidate.classifyPage();
+      answerRoute = pageKind === "review" || pageKind === "unknown-review";
+      const report = candidate.inspectCapabilities();
+      const ready = pageKind === "review" && report.safeToReveal;
+
+      if (!ready) {
+        if (controller || adapter || preflight) {
+          deactivate();
+        } else {
+          restoreNativePage(null, null, null);
+        }
+        if (answerRoute) {
+          scheduleProbe();
+        } else {
+          stopProbe();
+        }
+        return;
       }
+    } catch {
+      if (controller || adapter || preflight) {
+        deactivate();
+      } else {
+        restoreNativePage(null, null, null);
+      }
+      if (answerRoute) scheduleProbe();
       return;
     }
 
     stopProbe();
-    if (controller) return;
+    if (controller && preflight?.host.isConnected) {
+      document.documentElement.dataset.mkitRoute = routeMarker;
+      return;
+    }
+    if (controller || adapter || preflight) {
+      deactivate();
+    }
+
+    let nextPreflight: DisposableMKitPreflight | null = null;
+    let nextController: ReviewController | null = null;
+    try {
+      nextPreflight = dependencies.createPreflight();
+      if (!nextPreflight.host.isConnected) {
+        throw new Error("MKit preflight host did not mount synchronously.");
+      }
+      nextPreflight.setProtection("boot");
+      nextController = dependencies.createController(candidate, nextPreflight);
+      nextController.start();
+      if (!nextPreflight.host.isConnected) {
+        throw new Error("MKit preflight host disconnected during startup.");
+      }
+    } catch {
+      restoreNativePage(candidate, nextController, nextPreflight);
+      scheduleProbe();
+      return;
+    }
+
     adapter = candidate;
-    preflight = dependencies.createPreflight();
-    controller = dependencies.createController(adapter, preflight);
-    controller.start();
+    preflight = nextPreflight;
+    controller = nextController;
+    document.documentElement.dataset.mkitRoute = routeMarker;
   };
 
   const routeListener = (): void => reconcile();
@@ -99,7 +193,6 @@ export function startContentLifecycle(
       removeEventListener("popstate", routeListener);
       removeEventListener("pageshow", routeListener);
       document.removeEventListener("DOMContentLoaded", routeListener);
-      document.documentElement.removeAttribute("data-mkit-route");
       deactivate();
     },
   };
