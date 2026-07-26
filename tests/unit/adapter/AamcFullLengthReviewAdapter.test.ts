@@ -674,6 +674,23 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
 
     adapter.revealOriginalAttempt();
     expect(requiredElement<HTMLElement>(".result-wrapper").hidden).toBe(false);
+
+    // Masking runs again on every page mutation, so a revealed solution has to
+    // survive reconciliation instead of being concealed by the next scroll.
+    adapter.applyCleanSlate();
+    expect(requiredElement<HTMLElement>(".expander-content").hidden).toBe(false);
+    expect(requiredElement<HTMLElement>("#confirmed-inline-feedback").hidden).toBe(false);
+    expect(requiredElement<HTMLElement>(".result-wrapper").hidden).toBe(false);
+    expect(document.querySelector(".multi-choice.corrected")).not.toBeNull();
+
+    // Retrying the question deliberately takes every reveal back.
+    adapter.remaskQuestion();
+    expect(requiredElement<HTMLElement>(".expander-content").hidden).toBe(true);
+    expect(requiredElement<HTMLElement>(".result-wrapper").hidden).toBe(true);
+    expect(document.querySelector(".multi-choice.corrected")).toBeNull();
+
+    adapter.revealFeedback();
+    adapter.revealOriginalAttempt();
     adapter.restoreNormalReview();
     expect(snapshotTree(requiredElement(".reviewable"))).toEqual(original);
   });
@@ -710,12 +727,15 @@ describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
       expect(serialized).not.toContain(rawIdentifier);
     }
 
+    // A section review marks its one correct option with either class, so both
+    // grade rather than reporting that the question could not be auto-checked.
     const sectionCorrectChoice = requiredElement(".multi-choice.corrected");
     sectionCorrectChoice.classList.replace("corrected", "correct");
-    expect(adapter.gradeFresh("B")).toBe("unknown");
+    expect(adapter.gradeFresh("B")).toBe("correct");
+    expect(adapter.gradeFresh("A")).toBe("needs-review");
     expect(adapter.inspectCapabilities()).toMatchObject({
       safeToReveal: true,
-      correctAnswerParseable: false,
+      correctAnswerParseable: true,
     });
 
     document.body.insertAdjacentHTML(

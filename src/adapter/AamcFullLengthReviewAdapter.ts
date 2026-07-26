@@ -34,6 +34,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #lastLocation = "";
   #processing = false;
   #completedReviewSwitch: Element | null = null;
+  /**
+   * Groups the reader has intentionally revealed. Masking runs again on every
+   * page mutation, so without this a revealed solution would be concealed again
+   * by the next reconciliation.
+   */
+  readonly #revealedGroups = new Set<string>();
 
   readonly #selectors = {
     page: {
@@ -265,7 +271,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       : Boolean(this.#queryAny(this.#selectors.explanation));
     const correctAnswerParseable =
       (confirmedRoute && confirmedAnswerChoices
-        ? this.#readConfirmedCorrectChoice(confirmedRoute, confirmedAnswerChoices)
+        ? this.#readConfirmedCorrectChoice(confirmedAnswerChoices)
         : this.#readCorrectChoice()) !== null;
     const categoryCodeFound =
       (confirmedRoute ? this.#readCategoryCode(confirmedReviewRoot) : this.#readCategoryCode()) !==
@@ -361,17 +367,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#completedReviewSwitch.setAttribute(CONFIRMED_REVIEW_SWITCH_MARKER, "");
     }
 
-    this.#mask.hide(this.#queryAll(this.#selectors.navigatorSpoiler), CLEAN_SLATE_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.resultRail), ORIGINAL_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.status), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.metadata), CLEAN_SLATE_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.tooltip), CLEAN_SLATE_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.officialInputs), CLEAN_SLATE_GROUP);
+    this.#hide(this.#selectors.navigatorSpoiler, CLEAN_SLATE_GROUP);
+    this.#hide(this.#selectors.resultRail, ORIGINAL_GROUP);
+    this.#hide(this.#selectors.status, FEEDBACK_GROUP);
+    this.#hide(this.#selectors.metadata, CLEAN_SLATE_GROUP);
+    this.#hide(this.#selectors.tooltip, CLEAN_SLATE_GROUP);
+    this.#hide(this.#selectors.officialInputs, CLEAN_SLATE_GROUP);
 
-    this.#mask.hide(this.#queryAll(this.#selectors.explanation), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.inlineFeedback), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.correctMarker), FEEDBACK_GROUP);
-    this.#mask.hide(this.#queryAll(this.#selectors.originalMarker), ORIGINAL_GROUP);
+    this.#hide(this.#selectors.explanation, FEEDBACK_GROUP);
+    this.#hide(this.#selectors.inlineFeedback, FEEDBACK_GROUP);
+    this.#hide(this.#selectors.correctMarker, FEEDBACK_GROUP);
+    this.#hide(this.#selectors.originalMarker, ORIGINAL_GROUP);
 
     const attributeCarriers = this.#queryAll(this.#selectors.spoilerAttributeCarrier);
     this.#mask.removeAttributes(
@@ -402,23 +408,27 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ),
       CLEAN_SLATE_GROUP,
     );
-    this.#mask.removeClasses(
-      feedbackClassCarriers,
-      [
-        "corrected",
-        "correct",
-        "is-correct",
-        "is-correct-answer",
-        "correct-answer",
-        "answer-correct",
-      ],
-      FEEDBACK_GROUP,
-    );
-    this.#mask.removeClasses(
-      originalClassCarriers,
-      ["incorrect", "is-incorrect", "was-selected", "answer-incorrect", "selected-answer"],
-      ORIGINAL_GROUP,
-    );
+    if (this.#maskGroupActive(FEEDBACK_GROUP)) {
+      this.#mask.removeClasses(
+        feedbackClassCarriers,
+        [
+          "corrected",
+          "correct",
+          "is-correct",
+          "is-correct-answer",
+          "correct-answer",
+          "answer-correct",
+        ],
+        FEEDBACK_GROUP,
+      );
+    }
+    if (this.#maskGroupActive(ORIGINAL_GROUP)) {
+      this.#mask.removeClasses(
+        originalClassCarriers,
+        ["incorrect", "is-incorrect", "was-selected", "answer-incorrect", "selected-answer"],
+        ORIGINAL_GROUP,
+      );
+    }
     this.#mask.removeClasses(
       staleClassCarriers,
       [
@@ -462,19 +472,25 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   revealFeedback(): void {
+    this.#revealedGroups.add(FEEDBACK_GROUP);
     this.#withoutObservation(() => this.#mask.restoreGroup(FEEDBACK_GROUP));
   }
 
   revealOriginalAttempt(): void {
+    this.#revealedGroups.add(ORIGINAL_GROUP);
     this.#withoutObservation(() => this.#mask.restoreGroup(ORIGINAL_GROUP));
   }
 
   remaskQuestion(): void {
+    // Retrying a question deliberately takes back every earlier reveal, so the
+    // reader answers it concealed again.
+    this.#revealedGroups.clear();
     this.applyCleanSlate();
   }
 
   restoreNormalReview(): void {
     this.#withoutObservation(() => {
+      this.#revealedGroups.clear();
       this.#mask.restoreAll();
       for (const marked of this.#document.querySelectorAll(`[${CONFIRMED_REVIEW_SWITCH_MARKER}]`)) {
         marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
@@ -531,6 +547,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         if (pageKind === "review") {
           if (pageChanged || questionChanged) {
             document.documentElement.dataset.mkitProtection = "boot";
+            // A reveal applies to the question it was made on, so arriving at a
+            // different question conceals again before masking runs.
+            this.#revealedGroups.clear();
           }
           const report = this.applyCleanSlate();
           listener({ type: "capability-change", report });
@@ -618,6 +637,21 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         this.#observeDocument();
       }
     }
+  }
+
+  /**
+   * Masking runs again on every page mutation, so a group the reader has already
+   * revealed is left alone: re-hiding it would take back an intentional reveal
+   * the moment the page changed. Class and attribute masking use the same guard
+   * through `#maskGroupActive`.
+   */
+  #hide(selectors: readonly string[], group: string): void {
+    if (!this.#maskGroupActive(group)) return;
+    this.#mask.hide(this.#queryAll(selectors), group);
+  }
+
+  #maskGroupActive(group: string): boolean {
+    return !this.#revealedGroups.has(group);
   }
 
   #queryAny(selectors: readonly string[]): Element | null {
@@ -834,7 +868,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #readCorrectChoice(): AnswerChoice | null {
     const route = parseConfirmedReviewRoute(this.#url());
     if (route) {
-      return this.#readConfirmedCorrectChoice(route, this.#confirmedAnswerChoices());
+      return this.#readConfirmedCorrectChoice(this.#confirmedAnswerChoices());
     }
     const carrier =
       this.#queryAny(this.#selectors.correctChoiceCarrier) ??
@@ -849,17 +883,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       : null;
   }
 
-  #readConfirmedCorrectChoice(
-    route: ConfirmedReviewRoute,
-    choices: readonly Element[],
-  ): AnswerChoice | null {
+  #readConfirmedCorrectChoice(choices: readonly Element[]): AnswerChoice | null {
     if (choices.length !== 4) {
       return null;
     }
+    // Both review scopes mark the one correct option with either class, so
+    // grading accepts either. Requiring exactly one marked choice keeps an
+    // ambiguous shape ungraded.
     const correctChoices = choices.filter(
       (choice) =>
         this.#mask.hasClass(choice, "corrected", FEEDBACK_GROUP) ||
-        (route.kind === "full-length" && this.#mask.hasClass(choice, "correct", FEEDBACK_GROUP)),
+        this.#mask.hasClass(choice, "correct", FEEDBACK_GROUP),
     );
     if (correctChoices.length !== 1) {
       return null;
