@@ -1,0 +1,96 @@
+import { expect, test } from "@playwright/test";
+
+test.use({ channel: "chrome" });
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeMutationObserver = MutationObserver;
+    let observerCount = 0;
+    Object.defineProperty(window, "__mkitObserverCount", {
+      configurable: false,
+      get: () => observerCount,
+    });
+    window.MutationObserver = class extends NativeMutationObserver {
+      constructor(callback: MutationCallback) {
+        observerCount += 1;
+        super(callback);
+      }
+    };
+  });
+});
+
+test("dashboard-like non-answer routes receive no MKit host, mask, marker, or observer", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard");
+  const initialState = await snapshotDashboard(page);
+  const initialObserverCount = await page.evaluate(() =>
+    Reflect.get(window, "__mkitObserverCount"),
+  );
+
+  for (const hash of [
+    "#exams",
+    "#exams/intro/synthetic",
+    "#exams/take/synthetic",
+    "#exams/results/synthetic",
+    "#dashboard",
+  ]) {
+    await page.evaluate((nextHash) => window.__mkitRouteGuardHarness.setHash(nextHash), hash);
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+
+    await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+    await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+    await expect(page.locator("#dashboard-root")).toBeVisible();
+    expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+    expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+    expect(await page.evaluate(() => Reflect.get(window, "__mkitObserverCount"))).toBe(
+      initialObserverCount,
+    );
+    expect(await snapshotDashboard(page)).toEqual(initialState);
+  }
+});
+
+test("leaving an answer review removes MKit and restores the dashboard exactly", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard");
+  const authoredDashboard = await snapshotDashboard(page);
+  const initialObserverCount = await page.evaluate(() =>
+    Reflect.get(window, "__mkitObserverCount"),
+  );
+
+  await page.evaluate(() =>
+    window.__mkitRouteGuardHarness.setHash("#exams/answers/synthetic-exam/synthetic-question"),
+  );
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "boot");
+  expect(await page.locator("[data-mkit-hidden]").count()).toBeGreaterThan(0);
+  expect(await page.evaluate(() => Reflect.get(window, "__mkitObserverCount"))).toBeGreaterThan(
+    initialObserverCount,
+  );
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setHash("#exams"));
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#dashboard-root")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await snapshotDashboard(page)).toEqual(authoredDashboard);
+});
+
+test("exact answer route stays covered as completed-review anchors first appear", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?answer");
+
+  expect(await page.evaluate(() => window.__mkitRouteGuardSyncDisplay)).toBe("none");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(1);
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-route", "answer-review");
+  await expect(page.locator("#dashboard-root")).toBeHidden();
+});
+
+async function snapshotDashboard(page: import("@playwright/test").Page): Promise<string> {
+  return page.locator("#dashboard-root").evaluate((element) => element.outerHTML);
+}

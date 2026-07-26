@@ -1,12 +1,14 @@
 import { AamcFullLengthReviewAdapter } from "../../src/adapter/AamcFullLengthReviewAdapter";
 import type { AdapterEvent, CapabilityReport } from "../../src/adapter/contracts";
-import "../../src/content/preflight";
+import { createPreflight } from "../../src/content/preflight";
 import {
   type FreshAttemptKeyboardActions,
   FreshAttemptKeyboardController,
 } from "../../src/core/keyboard";
 import { ReviewController } from "../../src/core/review-controller";
 import { type StorageAreaLike, StorageRepository } from "../../src/storage";
+
+createPreflight();
 
 interface KeyboardLog {
   checks: number;

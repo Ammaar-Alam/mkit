@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MKit route-guard fixture</title>
+    <link rel="stylesheet" href="/preflight.css">
+    <script src="/route-guard-entry.js"></script>
+  </head>
+  <body>
+    <main id="dashboard-root" data-dashboard-state="authored">
+      <section class="score-reports-wrapper">Synthetic stale score shell.</section>
+      <article class="luca-ui-card">
+        <div class="reviewable">
+          <div
+            class="question-content-container"
+            data-exam-id="synthetic-exam"
+            data-question-id="synthetic-question"
+            data-section-id="cp"
+          >
+            <div class="answer-set-content">
+              <div class="answer-container question-container">
+                <p id="dashboard-question">Synthetic stale question-like node.</p>
+                <ul class="question-choices-multi results">
+                  <li class="multi-choice incorrect">Synthetic stale choice A.</li>
+                  <li class="multi-choice corrected">Synthetic stale choice B.</li>
+                  <li class="multi-choice">Synthetic stale choice C.</li>
+                  <li class="multi-choice">Synthetic stale choice D.</li>
+                </ul>
+              </div>
+              <label class="review-answer">
+                Review
+                <input
+                  class="view-answers switchable"
+                  role="switch"
+                  type="checkbox"
+                  aria-checked="false"
+                >
+              </label>
+              <div class="fixed-width-sidebar-columns">
+                <aside class="sidebar-column">
+                  <div class="sidebar-container">
+                    <div class="choices-container">
+                      <section class="result-wrapper">
+                        <div class="result is-incorrect">Synthetic stale result.</div>
+                      </section>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+              <section class="expander-content">Synthetic stale explanation.</section>
+            </div>
+            <nav class="icon-bar navigate">
+              <button class="toolbar-btn previous" type="button">Previous</button>
+              <button class="toolbar-btn next" type="button">Next</button>
+            </nav>
+          </div>
+        </div>
+      </article>
+    </main>
+    <script>
+      window.__mkitRouteGuardSyncDisplay = getComputedStyle(
+        document.querySelector("#dashboard-root"),
+      ).display;
+    </script>
+  </body>
+</html>

@@ -5,33 +5,41 @@ import { build } from "esbuild";
 const root = new URL("../../", import.meta.url);
 const port = 4173;
 const uiCss = await readFile(new URL("src/content/ui.css", root), "utf8");
-const browserEntry = await build({
-  bundle: true,
-  define: {
-    __MKIT_UI_CSS__: JSON.stringify(
-      uiCss
-        .replaceAll("__MKIT_ATKINSON_URL__", "data:font/ttf;base64,AA==")
-        .replaceAll("__MKIT_LITERATA_URL__", "data:font/ttf;base64,AA=="),
-    ),
-  },
-  entryPoints: [new URL("./browser-entry.ts", import.meta.url).pathname],
-  format: "iife",
-  legalComments: "none",
-  minify: false,
-  platform: "browser",
-  target: ["chrome120"],
-  write: false,
-});
-const browserScript = browserEntry.outputFiles[0]?.text;
-if (!browserScript) {
-  throw new Error("Synthetic browser harness did not compile.");
-}
+const define = {
+  __MKIT_UI_CSS__: JSON.stringify(
+    uiCss
+      .replaceAll("__MKIT_ATKINSON_URL__", "data:font/ttf;base64,AA==")
+      .replaceAll("__MKIT_LITERATA_URL__", "data:font/ttf;base64,AA=="),
+  ),
+};
+const buildFixtureEntry = async (filename) => {
+  const result = await build({
+    bundle: true,
+    define,
+    entryPoints: [new URL(filename, import.meta.url).pathname],
+    format: "iife",
+    legalComments: "none",
+    minify: false,
+    platform: "browser",
+    target: ["chrome120"],
+    write: false,
+  });
+  const script = result.outputFiles[0]?.text;
+  if (!script) throw new Error(`Synthetic browser harness did not compile: ${filename}`);
+  return script;
+};
+const browserScript = await buildFixtureEntry("./browser-entry.ts");
+const routeGuardScript = await buildFixtureEntry("./route-guard-entry.ts");
 
 const routes = new Map([
   ["/", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/review.html" }],
   [
     "/live-review",
     { contentType: "text/html; charset=utf-8", file: "tests/fixtures/live-review.html" },
+  ],
+  [
+    "/route-guard",
+    { contentType: "text/html; charset=utf-8", file: "tests/fixtures/route-guard.html" },
   ],
   ["/review", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/review.html" }],
   ["/score", { contentType: "text/html; charset=utf-8", file: "tests/fixtures/score.html" }],
@@ -44,6 +52,11 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/browser-entry.js") {
       response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
       response.end(browserScript);
+      return;
+    }
+    if (url.pathname === "/route-guard-entry.js") {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+      response.end(routeGuardScript);
       return;
     }
 

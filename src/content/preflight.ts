@@ -12,11 +12,18 @@ export interface MKitPreflight {
   showPreparing(): void;
 }
 
-declare global {
-  var __mkitPreflight: MKitPreflight | undefined;
+export interface DisposableMKitPreflight extends MKitPreflight {
+  destroy(): void;
 }
 
-if (!globalThis.__mkitPreflight) {
+declare global {
+  var __mkitPreflight: DisposableMKitPreflight | undefined;
+}
+
+export function createPreflight(): DisposableMKitPreflight {
+  if (globalThis.__mkitPreflight) {
+    return globalThis.__mkitPreflight;
+  }
   const host = document.createElement("div");
   host.dataset.mkitHost = "";
   host.dataset.mkitPlacement = "gate";
@@ -122,10 +129,22 @@ if (!globalThis.__mkitPreflight) {
   });
   mountObserver.observe(host.ownerDocument, { childList: true, subtree: true });
 
-  globalThis.__mkitPreflight = {
+  const preflight: DisposableMKitPreflight = {
     host,
     shadow,
     setProtection,
     showPreparing,
+    destroy(): void {
+      mountObserver.disconnect();
+      host.remove();
+      if (document.documentElement.hasAttribute("data-mkit-protection")) {
+        document.documentElement.removeAttribute("data-mkit-protection");
+      }
+      if (globalThis.__mkitPreflight === preflight) {
+        globalThis.__mkitPreflight = undefined;
+      }
+    },
   };
+  globalThis.__mkitPreflight = preflight;
+  return preflight;
 }
