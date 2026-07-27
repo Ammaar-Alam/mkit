@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 test.use({ channel: "chrome" });
 
@@ -41,6 +41,39 @@ const LIVE_FEEDBACK_SPOILERS = [
   "MKIT_LIVE_DELAYED_INLINE_SOLUTION_6E83",
   "MKIT_LIVE_DELAYED_EXPLANATION_5D29",
 ] as const;
+
+async function installNativeAnnotationControls(page: Page, prefix: string): Promise<void> {
+  await page.evaluate((annotationPrefix) => {
+    const toolbar = document.querySelector(".answer-toolbar-wrapper");
+    if (!toolbar) throw new Error("The native review toolbar is missing.");
+
+    const highlighter = document.createElement("button");
+    highlighter.id = `${annotationPrefix}-native-highlighter`;
+    highlighter.className = "add-highlight";
+    highlighter.textContent = "Highlight";
+    highlighter.addEventListener("click", () => {
+      const annotation = document.createElement("span");
+      annotation.id = `${annotationPrefix}-highlight`;
+      annotation.className = "user-highlight";
+      annotation.textContent = "Fresh highlight.";
+      document.querySelector("#live-style-question")?.append(annotation);
+    });
+
+    const crossOut = document.createElement("button");
+    crossOut.id = `${annotationPrefix}-native-cross-out`;
+    crossOut.className = "strikethrough-ctrl";
+    crossOut.textContent = "Cross out";
+    crossOut.addEventListener("click", () => {
+      const annotation = document.createElement("span");
+      annotation.id = `${annotationPrefix}-cross`;
+      annotation.className = "user-strikethrough";
+      annotation.textContent = "Fresh cross-out.";
+      document.querySelectorAll(".multi-choice")[2]?.append(annotation);
+    });
+
+    toolbar.prepend(highlighter, crossOut);
+  }, prefix);
+}
 
 test("default-deny CSS prevents first-paint spoiler exposure", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/review");
@@ -112,6 +145,7 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
 
 test("Clean Slate captures delayed native annotations before Practice", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
+  await installNativeAnnotationControls(page, "fresh");
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());
 
   const host = page.locator("[data-mkit-host]");
@@ -170,15 +204,22 @@ test("Clean Slate captures delayed native annotations before Practice", async ({
       .querySelector("#live-style-question")
       ?.insertAdjacentHTML(
         "beforeend",
-        '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-      );
-    document
-      .querySelectorAll(".multi-choice")[2]
-      ?.insertAdjacentHTML(
-        "beforeend",
-        '<span id="fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+        '<span id="post-practice-prior-highlight" class="user-highlight">Saved highlight.</span>',
       );
   });
+  await expect(page.locator("#post-practice-prior-highlight")).not.toHaveClass(/user-highlight/);
+  await host.locator("[data-focus-key='answer-A']").click();
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="post-rail-prior-highlight" class="user-highlight">Later saved highlight.</span>',
+      );
+  });
+  await expect(page.locator("#post-rail-prior-highlight")).not.toHaveClass(/user-highlight/);
+  await page.locator("#fresh-native-highlighter").click();
+  await page.locator("#fresh-native-cross-out").click();
 
   await expect
     .poll(() =>
@@ -207,6 +248,7 @@ test("Clean Slate toggles restore originals live without absorbing new annotatio
   page,
 }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
+  await installNativeAnnotationControls(page, "resume-fresh");
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());
   const host = page.locator("[data-mkit-host]");
   await host.locator("[data-focus-key='practice']").click();
@@ -231,20 +273,8 @@ test("Clean Slate toggles restore originals live without absorbing new annotatio
 
   await host.locator("[data-focus-key='resume']").click();
   await expect(host.locator(".mkit-study-rail")).toBeVisible();
-  await page.evaluate(() => {
-    document
-      .querySelector("#live-style-question")
-      ?.insertAdjacentHTML(
-        "beforeend",
-        '<span id="resume-fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-      );
-    document
-      .querySelectorAll(".multi-choice")[2]
-      ?.insertAdjacentHTML(
-        "beforeend",
-        '<span id="resume-fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
-      );
-  });
+  await page.locator("#resume-fresh-native-highlighter").click();
+  await page.locator("#resume-fresh-native-cross-out").click();
   await expect(page.locator("#resume-fresh-highlight")).toHaveClass(/user-highlight/);
   await expect(page.locator("#resume-fresh-cross")).toHaveClass(/user-strikethrough/);
 
@@ -318,6 +348,7 @@ test("Clean Slate preserves atomic replacements from trusted annotation controls
 
 test("Clean Slate keeps capturing hydration after active-question navigation", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
+  await installNativeAnnotationControls(page, "navigated-fresh");
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());
 
   const host = page.locator("[data-mkit-host]");
@@ -361,15 +392,13 @@ test("Clean Slate keeps capturing hydration after active-question navigation", a
       .querySelector("#live-style-question")
       ?.insertAdjacentHTML(
         "beforeend",
-        '<span id="navigated-fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-      );
-    document
-      .querySelectorAll(".multi-choice")[2]
-      ?.insertAdjacentHTML(
-        "beforeend",
-        '<span id="navigated-fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+        '<span id="navigated-later-prior-highlight" class="user-highlight">Later prior highlight.</span>',
       );
   });
+  await expect(page.locator("#navigated-later-prior-highlight")).not.toHaveClass(/user-highlight/);
+
+  await page.locator("#navigated-fresh-native-highlighter").click();
+  await page.locator("#navigated-fresh-native-cross-out").click();
   await expect
     .poll(() =>
       page.evaluate(() => ({

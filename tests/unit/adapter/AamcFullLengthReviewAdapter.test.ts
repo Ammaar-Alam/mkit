@@ -235,8 +235,13 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     mountConfirmedProductionFixture();
     const question = requiredElement(".answer-container.question-container");
     const passage = requiredElement(".reading-passage");
+    const choice = requiredElement(".multi-choice");
     question.id = "annotation-question";
     passage.innerHTML = '<span id="prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
     const style = document.createElement("style");
     style.textContent = "#annotation-question:not(:has(.user-highlight)) { display: none; }";
     document.head.append(style);
@@ -251,6 +256,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     adapter.applyCleanSlate();
 
     expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#prior-cross").classList.contains("user-strikethrough")).toBe(false);
     expect(requiredElement("#fresh-highlight").classList.contains("user-highlight")).toBe(true);
   });
 

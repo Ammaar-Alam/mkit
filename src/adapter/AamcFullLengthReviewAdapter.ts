@@ -890,11 +890,19 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const question = this.#activeAnnotationQuestion();
     if (!question) return null;
     const questionIdentifier = this.#readQuestionIdentifier();
+    const highlightCandidates = this.#queryAllWithin(
+      question,
+      this.#selectors.priorHighlightCarrier,
+    ).filter((element) => this.#isAuthoredVisible(element));
+    const crossOutCandidates = this.#queryAllWithin(
+      question,
+      this.#selectors.priorCrossOutCarrier,
+    ).filter((element) => this.#isAuthoredVisible(element));
 
     this.#applyPriorAnnotationMask(
       question,
       questionIdentifier,
-      this.#selectors.priorHighlightCarrier,
+      highlightCandidates,
       this.#highlightBaselines,
       PRIOR_HIGHLIGHT_CLASSES,
       PRIOR_HIGHLIGHTS_GROUP,
@@ -903,7 +911,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#applyPriorAnnotationMask(
       question,
       questionIdentifier,
-      this.#selectors.priorCrossOutCarrier,
+      crossOutCandidates,
       this.#crossOutBaselines,
       PRIOR_CROSS_OUT_CLASSES,
       PRIOR_CROSS_OUTS_GROUP,
@@ -915,15 +923,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #applyPriorAnnotationMask(
     question: Element,
     questionIdentifier: string | null,
-    selectors: readonly string[],
+    candidates: readonly Element[],
     baselines: AnnotationBaselines,
     classes: readonly string[],
     group: string,
     maskEnabled: boolean,
   ): void {
-    const candidates = this.#queryAllWithin(question, selectors).filter((element) =>
-      this.#isAuthoredVisible(element),
-    );
     const baseline = this.#annotationBaseline(question, questionIdentifier, baselines);
 
     if (baseline.sealed && !maskEnabled) {
@@ -1060,6 +1065,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #recordReaderAnnotationIntent(): void {
     if (!this.#cleanSlatePreferences) return;
+    // AAMC can hydrate saved annotations after the question and MKit rail are
+    // already visible. Keep capturing those carriers until the reader invokes
+    // a native annotation action, then seal immediately before AAMC mutates the
+    // selection so the new annotation remains available.
+    this.sealPriorAnnotations();
     const question = this.#activeAnnotationQuestion();
     if (!question) return;
     const intent: ReaderAnnotationIntent = {
