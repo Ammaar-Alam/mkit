@@ -4,6 +4,8 @@
 
 # MKit — The MCAT Kit
 
+_(Really only made to help my girlfriend study for the MCAT, but thought it'd be fun to make the repository public and upload to the Chrome webstore)_
+
 MKit is a study companion for students studying for the MCAT through AAMC's website.The goal is to give students a suite of tools on AAMC's official practice materials. The first tool, Fresh Attempt, is designed to let a learner try completed full-length or section-review questions again while keeping the official solutions (and their prior answers) hidden.
 
 > MKit is an independent project. It is not affiliated with, endorsed by, or sponsored by the Association of American Medical Colleges.
