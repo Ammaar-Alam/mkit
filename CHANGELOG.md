@@ -45,6 +45,8 @@ All notable changes to MKit are documented here.
   restored the native page immediately when MKit is turned Off without a reload.
 - Restored native scores immediately when Score Shield is turned Off on an open
   report.
+- Preserved notes, answers, confidence, and reflection changes made in quick
+  succession instead of allowing one save to overwrite another.
 - Kept the rail inside the viewport and its header and next action reachable
   while its contents scroll.
 - Used Chrome-valid origin matches for packaged page artwork so the unpacked

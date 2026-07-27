@@ -122,31 +122,9 @@ export class SessionService {
     questionKey: string,
     patch: AttemptPatch,
   ): Promise<AttemptRecord> {
-    const current = await this.#repository.getAttempt(sessionId, questionKey);
-    if (!current) {
-      throw new Error("Cannot update an unknown Fresh Attempt question.");
-    }
-    const updatedAt = nextTimestamp(current.updatedAt, this.#now());
-    const next: AttemptRecord = {
-      ...current,
-      selection: patch.selection !== undefined ? patch.selection : current.selection,
-      eliminations: patch.eliminations
-        ? normalizeChoices(patch.eliminations)
-        : [...current.eliminations],
-      confidence: patch.confidence ?? current.confidence,
-      flagged: patch.flagged ?? current.flagged,
-      reviewAgain: patch.reviewAgain ?? current.reviewAgain,
-      tags: patch.tags ? normalizeTags(patch.tags) : [...current.tags],
-      outcome: patch.outcome ?? current.outcome,
-      categoryCode: patch.categoryCode ?? current.categoryCode,
-      durationMs: patch.durationMs ?? current.durationMs,
-      updatedAt,
-    };
-    if (patch.note !== undefined) {
-      next.note = patch.note;
-      next.noteUpdatedAt = updatedAt;
-    }
-    return this.#repository.saveAttempt(next);
+    return this.#repository.mutateAttempt(sessionId, questionKey, (current) =>
+      this.#applyAttemptPatch(current, patch),
+    );
   }
 
   async select(
@@ -165,16 +143,17 @@ export class SessionService {
     questionKey: string,
     choice: AnswerChoice,
   ): Promise<AttemptRecord> {
-    const current = await this.#requireAttempt(sessionId, questionKey);
-    const restoring = current.eliminations.includes(choice);
-    const eliminations = restoring
-      ? current.eliminations.filter((item) => item !== choice)
-      : [...current.eliminations, choice];
-    return this.updateAttempt(sessionId, questionKey, {
-      eliminations,
-      ...(!restoring && current.selection === choice
-        ? { selection: null, outcome: "unknown" as const }
-        : {}),
+    return this.#repository.mutateAttempt(sessionId, questionKey, (current) => {
+      const restoring = current.eliminations.includes(choice);
+      const eliminations = restoring
+        ? current.eliminations.filter((item) => item !== choice)
+        : [...current.eliminations, choice];
+      return this.#applyAttemptPatch(current, {
+        eliminations,
+        ...(!restoring && current.selection === choice
+          ? { selection: null, outcome: "unknown" as const }
+          : {}),
+      });
     });
   }
 
@@ -183,23 +162,14 @@ export class SessionService {
     questionKey: string,
     confidence: Confidence | null,
   ): Promise<AttemptRecord> {
-    const current = await this.#requireAttempt(sessionId, questionKey);
-    const next: AttemptRecord = {
-      ...current,
-      confidence,
-      updatedAt: nextTimestamp(current.updatedAt, this.#now()),
-    };
-    return this.#repository.saveAttempt(next);
+    return this.updateAttempt(sessionId, questionKey, { confidence });
   }
 
   async retry(sessionId: string, questionKey: string): Promise<AttemptRecord> {
-    const current = await this.#requireAttempt(sessionId, questionKey);
-    return this.#repository.saveAttempt({
-      ...current,
+    return this.updateAttempt(sessionId, questionKey, {
       selection: null,
       eliminations: [],
       outcome: "unknown",
-      updatedAt: nextTimestamp(current.updatedAt, this.#now()),
     });
   }
 
@@ -209,6 +179,31 @@ export class SessionService {
     durationMs: number,
   ): Promise<AttemptRecord> {
     return this.#repository.accumulateDuration(sessionId, questionKey, durationMs);
+  }
+
+  #applyAttemptPatch(current: AttemptRecord, patch: AttemptPatch): AttemptRecord {
+    const updatedAt = nextTimestamp(current.updatedAt, this.#now());
+    const next: AttemptRecord = {
+      ...current,
+      selection: patch.selection !== undefined ? patch.selection : current.selection,
+      eliminations:
+        patch.eliminations !== undefined
+          ? normalizeChoices(patch.eliminations)
+          : [...current.eliminations],
+      confidence: patch.confidence !== undefined ? patch.confidence : current.confidence,
+      flagged: patch.flagged !== undefined ? patch.flagged : current.flagged,
+      reviewAgain: patch.reviewAgain !== undefined ? patch.reviewAgain : current.reviewAgain,
+      tags: patch.tags !== undefined ? normalizeTags(patch.tags) : [...current.tags],
+      outcome: patch.outcome !== undefined ? patch.outcome : current.outcome,
+      categoryCode: patch.categoryCode !== undefined ? patch.categoryCode : current.categoryCode,
+      durationMs: patch.durationMs !== undefined ? patch.durationMs : current.durationMs,
+      updatedAt,
+    };
+    if (patch.note !== undefined) {
+      next.note = patch.note;
+      next.noteUpdatedAt = updatedAt;
+    }
+    return next;
   }
 
   async #updateSession(
@@ -234,14 +229,6 @@ export class SessionService {
       throw new Error("Fresh Attempt session was not found.");
     }
     return session;
-  }
-
-  async #requireAttempt(sessionId: string, questionKey: string): Promise<AttemptRecord> {
-    const attempt = await this.#repository.getAttempt(sessionId, questionKey);
-    if (!attempt) {
-      throw new Error("Fresh Attempt question was not found.");
-    }
-    return attempt;
   }
 }
 

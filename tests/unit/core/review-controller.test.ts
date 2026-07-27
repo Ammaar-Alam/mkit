@@ -111,7 +111,7 @@ describe("ReviewController generation safety", () => {
     controller.dispose();
   });
 
-  it("persists the latest note draft without redrawing the textarea per keystroke", async () => {
+  it("persists a note with an immediate answer without per-keystroke redraws", async () => {
     const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
     const repository = new StorageRepository({
       local: new FakeStorageArea("local"),
@@ -144,11 +144,18 @@ describe("ReviewController generation safety", () => {
         preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']"),
       ).toBe(note);
     }
+    expect(note.isConnected).toBe(true);
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
 
     await vi.waitFor(async () => {
-      expect((await repository.listAttempts())[0]?.note).toBe("Compare the limiting cases.");
+      expect((await repository.listAttempts())[0]).toMatchObject({
+        note: "Compare the limiting cases.",
+        selection: "A",
+      });
     });
-    expect(note.isConnected).toBe(true);
+    expect(
+      preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']")?.value,
+    ).toBe("Compare the limiting cases.");
     controller.dispose();
   });
 

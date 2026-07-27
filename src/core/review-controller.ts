@@ -576,23 +576,25 @@ export class ReviewController {
   async #toggleElimination(choice: AnswerChoice): Promise<void> {
     if (!this.#session || !this.#attempt || this.#state.reveal !== "CONCEALED") return;
     await this.#withSave(async () => {
-      this.#attempt = await this.#sessions.toggleElimination(
+      const saved = await this.#sessions.toggleElimination(
         this.#session?.id ?? "",
         this.#attempt?.questionKey ?? "",
         choice,
       );
-      this.#state = { ...this.#state, selection: this.#attempt.selection };
+      const accepted = this.#acceptSavedAttempt(saved);
+      this.#state = { ...this.#state, selection: accepted.selection };
     });
   }
 
   async #setConfidence(confidence: Confidence | null): Promise<void> {
     if (!this.#session || !this.#attempt) return;
     await this.#withSave(async () => {
-      this.#attempt = await this.#sessions.setConfidence(
+      const saved = await this.#sessions.setConfidence(
         this.#session?.id ?? "",
         this.#attempt?.questionKey ?? "",
         confidence,
       );
+      this.#acceptSavedAttempt(saved);
     });
   }
 
@@ -632,7 +634,8 @@ export class ReviewController {
   async #retryPractice(): Promise<void> {
     if (!this.#session || !this.#attempt) return;
     this.#adapter.remaskQuestion();
-    this.#attempt = await this.#sessions.retry(this.#session.id, this.#attempt.questionKey);
+    const saved = await this.#sessions.retry(this.#session.id, this.#attempt.questionKey);
+    this.#acceptSavedAttempt(saved);
     this.#state = reduceReviewState(this.#state, { type: "RETRY" });
     this.#answersRevealed = false;
     this.#showRail();
@@ -715,12 +718,13 @@ export class ReviewController {
   async #updateAttempt(patch: Partial<AttemptRecord>): Promise<void> {
     if (!this.#session || !this.#attempt) return;
     await this.#withSave(async () => {
-      this.#attempt = await this.#sessions.updateAttempt(
+      const saved = await this.#sessions.updateAttempt(
         this.#session?.id ?? "",
         this.#attempt?.questionKey ?? "",
         patch,
       );
-      this.#state = { ...this.#state, selection: this.#attempt.selection };
+      const accepted = this.#acceptSavedAttempt(saved);
+      this.#state = { ...this.#state, selection: accepted.selection };
     });
   }
 
@@ -744,22 +748,30 @@ export class ReviewController {
         const next = this.#pendingNoteSaves.entries().next().value;
         if (!next) break;
         const [key, draft] = next;
-        this.#pendingNoteSaves.delete(key);
         try {
           const saved = await this.#sessions.updateAttempt(draft.sessionId, draft.questionKey, {
             note: draft.note,
           });
+          const latestDraft = this.#pendingNoteSaves.get(key);
+          if (latestDraft === draft) {
+            this.#pendingNoteSaves.delete(key);
+          }
           if (
             this.#session?.id === draft.sessionId &&
             this.#attempt?.questionKey === draft.questionKey
           ) {
+            const pendingNote = this.#pendingNoteSaves.get(key)?.note;
             this.#attempt = {
               ...this.#attempt,
+              note: pendingNote ?? saved.note ?? "",
               updatedAt: Math.max(this.#attempt.updatedAt, saved.updatedAt),
               ...(saved.noteUpdatedAt === undefined ? {} : { noteUpdatedAt: saved.noteUpdatedAt }),
             };
           }
         } catch {
+          if (this.#pendingNoteSaves.get(key) === draft) {
+            this.#pendingNoteSaves.delete(key);
+          }
           if (
             this.#session?.id === draft.sessionId &&
             this.#attempt?.questionKey === draft.questionKey
@@ -773,6 +785,13 @@ export class ReviewController {
       this.#noteSaveActive = false;
       if (this.#pendingNoteSaves.size > 0) void this.#drainNoteSaves();
     }
+  }
+
+  #acceptSavedAttempt(saved: AttemptRecord): AttemptRecord {
+    const pendingNote = this.#pendingNoteSaves.get(attemptKey(saved))?.note;
+    const accepted = pendingNote === undefined ? saved : { ...saved, note: pendingNote };
+    this.#attempt = accepted;
+    return accepted;
   }
 
   async #withSave(operation: () => Promise<void>): Promise<void> {

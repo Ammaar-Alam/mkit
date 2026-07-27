@@ -236,6 +236,43 @@ export class StorageRepository {
     return cloneAttempt(saved);
   }
 
+  async mutateAttempt(
+    sessionId: string,
+    questionKey: string,
+    update: (current: AttemptRecord) => AttemptRecord,
+  ): Promise<AttemptRecord> {
+    const store = await this.mutate((draft) => {
+      if (isSessionDeleted(draft, sessionId)) {
+        throw new Error("Cannot update an attempt for a deleted session");
+      }
+      const index = draft.attempts.findIndex(
+        (attempt) =>
+          attempt.sessionId === sessionId &&
+          attempt.questionKey === questionKey &&
+          attempt.deletedAt === undefined,
+      );
+      const current = draft.attempts[index];
+      if (current === undefined) {
+        throw new Error("Cannot update an unknown Fresh Attempt question.");
+      }
+      const next = assertAttempt(update(cloneAttempt(current)));
+      if (next.sessionId !== sessionId || next.questionKey !== questionKey) {
+        throw new Error("An attempt mutation cannot change its identity.");
+      }
+      draft.attempts[index] = next;
+    });
+    const saved = store.attempts.find(
+      (attempt) =>
+        attempt.sessionId === sessionId &&
+        attempt.questionKey === questionKey &&
+        attempt.deletedAt === undefined,
+    );
+    if (saved === undefined) {
+      throw new Error("Attempt mutation was not saved.");
+    }
+    return cloneAttempt(saved);
+  }
+
   async accumulateDuration(
     sessionId: string,
     questionKey: string,
