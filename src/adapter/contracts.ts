@@ -70,6 +70,8 @@ export interface FullLengthReviewAdapter {
   getQuestionContext(): Promise<SanitizedQuestionContext | null>;
   configureCleanSlate(preferences: CleanSlatePreferences): void;
   applyCleanSlate(): CapabilityReport;
+  /** Ends initial page hydration so later native annotations remain available. */
+  sealPriorAnnotations(): void;
   applyScoreShield(): CapabilityReport;
   /** Neutralizes row-level correctness cues on a completed section overview. */
   applySectionOverviewCover(): boolean;

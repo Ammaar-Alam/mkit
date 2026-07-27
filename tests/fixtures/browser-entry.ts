@@ -22,6 +22,7 @@ interface KeyboardLog {
 interface PrivacyHarness {
   readonly events: AdapterEvent[];
   capabilities(): CapabilityReport;
+  configureAnnotationClearing(enabled: boolean): void;
   mask(): CapabilityReport;
   maskAndObserve(): CapabilityReport;
   normalReview(): void;
@@ -31,9 +32,12 @@ interface PrivacyHarness {
   keyboardLog(): KeyboardLog;
   navigate(direction: "previous" | "next"): boolean;
   restartController(): void;
+  attemptCount(): Promise<number>;
   savedNote(): Promise<string | null>;
   savedSelection(): Promise<string | null>;
   setKeyboardEnabled(enabled: boolean): void;
+  setReviewQuestion(questionIdentifier: string): void;
+  sealAnnotations(): void;
   startController(): void;
   stopController(): void;
   stop(): void;
@@ -70,6 +74,7 @@ const events: AdapterEvent[] = [];
 let stopObserver: (() => void) | null = null;
 let reviewController: ReviewController | null = null;
 let reviewRepository: StorageRepository | null = null;
+let reviewQuestionIdentifier = "synthetic-question";
 const keyboardLog: KeyboardLog = {
   checks: 0,
   eliminations: [],
@@ -101,6 +106,13 @@ const setProtectionFrom = (report: CapabilityReport): void => {
 window.__mkitPrivacyHarness = {
   events,
   capabilities: () => adapter.inspectCapabilities(),
+  configureAnnotationClearing: (enabled) => {
+    adapter.configureCleanSlate({
+      clearPreviousHighlightsEnabled: enabled,
+      clearPreviousCrossOutsEnabled: enabled,
+    });
+    adapter.applyCleanSlate();
+  },
   mask: () => {
     const report = adapter.applyCleanSlate();
     setProtectionFrom(report);
@@ -139,6 +151,7 @@ window.__mkitPrivacyHarness = {
     reviewController = null;
     startReviewController();
   },
+  attemptCount: async () => (await reviewRepository?.listAttempts())?.length ?? 0,
   savedNote: async () => {
     const attempts = (await reviewRepository?.listAttempts()) ?? [];
     return attempts[0]?.note ?? null;
@@ -148,6 +161,14 @@ window.__mkitPrivacyHarness = {
     return attempts[0]?.selection ?? null;
   },
   setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
+  setReviewQuestion: (questionIdentifier) => {
+    if (!/^[a-zA-Z0-9_-]+$/.test(questionIdentifier)) {
+      throw new Error("Synthetic question identifier is invalid.");
+    }
+    reviewQuestionIdentifier = questionIdentifier;
+    dispatchEvent(new HashChangeEvent("hashchange"));
+  },
+  sealAnnotations: () => adapter.sealPriorAnnotations(),
   startController: () => startReviewController(),
   stopController: () => {
     reviewController?.dispose();
@@ -180,8 +201,8 @@ function startReviewController(): void {
 function confirmedReviewUrl(scope: "full-length" | "section"): URL {
   const hash =
     scope === "section"
-      ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
-      : "#exams/answers/synthetic-exam/synthetic-question";
+      ? `#exams/synthetic-exam/exam_sections/synthetic-section/${reviewQuestionIdentifier}`
+      : `#exams/answers/synthetic-exam/${reviewQuestionIdentifier}`;
   return new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${hash}`);
 }
 

@@ -4,6 +4,14 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-27
+
+### Fixed
+
+- Cleared prior highlights and crossed-out choices that AAMC hydrates or
+  reapplies after the first review scan, while preserving annotations added
+  after a Fresh Attempt begins.
+
 ## [0.2.0] - 2026-07-26
 
 ### Added

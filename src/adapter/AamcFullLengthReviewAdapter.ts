@@ -42,15 +42,36 @@ const PRIOR_CROSS_OUT_CLASSES = [
   "eliminated",
   "strikethrough",
 ] as const;
+const NATIVE_ANNOTATION_ACTION_SELECTOR = [
+  ".add-highlight",
+  ".remove-highlight",
+  ".strikethrough-ctrl",
+  ".highlight-prompt",
+  ".state-container.highlight-color",
+  ".state-container.remove",
+].join(",");
 
 interface AnnotationBaseline {
   readonly signatures: Set<string>;
-  readonly maskedElements: Set<Element>;
+  readonly ownedElements: Map<Element, AnnotationCarrierSnapshot>;
+  readonly restoredElements: Set<Element>;
+  sealed: boolean;
+}
+
+interface AnnotationCarrierSnapshot {
+  readonly signature: string;
+  readonly classState: string;
+}
+
+interface ReaderAnnotationIntent {
+  readonly question: Element;
+  readonly questionIdentifier: string | null;
 }
 
 interface AnnotationBaselines {
   readonly byQuestion: Map<string, AnnotationBaseline>;
   readonly byContainer: WeakMap<Element, AnnotationBaseline>;
+  readonly records: Set<AnnotationBaseline>;
 }
 
 export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
@@ -61,6 +82,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #locationPoll: number | null = null;
   #lastLocation = "";
   #processing = false;
+  #readerAnnotationIntent: ReaderAnnotationIntent | null = null;
+  #readerAnnotationIntentTimeout: number | null = null;
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
   #highlightBaselines = createAnnotationBaselines();
@@ -420,12 +443,26 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#withoutObservation(() => {
       if (previous?.clearPreviousHighlightsEnabled && !preferences.clearPreviousHighlightsEnabled) {
         this.#mask.restoreGroup(PRIOR_HIGHLIGHTS_GROUP);
-        this.#highlightBaselines = createAnnotationBaselines();
+        this.#markAnnotationBaselinesRestored(this.#highlightBaselines);
       }
       if (previous?.clearPreviousCrossOutsEnabled && !preferences.clearPreviousCrossOutsEnabled) {
         this.#mask.restoreGroup(PRIOR_CROSS_OUTS_GROUP);
-        this.#crossOutBaselines = createAnnotationBaselines();
+        this.#markAnnotationBaselinesRestored(this.#crossOutBaselines);
       }
+    });
+  }
+
+  sealPriorAnnotations(): void {
+    const preferences = this.#cleanSlatePreferences;
+    if (!preferences) return;
+    this.#withoutObservation(() => {
+      this.#applyPriorAnnotationMasks();
+      const question = this.#activeAnnotationQuestion();
+      if (!question) return;
+      const questionIdentifier = this.#readQuestionIdentifier();
+      this.#annotationBaseline(question, questionIdentifier, this.#highlightBaselines).sealed =
+        true;
+      this.#annotationBaseline(question, questionIdentifier, this.#crossOutBaselines).sealed = true;
     });
   }
 
@@ -721,6 +758,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
           listener({ type: "question-change" });
         }
       } finally {
+        this.#clearReaderAnnotationIntent();
         this.#processing = false;
         if (this.#observer) {
           this.#observeDocument();
@@ -742,6 +780,35 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     window.addEventListener("popstate", routeListener);
     window.addEventListener("hashchange", routeListener);
     window.addEventListener("pageshow", routeListener);
+    const annotationActionListener = (event: Event): void => {
+      if (
+        event.isTrusted &&
+        event.target instanceof Element &&
+        event.target.closest(NATIVE_ANNOTATION_ACTION_SELECTOR)
+      ) {
+        this.#recordReaderAnnotationIntent();
+      }
+    };
+    const annotationShortcutListener = (event: KeyboardEvent): void => {
+      const target = event.target;
+      if (
+        !event.isTrusted ||
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        (target instanceof Element &&
+          (target.closest("[data-mkit-host]") ||
+            target.matches("input, textarea, select, [contenteditable='true']")))
+      ) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "h" || key === "s") {
+        this.#recordReaderAnnotationIntent();
+      }
+    };
+    this.#document.addEventListener("click", annotationActionListener, true);
+    this.#document.addEventListener("keydown", annotationShortcutListener, true);
     this.#locationPoll = window.setInterval(() => {
       const href = this.#url().href;
       if (href !== this.#lastLocation) {
@@ -760,6 +827,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       window.removeEventListener("popstate", routeListener);
       window.removeEventListener("hashchange", routeListener);
       window.removeEventListener("pageshow", routeListener);
+      this.#document.removeEventListener("click", annotationActionListener, true);
+      this.#document.removeEventListener("keydown", annotationShortcutListener, true);
+      this.#clearReaderAnnotationIntent();
     };
   }
 
@@ -819,26 +889,24 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (!question) return;
     const questionIdentifier = this.#readQuestionIdentifier();
 
-    if (preferences.clearPreviousHighlightsEnabled) {
-      this.#applyPriorAnnotationMask(
-        question,
-        questionIdentifier,
-        this.#selectors.priorHighlightCarrier,
-        this.#highlightBaselines,
-        PRIOR_HIGHLIGHT_CLASSES,
-        PRIOR_HIGHLIGHTS_GROUP,
-      );
-    }
-    if (preferences.clearPreviousCrossOutsEnabled) {
-      this.#applyPriorAnnotationMask(
-        question,
-        questionIdentifier,
-        this.#selectors.priorCrossOutCarrier,
-        this.#crossOutBaselines,
-        PRIOR_CROSS_OUT_CLASSES,
-        PRIOR_CROSS_OUTS_GROUP,
-      );
-    }
+    this.#applyPriorAnnotationMask(
+      question,
+      questionIdentifier,
+      this.#selectors.priorHighlightCarrier,
+      this.#highlightBaselines,
+      PRIOR_HIGHLIGHT_CLASSES,
+      PRIOR_HIGHLIGHTS_GROUP,
+      preferences.clearPreviousHighlightsEnabled,
+    );
+    this.#applyPriorAnnotationMask(
+      question,
+      questionIdentifier,
+      this.#selectors.priorCrossOutCarrier,
+      this.#crossOutBaselines,
+      PRIOR_CROSS_OUT_CLASSES,
+      PRIOR_CROSS_OUTS_GROUP,
+      preferences.clearPreviousCrossOutsEnabled,
+    );
   }
 
   #applyPriorAnnotationMask(
@@ -848,35 +916,63 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     baselines: AnnotationBaselines,
     classes: readonly string[],
     group: string,
+    maskEnabled: boolean,
   ): void {
     const candidates = this.#queryAllWithin(question, selectors).filter((element) =>
       this.#isAuthoredVisible(element),
     );
-    let baseline = questionIdentifier
-      ? baselines.byQuestion.get(questionIdentifier)
-      : baselines.byContainer.get(question);
-    if (!baseline) {
-      baseline = {
-        signatures: new Set(
-          candidates.map((element) => annotationCarrierSignature(question, element)),
-        ),
-        maskedElements: new Set(),
-      };
-      if (questionIdentifier) {
-        baselines.byQuestion.set(questionIdentifier, baseline);
-      } else {
-        baselines.byContainer.set(question, baseline);
-      }
+    const baseline = this.#annotationBaseline(question, questionIdentifier, baselines);
+
+    if (baseline.sealed && !maskEnabled) {
+      this.#releaseModifiedRestoredAnnotations(
+        question,
+        questionIdentifier,
+        candidates,
+        baseline,
+        classes,
+      );
+      return;
     }
 
     const toMask: Element[] = [];
     for (const element of candidates) {
       const signature = annotationCarrierSignature(question, element);
+      if (!baseline.sealed) {
+        baseline.signatures.add(signature);
+        baseline.ownedElements.set(element, {
+          signature,
+          classState: annotationClassState(element, classes),
+        });
+        if (maskEnabled) {
+          toMask.push(element);
+        } else {
+          baseline.restoredElements.add(element);
+        }
+        continue;
+      }
       if (!baseline.signatures.has(signature)) {
         continue;
       }
-      if (!baseline.maskedElements.has(element)) {
-        baseline.maskedElements.add(element);
+      if (baseline.restoredElements.delete(element)) {
+        toMask.push(element);
+        continue;
+      }
+      const owned = baseline.ownedElements.get(element);
+      if (!owned) {
+        if (this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
+          baseline.signatures.delete(signature);
+          for (const [priorElement, prior] of baseline.ownedElements) {
+            if (prior.signature === signature) {
+              baseline.ownedElements.delete(priorElement);
+              baseline.restoredElements.delete(priorElement);
+            }
+          }
+          continue;
+        }
+        baseline.ownedElements.set(element, {
+          signature,
+          classState: annotationClassState(element, classes),
+        });
         toMask.push(element);
         continue;
       }
@@ -884,10 +980,112 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       // new reader action. Release MKit's old snapshot so later restoration
       // follows the reader's latest state instead of resurrecting the baseline.
       this.#mask.releaseClasses([element], classes, group);
-      baseline.maskedElements.delete(element);
-      baseline.signatures.delete(signature);
+      baseline.ownedElements.delete(element);
+      baseline.restoredElements.delete(element);
+      baseline.signatures.delete(owned.signature);
     }
     this.#mask.removeClasses(toMask, classes, group);
+  }
+
+  #annotationBaseline(
+    question: Element,
+    questionIdentifier: string | null,
+    baselines: AnnotationBaselines,
+  ): AnnotationBaseline {
+    let baseline = questionIdentifier
+      ? baselines.byQuestion.get(questionIdentifier)
+      : baselines.byContainer.get(question);
+    if (baseline) return baseline;
+    baseline = {
+      signatures: new Set(),
+      ownedElements: new Map(),
+      restoredElements: new Set(),
+      sealed: false,
+    };
+    if (questionIdentifier) {
+      baselines.byQuestion.set(questionIdentifier, baseline);
+    } else {
+      baselines.byContainer.set(question, baseline);
+    }
+    baselines.records.add(baseline);
+    return baseline;
+  }
+
+  #markAnnotationBaselinesRestored(baselines: AnnotationBaselines): void {
+    for (const baseline of baselines.records) {
+      for (const element of baseline.ownedElements.keys()) {
+        baseline.restoredElements.add(element);
+      }
+    }
+  }
+
+  #releaseModifiedRestoredAnnotations(
+    question: Element,
+    questionIdentifier: string | null,
+    candidates: readonly Element[],
+    baseline: AnnotationBaseline,
+    classes: readonly string[],
+  ): void {
+    for (const element of baseline.restoredElements) {
+      const owned = baseline.ownedElements.get(element);
+      if (!owned) {
+        baseline.restoredElements.delete(element);
+        continue;
+      }
+      if (!question.contains(element)) {
+        const replacement = candidates.find(
+          (candidate) => annotationCarrierSignature(question, candidate) === owned.signature,
+        );
+        if (replacement && !this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
+          baseline.ownedElements.delete(element);
+          baseline.restoredElements.delete(element);
+          baseline.ownedElements.set(replacement, {
+            signature: owned.signature,
+            classState: annotationClassState(replacement, classes),
+          });
+          baseline.restoredElements.add(replacement);
+          continue;
+        }
+      } else if (annotationClassState(element, classes) === owned.classState) {
+        continue;
+      }
+      baseline.signatures.delete(owned.signature);
+      baseline.ownedElements.delete(element);
+      baseline.restoredElements.delete(element);
+    }
+  }
+
+  #recordReaderAnnotationIntent(): void {
+    if (!this.#cleanSlatePreferences) return;
+    const question = this.#activeAnnotationQuestion();
+    if (!question) return;
+    const intent: ReaderAnnotationIntent = {
+      question,
+      questionIdentifier: this.#readQuestionIdentifier(),
+    };
+    this.#clearReaderAnnotationIntent();
+    this.#readerAnnotationIntent = intent;
+    this.#readerAnnotationIntentTimeout = window.setTimeout(() => {
+      if (this.#readerAnnotationIntent === intent) {
+        this.#readerAnnotationIntent = null;
+      }
+      this.#readerAnnotationIntentTimeout = null;
+    }, 0);
+  }
+
+  #matchesReaderAnnotationIntent(question: Element, questionIdentifier: string | null): boolean {
+    const intent = this.#readerAnnotationIntent;
+    return Boolean(
+      intent && intent.question === question && intent.questionIdentifier === questionIdentifier,
+    );
+  }
+
+  #clearReaderAnnotationIntent(): void {
+    if (this.#readerAnnotationIntentTimeout !== null) {
+      window.clearTimeout(this.#readerAnnotationIntentTimeout);
+      this.#readerAnnotationIntentTimeout = null;
+    }
+    this.#readerAnnotationIntent = null;
   }
 
   #activeAnnotationQuestion(): Element | null {
@@ -1269,6 +1467,7 @@ function createAnnotationBaselines(): AnnotationBaselines {
   return {
     byQuestion: new Map(),
     byContainer: new WeakMap(),
+    records: new Set(),
   };
 }
 
@@ -1291,6 +1490,10 @@ function annotationCarrierSignature(question: Element, element: Element): string
   const start = preceding.toString().length;
   const text = (element.textContent ?? "").replaceAll(/\s+/g, " ").trim();
   return `${path.reverse().join("/")}|${start}:${element.textContent?.length ?? 0}|${text}`;
+}
+
+function annotationClassState(element: Element, classes: readonly string[]): string {
+  return classes.filter((className) => element.classList.contains(className)).join(" ");
 }
 
 function capabilityReportSignature(report: CapabilityReport): string {

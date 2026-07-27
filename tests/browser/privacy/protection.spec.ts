@@ -110,6 +110,222 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
   ).toBe(true);
 });
 
+test("Clean Slate captures delayed native annotations before Practice", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await expect(host.locator("[data-focus-key='practice']")).toBeVisible();
+  await page.evaluate(() => {
+    const question = document.querySelector("#live-style-question");
+    const choice = document.querySelector(".multi-choice");
+    const copy = choice?.querySelector(".choice-content");
+    if (!question || !choice || !copy)
+      throw new Error("Synthetic annotation carriers are missing.");
+    question.insertAdjacentHTML(
+      "beforeend",
+      '<span id="delayed-prior-highlight" class="user-highlight">Prior highlight.</span>',
+    );
+    choice.insertAdjacentHTML(
+      "afterbegin",
+      '<span id="delayed-prior-cross-label" class="user-strikethrough">A.</span>',
+    );
+    copy.id = "delayed-prior-cross-copy";
+    copy.classList.add("user-strikethrough");
+  });
+
+  const priorAnnotationClasses = () =>
+    page.evaluate(() => ({
+      copy: document
+        .querySelector("#delayed-prior-cross-copy")
+        ?.classList.contains("user-strikethrough"),
+      highlight: document
+        .querySelector("#delayed-prior-highlight")
+        ?.classList.contains("user-highlight"),
+      label: document
+        .querySelector("#delayed-prior-cross-label")
+        ?.classList.contains("user-strikethrough"),
+    }));
+  await expect.poll(priorAnnotationClasses).toEqual({
+    copy: false,
+    highlight: false,
+    label: false,
+  });
+
+  await page.evaluate(() => {
+    document.querySelector("#delayed-prior-highlight")?.classList.add("user-highlight");
+    document.querySelector("#delayed-prior-cross-label")?.classList.add("user-strikethrough");
+    document.querySelector("#delayed-prior-cross-copy")?.classList.add("user-strikethrough");
+  });
+  await expect.poll(priorAnnotationClasses).toEqual({
+    copy: false,
+    highlight: false,
+    label: false,
+  });
+
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
+      );
+    document
+      .querySelectorAll(".multi-choice")[2]
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+      );
+  });
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        cross: document.querySelector("#fresh-cross")?.classList.contains("user-strikethrough"),
+        highlight: document.querySelector("#fresh-highlight")?.classList.contains("user-highlight"),
+      })),
+    )
+    .toEqual({ cross: true, highlight: true });
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
+  await expect.poll(priorAnnotationClasses).toEqual({
+    copy: true,
+    highlight: true,
+    label: true,
+  });
+  expect(
+    await page.evaluate(() => ({
+      cross: document.querySelector("#fresh-cross")?.classList.contains("user-strikethrough"),
+      highlight: document.querySelector("#fresh-highlight")?.classList.contains("user-highlight"),
+    })),
+  ).toEqual({ cross: true, highlight: true });
+});
+
+test("Clean Slate preserves atomic replacements from trusted annotation controls", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/review");
+  await page.evaluate(() => {
+    const question = document.querySelector("#question-q1");
+    const passage = document.querySelector("#allowed-passage");
+    const choice = document.querySelector("#choice-c");
+    if (!question || !passage || !choice) {
+      throw new Error("Synthetic annotation carriers are missing.");
+    }
+    passage.innerHTML =
+      '<span id="atomic-prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="atomic-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+
+    const highlight = document.createElement("button");
+    highlight.className = "add-highlight";
+    highlight.textContent = "Highlight";
+    highlight.addEventListener("click", () => {
+      passage.innerHTML =
+        '<span id="atomic-reader-highlight" class="user-highlight">Prior highlight.</span>';
+    });
+    const crossOut = document.createElement("button");
+    crossOut.className = "strikethrough-ctrl";
+    crossOut.textContent = "Cross out";
+    crossOut.addEventListener("click", () => {
+      document.querySelector("#atomic-prior-cross")?.remove();
+      choice.insertAdjacentHTML(
+        "beforeend",
+        '<span id="atomic-reader-cross" class="user-strikethrough">Prior cross-out.</span>',
+      );
+    });
+    question.prepend(highlight, crossOut);
+
+    window.__mkitPrivacyHarness.configureAnnotationClearing(true);
+    window.__mkitPrivacyHarness.maskAndObserve();
+    window.__mkitPrivacyHarness.sealAnnotations();
+    const host = document.querySelector<HTMLElement>("[data-mkit-host]");
+    if (host) host.style.pointerEvents = "none";
+  });
+
+  await page.locator(".add-highlight").click();
+  await expect(page.locator("#atomic-reader-highlight")).toHaveClass(/user-highlight/);
+  await page.evaluate(() => window.__mkitPrivacyHarness.configureAnnotationClearing(false));
+  await page.locator(".strikethrough-ctrl").click();
+  await expect(page.locator("#atomic-reader-cross")).toHaveClass(/user-strikethrough/);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.configureAnnotationClearing(true));
+  await expect(page.locator("#atomic-reader-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#atomic-reader-cross")).toHaveClass(/user-strikethrough/);
+});
+
+test("Clean Slate keeps capturing hydration after active-question navigation", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await page.evaluate(() =>
+    window.__mkitPrivacyHarness.setReviewQuestion("synthetic-question-two"),
+  );
+  await expect.poll(() => page.evaluate(() => window.__mkitPrivacyHarness.attemptCount())).toBe(2);
+
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="navigated-prior-highlight" class="user-highlight">Prior highlight.</span>',
+      );
+    document
+      .querySelector(".multi-choice")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="navigated-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+      );
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        cross: document
+          .querySelector("#navigated-prior-cross")
+          ?.classList.contains("user-strikethrough"),
+        highlight: document
+          .querySelector("#navigated-prior-highlight")
+          ?.classList.contains("user-highlight"),
+      })),
+    )
+    .toEqual({ cross: false, highlight: false });
+
+  await host.locator("[data-focus-key='answer-A']").click();
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="navigated-fresh-highlight" class="user-highlight">Fresh highlight.</span>',
+      );
+    document
+      .querySelectorAll(".multi-choice")[2]
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="navigated-fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+      );
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        cross: document
+          .querySelector("#navigated-fresh-cross")
+          ?.classList.contains("user-strikethrough"),
+        highlight: document
+          .querySelector("#navigated-fresh-highlight")
+          ?.classList.contains("user-highlight"),
+      })),
+    )
+    .toEqual({ cross: true, highlight: true });
+});
+
 test("notes are usable before reveal and persist without exposing review feedback", async ({
   page,
 }) => {

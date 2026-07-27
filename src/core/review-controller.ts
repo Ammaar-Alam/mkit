@@ -79,6 +79,7 @@ export class ReviewController {
   #scoreView: MKitViewHandle<ScoreShieldProps> | null = null;
   #summaryView: MKitViewHandle<SummaryProps> | null = null;
   #stopObserver: (() => void) | null = null;
+  #stopAnnotationSealBoundary: (() => void) | null = null;
   #generation = 0;
   #normalReview = false;
   readonly #pendingNoteSaves = new Map<string, PendingNoteSave>();
@@ -141,6 +142,9 @@ export class ReviewController {
     if (this.#normalReview) return;
     const generation = ++this.#generation;
     const pageKind = this.#adapter.classifyPage();
+    if (pageKind !== "review") {
+      this.#cancelAnnotationSealBoundary();
+    }
 
     if (pageKind === "non-review") {
       this.#timer.setSessionActive(false);
@@ -216,6 +220,7 @@ export class ReviewController {
     this.#timer.setSessionActive(false);
     this.#stopObserver?.();
     this.#stopObserver = null;
+    this.#cancelAnnotationSealBoundary();
     this.#adapter.restoreNormalReview();
     this.#state = reduceReviewState(this.#state, { type: "NORMAL_REVIEW" });
     this.#clearView();
@@ -231,6 +236,7 @@ export class ReviewController {
     this.#timer.dispose();
     this.#stopObserver?.();
     this.#stopObserver = null;
+    this.#cancelAnnotationSealBoundary();
     this.#clearView();
     this.#keyboard.dispose();
   }
@@ -319,7 +325,7 @@ export class ReviewController {
       },
       onResume: () => {
         if (this.#availableSession) {
-          void this.#resumeSession(this.#availableSession, this.#generation);
+          this.#resumeFromGate(this.#availableSession);
         }
       },
       onArchive: () => undefined,
@@ -341,7 +347,7 @@ export class ReviewController {
       activeSession: this.#activeSessionSummary(session),
       onSelectMode: () => undefined,
       onResume: () => {
-        void this.#resumeSession(session, this.#generation);
+        this.#resumeFromGate(session);
       },
       onArchive: () => {
         void this.#archiveAndStart(session);
@@ -381,6 +387,7 @@ export class ReviewController {
 
   async #selectMode(mode: FreshAttemptMode): Promise<void> {
     if (!this.#context) return;
+    this.#preflight.setProtection("boot");
     const conflict = (await this.#repository.listSessions()).find(
       (session) =>
         session.examKey === this.#context?.examKey &&
@@ -397,10 +404,16 @@ export class ReviewController {
 
   async #archiveAndStart(session: SessionRecord): Promise<void> {
     if (!this.#pendingMode) return;
+    this.#preflight.setProtection("boot");
     const mode = this.#pendingMode;
     await this.#sessions.archive(session.id);
     this.#pendingMode = null;
     await this.#startSession(mode);
+  }
+
+  #resumeFromGate(session: SessionRecord): void {
+    this.#preflight.setProtection("boot");
+    void this.#resumeSession(session, this.#generation);
   }
 
   async #startSession(mode: FreshAttemptMode): Promise<void> {
@@ -422,7 +435,7 @@ export class ReviewController {
         selection: this.#attempt.selection,
       };
       this.#answersRevealed = false;
-      this.#showRail();
+      this.#showRail(true);
     } catch {
       this.#saveState = "error";
       this.#showUnsupported(this.#adapter.inspectCapabilities());
@@ -436,9 +449,13 @@ export class ReviewController {
     // Any page mutation reconciles, including a scroll, so a reveal the reader
     // has already made on this question is carried over instead of reset. A
     // different question always starts concealed.
+    const hadActiveQuestion = this.#attempt !== null;
     const sameQuestion = this.#attempt?.questionKey === attempt.questionKey;
     if (!sameQuestion) {
       this.#railAnchor = null;
+      if (hadActiveQuestion) {
+        this.#armAnnotationSealBoundary();
+      }
     }
     const revealed = sameQuestion ? this.#state.reveal : "CONCEALED";
     this.#session = session;
@@ -461,15 +478,18 @@ export class ReviewController {
       );
     }
     this.#answersRevealed = sameQuestion && this.#answersRevealed;
-    this.#showRail();
+    this.#showRail(!sameQuestion && !hadActiveQuestion);
   }
 
-  #showRail(): void {
+  #showRail(sealPriorAnnotations = false): void {
     if (!this.#session || !this.#attempt || !this.#context) return;
     this.#preflight.host.dataset.mkitPlacement = "rail";
     if (!this.#adapter.mountStudyRail(this.#preflight.host)) {
       this.#showUnsupported(this.#adapter.inspectCapabilities());
       return;
+    }
+    if (sealPriorAnnotations) {
+      this.#sealPriorAnnotations();
     }
     this.#preflight.setProtection("masked");
     this.#timer.visitQuestion(this.#context.questionKey);
@@ -482,6 +502,31 @@ export class ReviewController {
     this.#keyboard.setEnabled(
       this.#session.status === "active" && this.#state.reveal === "CONCEALED",
     );
+  }
+
+  #armAnnotationSealBoundary(): void {
+    this.#cancelAnnotationSealBoundary();
+    const seal = (): void => {
+      this.#sealPriorAnnotations();
+    };
+    for (const eventName of ["pointerdown", "keydown", "click"] as const) {
+      document.addEventListener(eventName, seal, { capture: true });
+    }
+    this.#stopAnnotationSealBoundary = () => {
+      for (const eventName of ["pointerdown", "keydown", "click"] as const) {
+        document.removeEventListener(eventName, seal, { capture: true });
+      }
+    };
+  }
+
+  #sealPriorAnnotations(): void {
+    this.#cancelAnnotationSealBoundary();
+    this.#adapter.sealPriorAnnotations();
+  }
+
+  #cancelAnnotationSealBoundary(): void {
+    this.#stopAnnotationSealBoundary?.();
+    this.#stopAnnotationSealBoundary = null;
   }
 
   #railProps(): StudyRailProps {

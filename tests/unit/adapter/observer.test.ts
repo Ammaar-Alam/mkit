@@ -71,6 +71,7 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
     adapter.applyCleanSlate();
     const stop = adapter.observe(() => undefined);
+    adapter.sealPriorAnnotations();
 
     passage.insertAdjacentHTML(
       "beforeend",
@@ -102,6 +103,175 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     adapter.restoreNormalReview();
     expect(priorHighlight.classList.contains("user-highlight")).toBe(false);
     expect(priorCross.classList.contains("user-strikethrough")).toBe(false);
+  });
+
+  it("preserves same-carrier annotations reauthored while clearing is disabled", async () => {
+    mountCompleteReviewFixture();
+    const passage = requiredElement("#passage-copy");
+    const choice = requiredElement("#choice-c");
+    passage.innerHTML =
+      '<span id="restored-prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="restored-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+    const priorHighlight = requiredElement("#restored-prior-highlight");
+    const priorCross = requiredElement("#restored-prior-cross");
+    const adapter = new AamcFullLengthReviewAdapter(document, REVIEW_URL);
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    const stop = adapter.observe(() => undefined);
+    adapter.sealPriorAnnotations();
+
+    adapter.configureCleanSlate({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+    });
+    priorHighlight.classList.remove("user-highlight");
+    priorCross.classList.remove("user-strikethrough");
+    await mutationTurn();
+    priorHighlight.classList.add("user-highlight");
+    priorCross.classList.add("user-strikethrough");
+    await mutationTurn();
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+
+    expect(priorHighlight.classList.contains("user-highlight")).toBe(true);
+    expect(priorCross.classList.contains("user-strikethrough")).toBe(true);
+    stop();
+  });
+
+  it("keeps eventless same-range replacements in the original annotation baseline", async () => {
+    mountCompleteReviewFixture();
+    const passage = requiredElement("#passage-copy");
+    const choice = requiredElement("#choice-c");
+    passage.innerHTML =
+      '<span id="replaceable-prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="replaceable-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+    const adapter = new AamcFullLengthReviewAdapter(document, REVIEW_URL);
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    const stop = adapter.observe(() => undefined);
+    adapter.sealPriorAnnotations();
+
+    adapter.configureCleanSlate({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+    });
+    passage.textContent = "Prior highlight.";
+    requiredElement("#replaceable-prior-cross").remove();
+    passage.innerHTML =
+      '<span id="replacement-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="replacement-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+    await mutationTurn();
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#replacement-highlight").classList.contains("user-highlight")).toBe(
+      false,
+    );
+    expect(requiredElement("#replacement-cross").classList.contains("user-strikethrough")).toBe(
+      false,
+    );
+    stop();
+    adapter.restoreNormalReview();
+    expect(requiredElement("#replacement-highlight").classList.contains("user-highlight")).toBe(
+      true,
+    );
+    expect(requiredElement("#replacement-cross").classList.contains("user-strikethrough")).toBe(
+      true,
+    );
+  });
+
+  it("masks prior annotations that hydrate after the initial scan", async () => {
+    mountCompleteReviewFixture();
+    const adapter = new AamcFullLengthReviewAdapter(document, REVIEW_URL);
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    const stop = adapter.observe(() => undefined);
+
+    requiredElement("#passage-copy").insertAdjacentHTML(
+      "beforeend",
+      '<span id="delayed-prior-highlight" class="user-highlight">Delayed prior highlight.</span>',
+    );
+    requiredElement("#choice-c").insertAdjacentHTML(
+      "beforeend",
+      '<span id="delayed-prior-cross" class="user-strikethrough">Delayed prior cross-out.</span>',
+    );
+    await mutationTurn();
+
+    expect(requiredElement("#delayed-prior-highlight").classList.contains("user-highlight")).toBe(
+      false,
+    );
+    expect(requiredElement("#delayed-prior-cross").classList.contains("user-strikethrough")).toBe(
+      false,
+    );
+
+    adapter.sealPriorAnnotations();
+    requiredElement("#passage-copy").insertAdjacentHTML(
+      "beforeend",
+      '<span id="fresh-post-hydration-highlight" class="user-highlight">Fresh highlight.</span>',
+    );
+    requiredElement("#choice-c").insertAdjacentHTML(
+      "beforeend",
+      '<span id="fresh-post-hydration-cross" class="user-strikethrough">Fresh cross-out.</span>',
+    );
+    await mutationTurn();
+
+    expect(
+      requiredElement("#fresh-post-hydration-highlight").classList.contains("user-highlight"),
+    ).toBe(true);
+    expect(
+      requiredElement("#fresh-post-hydration-cross").classList.contains("user-strikethrough"),
+    ).toBe(true);
+    stop();
+    adapter.restoreNormalReview();
+    expect(requiredElement("#delayed-prior-highlight").classList.contains("user-highlight")).toBe(
+      true,
+    );
+    expect(requiredElement("#delayed-prior-cross").classList.contains("user-strikethrough")).toBe(
+      true,
+    );
+  });
+
+  it("remasks prior annotation classes replayed during initial hydration", async () => {
+    mountCompleteReviewFixture();
+    requiredElement("#passage-copy").innerHTML =
+      '<span id="hydrating-prior-highlight" class="user-highlight">Prior highlight.</span>';
+    requiredElement("#choice-c").insertAdjacentHTML(
+      "beforeend",
+      '<span id="hydrating-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+    const priorHighlight = requiredElement("#hydrating-prior-highlight");
+    const priorCross = requiredElement("#hydrating-prior-cross");
+    const adapter = new AamcFullLengthReviewAdapter(document, REVIEW_URL);
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    const stop = adapter.observe(() => undefined);
+
+    priorHighlight.classList.add("user-highlight");
+    priorCross.classList.add("user-strikethrough");
+    await mutationTurn();
+
+    expect(priorHighlight.classList.contains("user-highlight")).toBe(false);
+    expect(priorCross.classList.contains("user-strikethrough")).toBe(false);
+
+    adapter.sealPriorAnnotations();
+    priorHighlight.classList.add("user-highlight");
+    priorCross.classList.add("user-strikethrough");
+    await mutationTurn();
+
+    expect(priorHighlight.classList.contains("user-highlight")).toBe(true);
+    expect(priorCross.classList.contains("user-strikethrough")).toBe(true);
+    stop();
   });
 
   it("sanitizes title, ARIA, checked, data-correct, and character-only spoiler mutations", async () => {
