@@ -2,7 +2,7 @@ import { AamcFullLengthReviewAdapter } from "../../src/adapter/AamcFullLengthRev
 import { startContentLifecycle } from "../../src/content/lifecycle";
 import { createPreflight } from "../../src/content/preflight";
 import { ReviewController } from "../../src/core/review-controller";
-import { type StorageAreaLike, StorageRepository } from "../../src/storage";
+import { DEFAULT_SETTINGS, type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface RouteGuardHarness {
   armGateMutationOnPointerDown(): void;
@@ -26,6 +26,7 @@ declare global {
     __mkitRouteGuardSyncDisplay: string;
     __mkitRouteGuardSyncFooterDisplay: string;
     __mkitRouteGuardSyncQuestionVisibility: string;
+    __mkitRouteGuardStartupMutations: number;
   }
 }
 
@@ -66,6 +67,28 @@ const initialHash = searchParams.has("section-overview")
       : "#exams";
 let route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${initialHash}`);
 const repository = new StorageRepository({ local: new MemoryStorageArea() });
+window.__mkitRouteGuardStartupMutations = 0;
+const startupObserver = new MutationObserver((records) => {
+  for (const record of records) {
+    if (record.type === "attributes" && record.attributeName?.startsWith("data-mkit")) {
+      window.__mkitRouteGuardStartupMutations += 1;
+    }
+    for (const node of record.addedNodes) {
+      if (
+        node instanceof Element &&
+        (node.matches("[data-mkit-host], [data-mkit-hidden], [data-mkit-outcome-hidden]") ||
+          node.querySelector("[data-mkit-host], [data-mkit-hidden], [data-mkit-outcome-hidden]"))
+      ) {
+        window.__mkitRouteGuardStartupMutations += 1;
+      }
+    }
+  }
+});
+startupObserver.observe(document, {
+  attributes: true,
+  childList: true,
+  subtree: true,
+});
 const lifecycle = startContentLifecycle({
   createAdapter: () => new AamcFullLengthReviewAdapter(document, () => new URL(route.href)),
   createPreflight: () => {
@@ -90,6 +113,10 @@ const lifecycle = startContentLifecycle({
     });
   },
 });
+lifecycle.applySettings({
+  ...DEFAULT_SETTINGS,
+  enabled: !searchParams.has("disabled"),
+});
 
 window.__mkitRouteGuardHarness = {
   armGateMutationOnPointerDown: () => {
@@ -101,7 +128,10 @@ window.__mkitRouteGuardHarness = {
       { capture: true, once: true },
     );
   },
-  dispose: () => lifecycle.dispose(),
+  dispose: () => {
+    startupObserver.disconnect();
+    lifecycle.dispose();
+  },
   setEnabled: (enabled) => lifecycle.setEnabled(enabled),
   setHideSectionResultMarksEnabled: (enabled) =>
     lifecycle.setHideSectionResultMarksEnabled(enabled),

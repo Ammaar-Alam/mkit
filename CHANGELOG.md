@@ -41,8 +41,10 @@ All notable changes to MKit are documented here.
   artwork instead of the AAMC page origin.
 - Preserved passage selection, copying, and native annotation tools during a
   Fresh Attempt.
-- Restored the native page immediately when MKit is turned Off, without requiring
-  a reload.
+- Kept a persisted MKit Off setting from touching a review during startup, and
+  restored the native page immediately when MKit is turned Off without a reload.
+- Restored native scores immediately when Score Shield is turned Off on an open
+  report.
 - Kept the rail inside the viewport and its header and next action reachable
   while its contents scroll.
 - Used Chrome-valid origin matches for packaged page artwork so the unpacked

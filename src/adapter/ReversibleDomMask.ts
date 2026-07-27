@@ -110,6 +110,24 @@ export class ReversibleDomMask {
     }
   }
 
+  releaseClasses(elements: Iterable<Element>, classes: readonly string[], group: string): void {
+    const elementSnapshots = this.#classesByGroup.get(group);
+    if (!elementSnapshots) return;
+    for (const element of elements) {
+      const removed = elementSnapshots.get(element);
+      if (!removed) continue;
+      for (const className of classes) {
+        removed.delete(className);
+      }
+      if (removed.size === 0) {
+        elementSnapshots.delete(element);
+      }
+    }
+    if (elementSnapshots.size === 0) {
+      this.#classesByGroup.delete(group);
+    }
+  }
+
   hasClass(element: Element, className: string, group: string): boolean {
     return (
       element.classList.contains(className) ||

@@ -8,7 +8,7 @@ import type {
 } from "../../../src/adapter/contracts";
 import type { MKitPreflight, PreflightProtection } from "../../../src/content/preflight";
 import { ReviewController } from "../../../src/core/review-controller";
-import { StorageRepository } from "../../../src/storage";
+import { DEFAULT_SETTINGS, StorageRepository } from "../../../src/storage";
 import { FakeStorageArea } from "../storage/fake-storage";
 
 const SAFE_REVIEW_REPORT: CapabilityReport = {
@@ -151,6 +151,37 @@ describe("ReviewController generation safety", () => {
     expect(note.isConnected).toBe(true);
     controller.dispose();
   });
+
+  it("restores native scores when live settings disable Score Shield", async () => {
+    const adapter = new ScoreReportAdapter();
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    expect(adapter.scoreShieldApplications).toBe(1);
+    expect(preflight.shadow.querySelector(".mkit-score-shield")).not.toBeNull();
+
+    controller.updateSettings({
+      ...DEFAULT_SETTINGS,
+      scoreShieldEnabled: false,
+      updatedAt: 42,
+    });
+    await vi.waitFor(() => expect(adapter.scoreReveals).toBe(1));
+
+    expect(adapter.scoreShieldApplications).toBe(1);
+    expect(preflight.shadow.querySelector(".mkit-score-shield")).toBeNull();
+    expect(preflight.protections.at(-1)).toBe("non-review");
+    controller.dispose();
+  });
 });
 
 class ControlledAdapter implements FullLengthReviewAdapter {
@@ -164,7 +195,7 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     this.#contexts = contexts;
   }
 
-  classifyPage = () => "review" as const;
+  classifyPage: FullLengthReviewAdapter["classifyPage"] = () => "review";
   inspectCapabilities = () => SAFE_REVIEW_REPORT;
   getExamKey = async () => "synthetic-exam";
   getQuestionContext = async () => {
@@ -184,7 +215,7 @@ class ControlledAdapter implements FullLengthReviewAdapter {
   applySectionOverviewCover = () => false;
   revealSectionOverview = () => undefined;
   gradeFresh = () => "unknown" as const;
-  revealScores = () => undefined;
+  revealScores: FullLengthReviewAdapter["revealScores"] = () => undefined;
   revealFeedback = () => undefined;
   revealOriginalAttempt = () => undefined;
   remaskQuestion = () => undefined;
@@ -197,6 +228,29 @@ class ControlledAdapter implements FullLengthReviewAdapter {
   };
   navigate = () => false;
   observe = (_listener: (event: AdapterEvent) => void) => () => undefined;
+}
+
+class ScoreReportAdapter extends ControlledAdapter {
+  scoreShieldApplications = 0;
+  scoreReveals = 0;
+
+  constructor() {
+    super([]);
+  }
+
+  override classifyPage = () => "score-report" as const;
+  override inspectCapabilities = () => ({
+    ...SAFE_REVIEW_REPORT,
+    pageKind: "score-report" as const,
+    scoreRegionCount: 1,
+  });
+  override applyScoreShield = () => {
+    this.scoreShieldApplications += 1;
+    return this.inspectCapabilities();
+  };
+  override revealScores = () => {
+    this.scoreReveals += 1;
+  };
 }
 
 function context(questionKey: string): SanitizedQuestionContext {

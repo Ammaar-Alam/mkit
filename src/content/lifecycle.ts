@@ -30,6 +30,7 @@ export interface ContentLifecycle {
 
 export function startContentLifecycle(
   dependencies: ContentLifecycleDependencies,
+  initialSettings?: Pick<SettingsRecord, "enabled" | "hideSectionResultMarksEnabled">,
 ): ContentLifecycle {
   const routeMarker = "answer-review";
   let adapter: FullLengthReviewAdapter | null = null;
@@ -37,12 +38,15 @@ export function startContentLifecycle(
   let preflight: DisposableMKitPreflight | null = null;
   let probeFrame: number | null = null;
   let disposed = false;
-  let enabled = true;
-  let hideSectionResultMarksEnabled = true;
+  // Persisted settings are asynchronous. Until they arrive, the lifecycle must
+  // leave the native page untouched instead of briefly applying default-on
+  // protection to a reader who has turned MKit off.
+  let enabled = initialSettings?.enabled ?? false;
+  let hideSectionResultMarksEnabled = initialSettings?.hideSectionResultMarksEnabled ?? true;
   let normalReviewBypass = false;
   let routeKind: ContentRouteKind = "non-review";
   let routeIssues: string[] = [];
-  let runtimeState: ContentRuntimeState = "unsupported";
+  let runtimeState: ContentRuntimeState = enabled ? "unsupported" : "disabled";
   /**
    * The adapter that covered a section overview. Its class mask is reversible, so
    * leaving that page has to restore it even though no host was ever mounted.

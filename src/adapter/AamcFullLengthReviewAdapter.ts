@@ -53,8 +53,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #processing = false;
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
-  #highlightBaselines = new WeakMap<Element, Element[]>();
-  #crossOutBaselines = new WeakMap<Element, Element[]>();
+  #highlightBaselines = new WeakMap<Element, Set<Element>>();
+  #crossOutBaselines = new WeakMap<Element, Set<Element>>();
   /**
    * Groups the reader has intentionally revealed. Masking runs again on every
    * page mutation, so without this a revealed solution would be concealed again
@@ -813,35 +813,54 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (!question) return;
 
     if (preferences.clearPreviousHighlightsEnabled) {
-      const highlights = this.#annotationBaseline(
+      this.#applyPriorAnnotationMask(
         question,
         this.#selectors.priorHighlightCarrier,
         this.#highlightBaselines,
+        PRIOR_HIGHLIGHT_CLASSES,
+        PRIOR_HIGHLIGHTS_GROUP,
       );
-      this.#mask.removeClasses(highlights, PRIOR_HIGHLIGHT_CLASSES, PRIOR_HIGHLIGHTS_GROUP);
     }
     if (preferences.clearPreviousCrossOutsEnabled) {
-      const crossOuts = this.#annotationBaseline(
+      this.#applyPriorAnnotationMask(
         question,
         this.#selectors.priorCrossOutCarrier,
         this.#crossOutBaselines,
+        PRIOR_CROSS_OUT_CLASSES,
+        PRIOR_CROSS_OUTS_GROUP,
       );
-      this.#mask.removeClasses(crossOuts, PRIOR_CROSS_OUT_CLASSES, PRIOR_CROSS_OUTS_GROUP);
     }
   }
 
-  #annotationBaseline(
+  #applyPriorAnnotationMask(
     question: Element,
     selectors: readonly string[],
-    baselines: WeakMap<Element, Element[]>,
-  ): Element[] {
-    const existing = baselines.get(question);
-    if (existing) return existing;
-    const baseline = this.#queryAllWithin(question, selectors).filter((element) =>
-      this.#isAuthoredVisible(element),
-    );
-    baselines.set(question, baseline);
-    return baseline;
+    baselines: WeakMap<Element, Set<Element>>,
+    classes: readonly string[],
+    group: string,
+  ): void {
+    const baseline = baselines.get(question);
+    if (!baseline) {
+      const initial = new Set(
+        this.#queryAllWithin(question, selectors).filter((element) =>
+          this.#isAuthoredVisible(element),
+        ),
+      );
+      baselines.set(question, initial);
+      this.#mask.removeClasses(initial, classes, group);
+      return;
+    }
+
+    for (const element of baseline) {
+      if (!classes.some((className) => element.classList.contains(className))) {
+        continue;
+      }
+      // Once an original carrier regains an annotation class, that class is a
+      // new reader action. Release MKit's old snapshot so later restoration
+      // follows the reader's latest state instead of resurrecting the baseline.
+      this.#mask.releaseClasses([element], classes, group);
+      baseline.delete(element);
+    }
   }
 
   #activeAnnotationQuestion(): Element | null {

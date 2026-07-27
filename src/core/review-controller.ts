@@ -159,6 +159,10 @@ export class ReviewController {
     try {
       this.#settings ??= await this.#repository.getSettings();
       if (generation !== this.#generation || this.#normalReview) return;
+      if (!this.#settings.enabled) {
+        this.normalReview();
+        return;
+      }
 
       if (pageKind === "score-report") {
         await this.#reconcileScoreReport(generation);
@@ -240,14 +244,15 @@ export class ReviewController {
   }
 
   async #reconcileScoreReport(generation: number): Promise<void> {
+    if (!this.#settings?.scoreShieldEnabled) {
+      this.#adapter.revealScores();
+      this.#preflight.setProtection("non-review");
+      this.#clearView();
+      return;
+    }
     const report = this.#adapter.applyScoreShield();
-    if (!report.safeToReveal || !this.#settings?.scoreShieldEnabled) {
-      if (!report.safeToReveal) {
-        this.#showUnsupported(report);
-      } else {
-        this.#preflight.setProtection("non-review");
-        this.#clearView();
-      }
+    if (!report.safeToReveal) {
+      this.#showUnsupported(report);
       return;
     }
     const examKey = await this.#adapter.getExamKey();

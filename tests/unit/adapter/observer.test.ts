@@ -58,7 +58,7 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     stop();
   });
 
-  it("remasks baseline annotations without absorbing annotations added later", async () => {
+  it("masks baseline annotations once without absorbing annotations added later", async () => {
     mountCompleteReviewFixture();
     const passage = requiredElement("#passage-copy");
     const choice = requiredElement("#choice-c");
@@ -86,7 +86,22 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     expect(requiredElement("#prior-cross").classList.contains("user-strikethrough")).toBe(false);
     expect(requiredElement("#fresh-highlight").classList.contains("user-highlight")).toBe(true);
     expect(requiredElement("#fresh-cross").classList.contains("user-strikethrough")).toBe(true);
+
+    const priorHighlight = requiredElement("#prior-highlight");
+    const priorCross = requiredElement("#prior-cross");
+    priorHighlight.classList.add("user-highlight");
+    priorCross.classList.add("user-strikethrough");
+    await mutationTurn();
+    expect(priorHighlight.classList.contains("user-highlight")).toBe(true);
+    expect(priorCross.classList.contains("user-strikethrough")).toBe(true);
+
+    priorHighlight.classList.remove("user-highlight");
+    priorCross.classList.remove("user-strikethrough");
+    await mutationTurn();
     stop();
+    adapter.restoreNormalReview();
+    expect(priorHighlight.classList.contains("user-highlight")).toBe(false);
+    expect(priorCross.classList.contains("user-strikethrough")).toBe(false);
   });
 
   it("sanitizes title, ARIA, checked, data-correct, and character-only spoiler mutations", async () => {

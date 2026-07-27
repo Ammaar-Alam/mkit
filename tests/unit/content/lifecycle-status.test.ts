@@ -43,12 +43,13 @@ function stubController(): ReviewController {
     start: () => undefined,
     dispose: () => undefined,
     normalReview: () => undefined,
+    updateSettings: () => undefined,
   } as unknown as ReviewController;
 }
 
 describe("content lifecycle status", () => {
   it("reports an attached review only once a controller and connected host exist", () => {
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => stubAdapter("review", true),
       createPreflight: stubPreflight,
       createController: stubController,
@@ -59,7 +60,7 @@ describe("content lifecycle status", () => {
   });
 
   it("reports a recognized but unverified review as an unattached review route", () => {
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => stubAdapter("unknown-review", false, ["REVIEW_SWITCH_MISSING"]),
       createPreflight: stubPreflight,
       createController: stubController,
@@ -74,7 +75,7 @@ describe("content lifecycle status", () => {
   });
 
   it("reports a non-review page as unattached without claiming review support", () => {
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => stubAdapter("non-review", false),
       createPreflight: stubPreflight,
       createController: stubController,
@@ -85,7 +86,7 @@ describe("content lifecycle status", () => {
   });
 
   it("does not claim attachment when startup fails after recognizing the route", () => {
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => stubAdapter("review", true),
       createPreflight: stubPreflight,
       createController: () => {
@@ -102,7 +103,7 @@ describe("content lifecycle status", () => {
   });
 
   it("reports a detection failure as a recognized route without claiming attachment", () => {
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => {
         const adapter = stubAdapter("review", true);
         return {
@@ -128,7 +129,7 @@ describe("content lifecycle status", () => {
     let pageKind: PageKind = "review";
     let controllerNormalReviews = 0;
     const preflights: DisposableMKitPreflight[] = [];
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => mutableAdapter(() => pageKind),
       createPreflight: () => {
         const next = stubPreflight();
@@ -187,7 +188,7 @@ describe("content lifecycle status", () => {
     let covers = 0;
     let restores = 0;
     let adapterCreations = 0;
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => {
         adapterCreations += 1;
         return {
@@ -235,7 +236,7 @@ describe("content lifecycle status", () => {
     let observations = 0;
     let observerStops = 0;
     let restores = 0;
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () =>
         ({
           ...mutableAdapter(() => "section-overview"),
@@ -288,7 +289,7 @@ describe("content lifecycle status", () => {
 
   it("passes live popup preferences into the active review controller", () => {
     const updates: (typeof DEFAULT_SETTINGS)[] = [];
-    const lifecycle = startContentLifecycle({
+    const lifecycle = startHydratedContentLifecycle({
       createAdapter: () => stubAdapter("review", true),
       createPreflight: stubPreflight,
       createController: () =>
@@ -311,7 +312,68 @@ describe("content lifecycle status", () => {
     expect(updates).toEqual([settings]);
     lifecycle.dispose();
   });
+
+  it("leaves the native page untouched until persisted settings enable protection", () => {
+    let adapterCreations = 0;
+    let preflightCreations = 0;
+    let controllerCreations = 0;
+    let covers = 0;
+    let pageKind: PageKind = "section-overview";
+    const lifecycle = startContentLifecycle({
+      createAdapter: () => {
+        adapterCreations += 1;
+        return {
+          ...mutableAdapter(() => pageKind),
+          applySectionOverviewCover: () => {
+            covers += 1;
+            return true;
+          },
+        } as FullLengthReviewAdapter;
+      },
+      createPreflight: () => {
+        preflightCreations += 1;
+        return stubPreflight();
+      },
+      createController: () => {
+        controllerCreations += 1;
+        return stubController();
+      },
+    });
+    const disabledSettings = {
+      ...DEFAULT_SETTINGS,
+      enabled: false,
+      updatedAt: 42,
+    };
+
+    expect(lifecycle.status().state).toBe("disabled");
+    expect(adapterCreations).toBe(0);
+    expect(preflightCreations).toBe(0);
+    expect(controllerCreations).toBe(0);
+    expect(covers).toBe(0);
+    expect(document.querySelector("[data-mkit-host]")).toBeNull();
+    expect(document.documentElement.hasAttribute("data-mkit-protection")).toBe(false);
+
+    lifecycle.applySettings(disabledSettings);
+    expect(adapterCreations).toBe(0);
+    expect(preflightCreations).toBe(0);
+    expect(controllerCreations).toBe(0);
+    expect(covers).toBe(0);
+
+    pageKind = "review";
+    lifecycle.applySettings({ ...DEFAULT_SETTINGS, updatedAt: 43 });
+    expect(adapterCreations).toBe(1);
+    expect(preflightCreations).toBe(1);
+    expect(controllerCreations).toBe(1);
+    expect(covers).toBe(0);
+    lifecycle.dispose();
+  });
 });
+
+function startHydratedContentLifecycle(
+  dependencies: Parameters<typeof startContentLifecycle>[0],
+): ReturnType<typeof startContentLifecycle> {
+  return startContentLifecycle(dependencies, DEFAULT_SETTINGS);
+}
 
 function mutableAdapter(pageKind: () => PageKind): FullLengthReviewAdapter {
   return {

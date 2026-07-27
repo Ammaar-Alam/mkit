@@ -240,6 +240,22 @@ test("turning MKit off and on restores and reapplies protection without a reload
   ).toBe("active");
 });
 
+test("a persisted Off setting leaves the review untouched during startup", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section&disabled");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden], [data-mkit-outcome-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.hasAttribute("data-mkit-protection")),
+  ).toBe(false);
+  expect(await page.evaluate(() => window.__mkitRouteGuardStartupMutations)).toBe(0);
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "disabled",
+    route: "non-review",
+    issues: [],
+  });
+});
+
 for (const action of ["Practice", "Test", "Normal review"] as const) {
   test(`${action} survives an unrelated page mutation during pointer activation`, async ({
     page,

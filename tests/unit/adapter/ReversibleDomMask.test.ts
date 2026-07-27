@@ -135,6 +135,26 @@ describe("ReversibleDomMask", () => {
     expect(element.classList.contains("correct")).toBe(false);
   });
 
+  it("can release a reauthored class while preserving untouched baseline restoration", () => {
+    document.body.innerHTML = `
+      <span id="reauthored" class="user-highlight">Reauthored</span>
+      <span id="untouched" class="user-highlight">Untouched</span>
+    `;
+    const reauthored = document.querySelector("#reauthored");
+    const untouched = document.querySelector("#untouched");
+    if (!reauthored || !untouched) throw new Error("Annotation fixtures are missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.removeClasses([reauthored, untouched], ["user-highlight"], "prior-highlights");
+    reauthored.classList.add("user-highlight");
+    mask.releaseClasses([reauthored], ["user-highlight"], "prior-highlights");
+    reauthored.classList.remove("user-highlight");
+    mask.restoreGroup("prior-highlights");
+
+    expect(reauthored.classList.contains("user-highlight")).toBe(false);
+    expect(untouched.classList.contains("user-highlight")).toBe(true);
+  });
+
   it("removes only correctness visuals and restores the latest authored style exactly", () => {
     document.body.innerHTML = `
       <div
