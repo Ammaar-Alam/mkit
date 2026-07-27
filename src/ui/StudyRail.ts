@@ -15,6 +15,7 @@ const ANSWERS: readonly AnswerSelection[] = ["A", "B", "C", "D"];
 const CONFIDENCE: readonly Confidence[] = ["guessing", "unsure", "confident"];
 const TAGS: readonly AttemptTag[] = ["content gap", "reasoning", "misread", "timing"];
 const VIEWPORT_MARGIN = 16;
+const MIN_USABLE_RAIL_HEIGHT = 192;
 const FALLBACK_ANCHOR = { top: VIEWPORT_MARGIN, right: VIEWPORT_MARGIN } as const;
 
 export function mountStudyRail(
@@ -169,11 +170,7 @@ function createRailPlacement(): RailPlacement {
 
     const rect = target.getBoundingClientRect();
     const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.width - VIEWPORT_MARGIN);
-    const preliminaryTop = clamp(
-      offset.top,
-      VIEWPORT_MARGIN,
-      Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN),
-    );
+    const preliminaryTop = clamp(offset.top, VIEWPORT_MARGIN, maximumRailTop());
     target.style.maxHeight = `${availableHeight(preliminaryTop)}px`;
     const fittedRect = target.getBoundingClientRect();
     const maxTop = Math.max(
@@ -285,11 +282,7 @@ function clampAnchor(
   anchor: StudyRailProps["anchor"],
   target: HTMLElement,
 ): StudyRailProps["anchor"] {
-  const top = clamp(
-    anchor.top,
-    VIEWPORT_MARGIN,
-    Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN),
-  );
+  const top = clamp(anchor.top, VIEWPORT_MARGIN, maximumRailTop());
   target.style.maxHeight = `${availableHeight(top)}px`;
   const width = target.getBoundingClientRect().width;
   const maxRight = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN);
@@ -301,6 +294,10 @@ function clampAnchor(
 
 function availableHeight(top: number): number {
   return Math.max(0, window.innerHeight - top - VIEWPORT_MARGIN);
+}
+
+function maximumRailTop(): number {
+  return Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN - MIN_USABLE_RAIL_HEIGHT);
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

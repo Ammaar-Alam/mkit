@@ -121,6 +121,23 @@ describe("ReversibleDomMask", () => {
     expect(element.getAttribute("style")).toBe("border: 6px solid blue");
   });
 
+  it("sets an accessibility attribute repeatedly without snapshotting its own mask", () => {
+    document.body.innerHTML = '<div id="result">Synthetic result</div>';
+    const element = document.querySelector("#result");
+    if (!element) throw new Error("Result fixture is missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.restoreGroup("section-overview");
+    expect(element.hasAttribute("aria-hidden")).toBe(false);
+
+    element.setAttribute("aria-hidden", "false");
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.restoreGroup("section-overview");
+    expect(element.getAttribute("aria-hidden")).toBe("false");
+  });
+
   it("can inspect a masked authored class without restoring it", () => {
     document.body.innerHTML = '<div id="choice" class="multi-choice correct">Synthetic</div>';
     const element = document.querySelector<HTMLElement>("#choice");

@@ -86,6 +86,7 @@ export class StorageRepository {
   }
 
   async writeSettings(patch: SettingsPatch): Promise<SettingsRecord> {
+    const affectsSync = Object.keys(patch).some((key) => key !== "enabled");
     const store = await this.mutate((draft) => {
       const current = draft.settings;
       const next: SettingsRecord = {
@@ -102,13 +103,13 @@ export class StorageRepository {
           patch.hideSectionResultMarksEnabled ?? current.hideSectionResultMarksEnabled,
         timerDisplayEnabled: false,
         syncEnabled: patch.syncEnabled ?? current.syncEnabled,
-        updatedAt: nextTimestamp(current.updatedAt, this.now()),
+        updatedAt: affectsSync ? nextTimestamp(current.updatedAt, this.now()) : current.updatedAt,
       };
       if (current.aiHandoffTarget !== undefined) {
         next.aiHandoffTarget = current.aiHandoffTarget;
       }
       draft.settings = next;
-    });
+    }, affectsSync);
     return { ...store.settings };
   }
 
@@ -452,7 +453,9 @@ export class StorageRepository {
       }
       const sanitized = canonicalizeStore(draft);
       await this.local.set({ [LOCAL_STORE_KEY]: sanitized });
-      this.mutationVersion += 1;
+      if (affectsSync) {
+        this.mutationVersion += 1;
+      }
       return sanitized;
     });
     if (affectsSync && store.settings.syncEnabled) {
@@ -619,8 +622,12 @@ export function mergeLocalAndRemote(local: MKitStore, remote: DecodedSyncSnapsho
   const merged = canonicalizeStore(local);
   if (remote.settings !== undefined) {
     const localEnabled = merged.settings.enabled;
+    const syncableLocalSettings = {
+      ...merged.settings,
+      enabled: true,
+    };
     merged.settings = {
-      ...pickNewestRecord(merged.settings, remote.settings),
+      ...pickNewestRecord(syncableLocalSettings, remote.settings),
       enabled: localEnabled,
     };
   }

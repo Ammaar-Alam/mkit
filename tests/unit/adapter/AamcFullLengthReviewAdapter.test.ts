@@ -230,6 +230,124 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     expect(requiredElement("#fresh-cross").classList.contains("user-strikethrough")).toBe(true);
   });
 
+  it("captures new annotation baselines when the SPA reuses a question container", () => {
+    mountConfirmedProductionFixture();
+    let questionIdentifier = "question-one";
+    const reviewUrl = () =>
+      new URL(
+        `https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/${questionIdentifier}`,
+      );
+    const question = requiredElement(".answer-container.question-container");
+    const passage = requiredElement(".reading-passage");
+    const choice = requiredElement(".multi-choice");
+    passage.innerHTML =
+      'Fresh question one highlight.<span id="question-one-highlight" class="user-highlight">Question one highlight.</span>';
+    choice.innerHTML =
+      'Fresh question one cross-out.<span class="choice-content">Synthetic choice A.</span><span id="question-one-cross" class="user-strikethrough">Question one cross-out.</span>';
+    const adapter = new AamcFullLengthReviewAdapter(document, reviewUrl);
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#question-one-highlight").classList.contains("user-highlight")).toBe(
+      false,
+    );
+    expect(requiredElement("#question-one-cross").classList.contains("user-strikethrough")).toBe(
+      false,
+    );
+
+    const freshHighlight = document.createElement("span");
+    freshHighlight.id = "question-one-fresh-highlight";
+    freshHighlight.className = "user-highlight";
+    freshHighlight.textContent = passage.firstChild?.textContent ?? "";
+    passage.firstChild?.replaceWith(freshHighlight);
+    const freshCross = document.createElement("span");
+    freshCross.id = "question-one-fresh-cross";
+    freshCross.className = "user-strikethrough";
+    freshCross.textContent = choice.firstChild?.textContent ?? "";
+    choice.firstChild?.replaceWith(freshCross);
+
+    questionIdentifier = "question-two";
+    question.innerHTML = `
+      <div class="reading-passage">
+        <span id="question-two-highlight" class="user-highlight">Question two highlight.</span>
+      </div>
+      <ul class="question-choices-multi results">
+        <li class="multi-choice incorrect" data-choice="A">
+          <span id="question-two-cross" class="user-strikethrough">A.</span>
+        </li>
+        <li class="multi-choice corrected" data-choice="B"></li>
+        <li class="multi-choice" data-choice="C"></li>
+        <li class="multi-choice" data-choice="D"></li>
+      </ul>
+    `;
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#question-two-highlight").classList.contains("user-highlight")).toBe(
+      false,
+    );
+    expect(requiredElement("#question-two-cross").classList.contains("user-strikethrough")).toBe(
+      false,
+    );
+
+    questionIdentifier = "question-one";
+    question.innerHTML = `
+      <div class="reading-passage">
+        <span id="question-one-returned-highlight" class="user-highlight">Question one highlight.</span>
+        <span id="question-one-returned-fresh-highlight" class="user-highlight">Fresh question one highlight.</span>
+      </div>
+      <ul class="question-choices-multi results">
+        <li class="multi-choice incorrect" data-choice="D">
+          <span class="choice-content">Synthetic choice A.</span>
+          <span id="question-one-returned-cross" class="user-strikethrough">Question one cross-out.</span>
+          <span id="question-one-returned-fresh-cross" class="user-strikethrough">Fresh question one cross-out.</span>
+        </li>
+        <li class="multi-choice corrected" data-choice="A"></li>
+        <li class="multi-choice" data-choice="B"></li>
+        <li class="multi-choice" data-choice="C"></li>
+      </ul>
+    `;
+    requiredElement(".reading-passage").innerHTML =
+      '<span id="question-one-returned-fresh-highlight" class="user-highlight">Fresh question one highlight.</span><span id="question-one-returned-highlight" class="user-highlight">Question one highlight.</span>';
+    requiredElement(".multi-choice").innerHTML =
+      '<span id="question-one-returned-fresh-cross" class="user-strikethrough">Fresh question one cross-out.</span><span class="choice-content">Synthetic choice A.</span><span id="question-one-returned-cross" class="user-strikethrough">Question one cross-out.</span>';
+    adapter.applyCleanSlate();
+
+    expect(
+      requiredElement("#question-one-returned-highlight").classList.contains("user-highlight"),
+    ).toBe(false);
+    expect(
+      requiredElement("#question-one-returned-cross").classList.contains("user-strikethrough"),
+    ).toBe(false);
+    expect(
+      requiredElement("#question-one-returned-fresh-highlight").classList.contains(
+        "user-highlight",
+      ),
+    ).toBe(true);
+    expect(
+      requiredElement("#question-one-returned-fresh-cross").classList.contains(
+        "user-strikethrough",
+      ),
+    ).toBe(true);
+
+    adapter.restoreNormalReview();
+    expect(
+      requiredElement("#question-one-returned-highlight").classList.contains("user-highlight"),
+    ).toBe(true);
+    expect(
+      requiredElement("#question-one-returned-cross").classList.contains("user-strikethrough"),
+    ).toBe(true);
+    expect(
+      requiredElement("#question-one-returned-fresh-highlight").classList.contains(
+        "user-highlight",
+      ),
+    ).toBe(true);
+    expect(
+      requiredElement("#question-one-returned-fresh-cross").classList.contains(
+        "user-strikethrough",
+      ),
+    ).toBe(true);
+  });
+
   it("restores cleared annotations when their preferences are turned off", () => {
     mountConfirmedProductionFixture();
     const passage = requiredElement(".reading-passage");
@@ -1017,6 +1135,7 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     mountSectionOverviewFixture();
     const adapter = new AamcFullLengthReviewAdapter(document, SECTION_OVERVIEW_URL);
     adapter.applySectionOverviewCover();
+    adapter.applySectionOverviewCover();
 
     adapter.revealSectionOverview();
     expect(cueClasses()).toEqual(["li-cell correctness correct", "li-cell correctness incorrect"]);
@@ -1026,6 +1145,9 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     ]);
     expect(document.querySelectorAll("[data-mkit-outcome-hidden]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-mkit-result-hidden]")).toHaveLength(0);
+    for (const cue of document.querySelectorAll(".li-cell.correctness")) {
+      expect(cue.hasAttribute("aria-hidden")).toBe(false);
+    }
 
     // A near-miss hash on the same page is not an overview route.
     mountSectionOverviewFixture();

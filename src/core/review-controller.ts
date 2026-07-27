@@ -437,6 +437,9 @@ export class ReviewController {
     // has already made on this question is carried over instead of reset. A
     // different question always starts concealed.
     const sameQuestion = this.#attempt?.questionKey === attempt.questionKey;
+    if (!sameQuestion) {
+      this.#railAnchor = null;
+    }
     const revealed = sameQuestion ? this.#state.reveal : "CONCEALED";
     this.#session = session;
     this.#attempt = attempt;
@@ -487,8 +490,9 @@ export class ReviewController {
     }
     const attempt = this.#attempt;
     const section = sectionLabel(attempt.sectionKey);
+    this.#railAnchor ??= this.#adapter.getStudyRailAnchor();
     return {
-      anchor: this.#railAnchor ?? this.#adapter.getStudyRailAnchor(),
+      anchor: this.#railAnchor,
       mode: this.#session.mode,
       stage: this.#railStage(),
       progress: {

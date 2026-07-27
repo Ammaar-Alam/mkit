@@ -111,6 +111,46 @@ describe("ReviewController generation safety", () => {
     controller.dispose();
   });
 
+  it("remeasures the mounted rail when the active question changes", async () => {
+    const adapter = new ControlledAdapter([
+      Promise.resolve(context("question-q1")),
+      Promise.resolve(context("question-q2")),
+    ]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+        "297px",
+      );
+    });
+    expect(adapter.anchorRequests).toBe(1);
+
+    await controller.reconcile();
+
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
+    expect(adapter.anchorRequests).toBe(2);
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[1]?.selection).toBe("A");
+    });
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
+    expect(adapter.anchorRequests).toBe(2);
+
+    controller.dispose();
+  });
+
   it("persists a note with an immediate answer without per-keystroke redraws", async () => {
     const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
     const repository = new StorageRepository({

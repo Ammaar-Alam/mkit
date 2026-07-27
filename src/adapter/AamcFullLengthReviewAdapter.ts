@@ -43,6 +43,16 @@ const PRIOR_CROSS_OUT_CLASSES = [
   "strikethrough",
 ] as const;
 
+interface AnnotationBaseline {
+  readonly signatures: Set<string>;
+  readonly maskedElements: Set<Element>;
+}
+
+interface AnnotationBaselines {
+  readonly byQuestion: Map<string, AnnotationBaseline>;
+  readonly byContainer: WeakMap<Element, AnnotationBaseline>;
+}
+
 export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   readonly #document: Document;
   readonly #mask = new ReversibleDomMask();
@@ -53,8 +63,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #processing = false;
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
-  #highlightBaselines = new WeakMap<Element, Set<Element>>();
-  #crossOutBaselines = new WeakMap<Element, Set<Element>>();
+  #highlightBaselines = createAnnotationBaselines();
+  #crossOutBaselines = createAnnotationBaselines();
   /**
    * Groups the reader has intentionally revealed. Masking runs again on every
    * page mutation, so without this a revealed solution would be concealed again
@@ -410,11 +420,11 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#withoutObservation(() => {
       if (previous?.clearPreviousHighlightsEnabled && !preferences.clearPreviousHighlightsEnabled) {
         this.#mask.restoreGroup(PRIOR_HIGHLIGHTS_GROUP);
-        this.#highlightBaselines = new WeakMap();
+        this.#highlightBaselines = createAnnotationBaselines();
       }
       if (previous?.clearPreviousCrossOutsEnabled && !preferences.clearPreviousCrossOutsEnabled) {
         this.#mask.restoreGroup(PRIOR_CROSS_OUTS_GROUP);
-        this.#crossOutBaselines = new WeakMap();
+        this.#crossOutBaselines = createAnnotationBaselines();
       }
     });
   }
@@ -533,13 +543,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       return true;
     }
     this.#mask.removeClasses(cues, ["correct", "incorrect"], SECTION_OVERVIEW_GROUP);
-    this.#mask.removeAttributes(
-      cues,
-      ["title", "aria-label", "aria-hidden"],
-      SECTION_OVERVIEW_GROUP,
-    );
+    this.#mask.removeAttributes(cues, ["title", "aria-label"], SECTION_OVERVIEW_GROUP);
+    this.#mask.setAttributes(cues, { "aria-hidden": "true" }, SECTION_OVERVIEW_GROUP);
     for (const cue of cues) {
-      cue.setAttribute("aria-hidden", "true");
       cue.setAttribute(SECTION_OVERVIEW_MARKER, "");
     }
     this.#mask.replaceText(accessibleResults, "Hidden", SECTION_OVERVIEW_GROUP);
@@ -603,8 +609,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
       }
       this.#completedReviewSwitch = null;
-      this.#highlightBaselines = new WeakMap();
-      this.#crossOutBaselines = new WeakMap();
+      this.#highlightBaselines = createAnnotationBaselines();
+      this.#crossOutBaselines = createAnnotationBaselines();
       window.getSelection()?.removeAllRanges();
     });
   }
@@ -811,10 +817,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (!preferences) return;
     const question = this.#activeAnnotationQuestion();
     if (!question) return;
+    const questionIdentifier = this.#readQuestionIdentifier();
 
     if (preferences.clearPreviousHighlightsEnabled) {
       this.#applyPriorAnnotationMask(
         question,
+        questionIdentifier,
         this.#selectors.priorHighlightCarrier,
         this.#highlightBaselines,
         PRIOR_HIGHLIGHT_CLASSES,
@@ -824,6 +832,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (preferences.clearPreviousCrossOutsEnabled) {
       this.#applyPriorAnnotationMask(
         question,
+        questionIdentifier,
         this.#selectors.priorCrossOutCarrier,
         this.#crossOutBaselines,
         PRIOR_CROSS_OUT_CLASSES,
@@ -834,33 +843,51 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #applyPriorAnnotationMask(
     question: Element,
+    questionIdentifier: string | null,
     selectors: readonly string[],
-    baselines: WeakMap<Element, Set<Element>>,
+    baselines: AnnotationBaselines,
     classes: readonly string[],
     group: string,
   ): void {
-    const baseline = baselines.get(question);
+    const candidates = this.#queryAllWithin(question, selectors).filter((element) =>
+      this.#isAuthoredVisible(element),
+    );
+    let baseline = questionIdentifier
+      ? baselines.byQuestion.get(questionIdentifier)
+      : baselines.byContainer.get(question);
     if (!baseline) {
-      const initial = new Set(
-        this.#queryAllWithin(question, selectors).filter((element) =>
-          this.#isAuthoredVisible(element),
+      baseline = {
+        signatures: new Set(
+          candidates.map((element) => annotationCarrierSignature(question, element)),
         ),
-      );
-      baselines.set(question, initial);
-      this.#mask.removeClasses(initial, classes, group);
-      return;
+        maskedElements: new Set(),
+      };
+      if (questionIdentifier) {
+        baselines.byQuestion.set(questionIdentifier, baseline);
+      } else {
+        baselines.byContainer.set(question, baseline);
+      }
     }
 
-    for (const element of baseline) {
-      if (!classes.some((className) => element.classList.contains(className))) {
+    const toMask: Element[] = [];
+    for (const element of candidates) {
+      const signature = annotationCarrierSignature(question, element);
+      if (!baseline.signatures.has(signature)) {
+        continue;
+      }
+      if (!baseline.maskedElements.has(element)) {
+        baseline.maskedElements.add(element);
+        toMask.push(element);
         continue;
       }
       // Once an original carrier regains an annotation class, that class is a
       // new reader action. Release MKit's old snapshot so later restoration
       // follows the reader's latest state instead of resurrecting the baseline.
       this.#mask.releaseClasses([element], classes, group);
-      baseline.delete(element);
+      baseline.maskedElements.delete(element);
+      baseline.signatures.delete(signature);
     }
+    this.#mask.removeClasses(toMask, classes, group);
   }
 
   #activeAnnotationQuestion(): Element | null {
@@ -1236,6 +1263,34 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const protection = this.#document.documentElement.dataset.mkitProtection;
     return protection === "boot" || protection === "unsupported";
   }
+}
+
+function createAnnotationBaselines(): AnnotationBaselines {
+  return {
+    byQuestion: new Map(),
+    byContainer: new WeakMap(),
+  };
+}
+
+function annotationCarrierSignature(question: Element, element: Element): string {
+  const candidate = element.parentElement?.closest(
+    ".reading-passage, .multi-choice, .choice-content, p, li",
+  );
+  const region = candidate && question.contains(candidate) ? candidate : question;
+  const path: string[] = [];
+  let current: Element | null = region;
+  while (current && current !== question) {
+    const parent: Element | null = current.parentElement;
+    if (!parent) break;
+    path.push(`${current.localName}:${[...parent.children].indexOf(current)}`);
+    current = parent;
+  }
+  const preceding = element.ownerDocument.createRange();
+  preceding.selectNodeContents(region);
+  preceding.setEndBefore(element);
+  const start = preceding.toString().length;
+  const text = (element.textContent ?? "").replaceAll(/\s+/g, " ").trim();
+  return `${path.reverse().join("/")}|${start}:${element.textContent?.length ?? 0}|${text}`;
 }
 
 function capabilityReportSignature(report: CapabilityReport): string {

@@ -94,6 +94,31 @@ export class ReversibleDomMask {
     }
   }
 
+  setAttributes(
+    elements: Iterable<Element>,
+    attributes: Readonly<Record<string, string>>,
+    group: string,
+  ): void {
+    const elementSnapshots = getOrCreate(this.#attributesByGroup, group, () => new Map());
+    for (const element of elements) {
+      const snapshots = getOrCreate(elementSnapshots, element, () => new Map());
+      for (const [attribute, maskedValue] of Object.entries(attributes)) {
+        const current = element.getAttribute(attribute);
+        const snapshot = snapshots.get(attribute);
+        if (!snapshot) {
+          snapshots.set(attribute, {
+            present: current !== null,
+            value: current ?? "",
+          });
+        } else if (current !== maskedValue) {
+          snapshot.present = current !== null;
+          snapshot.value = current ?? "";
+        }
+        element.setAttribute(attribute, maskedValue);
+      }
+    }
+  }
+
   removeClasses(elements: Iterable<Element>, classes: readonly string[], group: string): void {
     const elementSnapshots = getOrCreate(this.#classesByGroup, group, () => new Map());
     for (const element of elements) {

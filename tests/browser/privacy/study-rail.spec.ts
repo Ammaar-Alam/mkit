@@ -132,6 +132,34 @@ test("Study Rail keeps header controls and next action reachable while scrolled"
   await expect(rail.locator("[data-focus-key='reveal-answers']")).toBeInViewport();
 });
 
+test("Study Rail stays usable when the native tools sit near the viewport bottom", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1_280, height: 320 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => {
+    const toolbar = document.querySelector<HTMLElement>(".answer-toolbar-wrapper");
+    if (!toolbar) throw new Error("Synthetic toolbar is unavailable.");
+    Object.assign(toolbar.style, {
+      height: "40px",
+      position: "fixed",
+      top: "260px",
+      width: "900px",
+    });
+    window.__mkitPrivacyHarness.startController();
+  });
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  await expect(rail).toHaveCSS("max-height", "192px");
+  await expect(rail.locator("[data-focus-key='rail-grip']")).toBeInViewport();
+  await expect(rail.locator("[data-focus-key='rail-toggle']")).toBeInViewport();
+  await rail.locator("[data-focus-key='answer-A']").scrollIntoViewIfNeeded();
+  await rail.locator("[data-focus-key='answer-A']").click();
+  await expect(rail.locator("[data-focus-key='check']")).toBeInViewport();
+});
+
 async function railAndToolbarBounds(page: Page, rail: Locator, toolbar: Locator) {
   const [railBounds, toolbarBounds, maxHeight, viewport] = await Promise.all([
     rail.boundingBox(),

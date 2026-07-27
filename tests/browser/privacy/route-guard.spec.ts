@@ -408,12 +408,25 @@ test("completed section result marks are neutralized without blocking native rev
   await expect(
     page.locator('td[headers="answer-listing-header-correctness-replacement"]'),
   ).toHaveText("Hidden");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        document
+          .querySelector("#replacement-section-review-link")
+          ?.setAttribute("data-observer-mutation", "true");
+        requestAnimationFrame(() => resolve());
+      }),
+  );
 
   await page.evaluate(() => window.__mkitRouteGuardHarness.setHideSectionResultMarksEnabled(false));
   await expect(page.locator("#replacement-section-result-cue")).toHaveClass(/incorrect/);
   await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
     "data-mkit-outcome-hidden",
     "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "aria-hidden",
+    "true",
   );
   await expect(
     page.locator('td[headers="answer-listing-header-correctness-replacement"]'),

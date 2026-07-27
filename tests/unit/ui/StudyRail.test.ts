@@ -81,9 +81,27 @@ describe("Study Rail placement", () => {
 
     expect(view.element.classList.contains("is-moved")).toBe(false);
     expect(view.element.style.left).toBe("");
-    expect(view.element.style.top).toBe("240px");
+    expect(view.element.style.top).toBe("192px");
     expect(view.element.style.right).toBe("48px");
-    expect(view.element.style.maxHeight).toBe("144px");
+    expect(view.element.style.maxHeight).toBe("192px");
+    view.destroy();
+  });
+
+  it("reserves usable height when the native toolbar anchor is near the viewport bottom", () => {
+    viewportHeight = 320;
+    const view = mountStudyRail(mountTarget(), props({ top: 500, right: 16 }));
+
+    expect(view.element.style.top).toBe("112px");
+    expect(view.element.style.maxHeight).toBe("192px");
+
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+    grip.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown", shiftKey: true }),
+    );
+
+    expect(view.element.style.top).toBe("112px");
+    expect(view.element.style.maxHeight).toBe("192px");
     view.destroy();
   });
 });

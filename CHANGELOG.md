@@ -38,7 +38,8 @@ All notable changes to MKit are documented here.
   parts of a completed review page.
 - Kept section-result marks concealed when AAMC mounts or replaces the question
   list after a page refresh, and rendered the neutral MKit mark from bundled
-  artwork instead of the AAMC page origin.
+  artwork instead of the AAMC page origin. Repeated coverage now restores each
+  result cue's original accessibility state.
 - Preserved passage selection, copying, and native annotation tools during a
   Fresh Attempt.
 - Kept a persisted MKit Off setting from touching a review during startup, and
@@ -47,8 +48,18 @@ All notable changes to MKit are documented here.
   report.
 - Preserved notes, answers, confidence, and reflection changes made in quick
   succession instead of allowing one save to overwrite another.
+- Kept ordinary study saves from refreshing unchanged settings and interrupting
+  typing in the note editor.
+- Kept the browser-local MKit switch from taking sync ownership of unrelated
+  review preferences changed on another browser.
+- Cleared prior highlights and cross-outs when AAMC reuses a question container
+  across navigation, while preserving annotations added during the current
+  Fresh Attempt on return visits.
+- Repositioned the rail for each new question while retaining its position
+  through saves on the current question.
 - Kept the rail inside the viewport and its header and next action reachable
-  while its contents scroll.
+  while its contents scroll, including when native tools sit near the bottom of
+  a short viewport.
 - Used Chrome-valid origin matches for packaged page artwork so the unpacked
   extension loads successfully.
 

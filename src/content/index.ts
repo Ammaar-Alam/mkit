@@ -1,13 +1,10 @@
 import { AamcFullLengthReviewAdapter } from "../adapter/AamcFullLengthReviewAdapter";
 import { ReviewController } from "../core/review-controller";
 import { CONTENT_RECONCILE_MESSAGE, POPUP_STATUS_MESSAGE } from "../shared/popup-status";
-import {
-  createChromeStorageRepository,
-  LEGACY_SETTINGS_STORAGE_KEY,
-  LOCAL_STORE_KEY,
-} from "../storage";
+import { createChromeStorageRepository } from "../storage";
 import { startContentLifecycle } from "./lifecycle";
 import { createPreflight } from "./preflight";
+import { hasSettingsStorageChange } from "./settings-change";
 
 const runtimeUrl = (path: string): string =>
   typeof chrome !== "undefined" && chrome.runtime?.getURL ? chrome.runtime.getURL(path) : path;
@@ -41,13 +38,7 @@ const refreshSettings = async (): Promise<void> => {
 void refreshSettings().catch(() => undefined);
 
 chrome.storage?.onChanged?.addListener((changes, areaName) => {
-  if (
-    areaName !== "local" ||
-    (!Object.hasOwn(changes, LOCAL_STORE_KEY) &&
-      !Object.hasOwn(changes, LEGACY_SETTINGS_STORAGE_KEY))
-  ) {
-    return;
-  }
+  if (!hasSettingsStorageChange(changes, areaName)) return;
   void refreshSettings().catch(() => undefined);
 });
 
