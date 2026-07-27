@@ -243,13 +243,13 @@ test("Clean Slate preserves atomic replacements from trusted annotation controls
     window.__mkitPrivacyHarness.configureAnnotationClearing(true);
     window.__mkitPrivacyHarness.maskAndObserve();
     window.__mkitPrivacyHarness.sealAnnotations();
-    window.__mkitPrivacyHarness.configureAnnotationClearing(false);
     const host = document.querySelector<HTMLElement>("[data-mkit-host]");
     if (host) host.style.pointerEvents = "none";
   });
 
   await page.locator(".add-highlight").click();
   await expect(page.locator("#atomic-reader-highlight")).toHaveClass(/user-highlight/);
+  await page.evaluate(() => window.__mkitPrivacyHarness.configureAnnotationClearing(false));
   await page.locator(".strikethrough-ctrl").click();
   await expect(page.locator("#atomic-reader-cross")).toHaveClass(/user-strikethrough/);
 

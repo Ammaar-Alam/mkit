@@ -959,6 +959,16 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       }
       const owned = baseline.ownedElements.get(element);
       if (!owned) {
+        if (this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
+          baseline.signatures.delete(signature);
+          for (const [priorElement, prior] of baseline.ownedElements) {
+            if (prior.signature === signature) {
+              baseline.ownedElements.delete(priorElement);
+              baseline.restoredElements.delete(priorElement);
+            }
+          }
+          continue;
+        }
         baseline.ownedElements.set(element, {
           signature,
           classState: annotationClassState(element, classes),
@@ -1046,13 +1056,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #recordReaderAnnotationIntent(): void {
-    const preferences = this.#cleanSlatePreferences;
-    if (
-      !preferences ||
-      (preferences.clearPreviousHighlightsEnabled && preferences.clearPreviousCrossOutsEnabled)
-    ) {
-      return;
-    }
+    if (!this.#cleanSlatePreferences) return;
     const question = this.#activeAnnotationQuestion();
     if (!question) return;
     const intent: ReaderAnnotationIntent = {
