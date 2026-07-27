@@ -248,7 +248,10 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
 
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
-    adapter.sealPriorAnnotations();
+    expect(adapter.sealPriorAnnotations()).toEqual({
+      question,
+      questionIdentifier: "synthetic-question",
+    });
     passage.insertAdjacentHTML(
       "beforeend",
       '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',

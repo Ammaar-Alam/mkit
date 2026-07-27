@@ -455,11 +455,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     });
   }
 
-  sealPriorAnnotations(annotationType?: ReaderAnnotationType): void {
+  sealPriorAnnotations(annotationType?: ReaderAnnotationType): ReaderAnnotationIntent | null {
     const preferences = this.#cleanSlatePreferences;
-    if (!preferences) return;
+    if (!preferences) return null;
+    let activeQuestion: ReaderAnnotationIntent | null = null;
     this.#withoutObservation(() => {
-      const activeQuestion = this.#applyPriorAnnotationMasks();
+      activeQuestion = this.#applyPriorAnnotationMasks();
       if (!activeQuestion) return;
       const { question, questionIdentifier } = activeQuestion;
       if (annotationType !== "cross-out") {
@@ -471,6 +472,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
           true;
       }
     });
+    return activeQuestion;
   }
 
   applyCleanSlate(): CapabilityReport {
@@ -1075,13 +1077,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     // already visible. Keep capturing those carriers until the reader invokes
     // a native annotation action, then seal immediately before AAMC mutates the
     // selection so the new annotation remains available.
-    this.sealPriorAnnotations(annotationType);
-    const question = this.#activeAnnotationQuestion();
-    if (!question) return;
-    const intent: ReaderAnnotationIntent = {
-      question,
-      questionIdentifier: this.#readQuestionIdentifier(),
-    };
+    const intent = this.sealPriorAnnotations(annotationType);
+    if (!intent) return;
     this.#clearReaderAnnotationIntent();
     this.#readerAnnotationIntent = intent;
     this.#readerAnnotationIntentTimeout = window.setTimeout(() => {
