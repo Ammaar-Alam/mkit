@@ -9,7 +9,7 @@ import {
   UnsupportedStoreVersionError,
 } from "../../../src/storage";
 import { FakeStorageArea } from "./fake-storage";
-import { futureStore, legacySettings, makeAttempt, makeSession } from "./fixtures";
+import { futureStore, legacySettings, makeAttempt, makeSession, makeStore } from "./fixtures";
 
 describe("storage codec and migrations", () => {
   it("migrates the legacy settings record without inventing a future AI target", async () => {
@@ -36,6 +36,35 @@ describe("storage codec and migrations", () => {
       schemaVersion: STORE_SCHEMA_VERSION,
       settings,
     });
+  });
+
+  it("defaults newly added concealment settings on when an existing v2 store omits them", async () => {
+    const existingStore = makeStore();
+    const existingSettings = existingStore.settings as unknown as Record<string, unknown>;
+    delete existingSettings.clearPreviousHighlightsEnabled;
+    delete existingSettings.clearPreviousCrossOutsEnabled;
+    delete existingSettings.hideSectionResultMarksEnabled;
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local", { [LOCAL_STORE_KEY]: existingStore }),
+    });
+
+    await expect(repository.getSettings()).resolves.toMatchObject({
+      clearPreviousHighlightsEnabled: true,
+      clearPreviousCrossOutsEnabled: true,
+      hideSectionResultMarksEnabled: true,
+    });
+  });
+
+  it("rejects invalid concealment setting values without rewriting storage", async () => {
+    const malformed = makeStore();
+    (malformed.settings as unknown as Record<string, unknown>).clearPreviousHighlightsEnabled =
+      "yes";
+    const local = new FakeStorageArea("local", { [LOCAL_STORE_KEY]: malformed });
+    const repository = new StorageRepository({ local });
+
+    await expect(repository.getSettings()).rejects.toBeInstanceOf(StorageCorruptionError);
+    expect(local.values[LOCAL_STORE_KEY]).toEqual(malformed);
+    expect(local.events).not.toContain("local:set");
   });
 
   it("does not overwrite a future storage version", async () => {

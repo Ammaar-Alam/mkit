@@ -2,11 +2,23 @@
 
 ## MKit is not shown
 
-Confirm that the extension is enabled and that the page is a completed full-length answer review or a completed section Review All question on `www.mcatofficialprep.org`. In the extension manager, choose **Reload**, then reload the review page. Section-results overviews, score reports, active exams, registration, sample tests, question packs, and question banks are not yet supported live in 0.1.
+Open the MKit popup and confirm that **MKit** is On. Fresh Attempt runs on a
+completed full-length answer review or completed section Review All question at
+`www.mcatofficialprep.org`. The completed section score report can also hide its
+per-question result marks.
+
+If a supported page was already open when MKit was installed or updated, reload
+the extension from the extension manager, then reload that page.
 
 ## The review remains covered
 
-MKit could not verify the page layout strongly enough to guarantee spoiler protection. Use **Try again** after the page finishes loading. **Normal review** restores the untouched page when you intentionally want the official review.
+MKit could not verify the page layout strongly enough to guarantee spoiler
+protection. Use **Try again** after the page finishes loading. **Normal review**
+restores the native review when you intentionally want to see it.
+
+You can also turn **MKit** Off from the popup. This releases supported pages in
+the current browser without deleting your Fresh Attempt progress. A reload is
+only needed if an older content script does not acknowledge the change.
 
 Do not disable the cover just to work around another extension. First disable extensions that restyle pages, translate content, replace fonts, or alter accessibility attributes, then reload.
 

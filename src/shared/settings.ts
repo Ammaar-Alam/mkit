@@ -20,7 +20,14 @@ export async function writeSettings(
   patch: Partial<
     Pick<
       SettingsRecord,
-      "enabled" | "defaultMode" | "encouragementEnabled" | "scoreShieldEnabled" | "syncEnabled"
+      | "enabled"
+      | "defaultMode"
+      | "encouragementEnabled"
+      | "scoreShieldEnabled"
+      | "clearPreviousHighlightsEnabled"
+      | "clearPreviousCrossOutsEnabled"
+      | "hideSectionResultMarksEnabled"
+      | "syncEnabled"
     >
   >,
 ): Promise<SettingsRecord> {

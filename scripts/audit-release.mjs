@@ -37,6 +37,14 @@ for (const contentScript of manifest.content_scripts ?? []) {
   }
 }
 
+for (const resourceGroup of manifest.web_accessible_resources ?? []) {
+  for (const match of resourceGroup.matches ?? []) {
+    if (!/^https:\/\/[^/]+\/\*$/.test(match)) {
+      failures.push(`web-accessible-resource match must be an HTTPS origin ending in /*: ${match}`);
+    }
+  }
+}
+
 const files = await walk(dist);
 for (const file of files) {
   if (file.pathname.endsWith(".map")) {

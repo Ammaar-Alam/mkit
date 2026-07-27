@@ -11,12 +11,16 @@ test("synthetic protection paths make no unexpected network requests", async ({ 
   await page.goto("http://127.0.0.1:4173/score");
   await page.evaluate(() => window.__mkitPrivacyHarness.scoreShield());
 
+  const localPaths = new Set([
+    "/browser-entry.js",
+    "/icons/icon-48.png",
+    "/preflight.css",
+    "/review",
+    "/score",
+  ]);
   const unexpected = requests.filter((url) => {
     const parsed = new URL(url);
-    return (
-      parsed.origin !== "http://127.0.0.1:4173" ||
-      !["/review", "/score", "/preflight.css", "/browser-entry.js"].includes(parsed.pathname)
-    );
+    return parsed.origin !== "http://127.0.0.1:4173" || !localPaths.has(parsed.pathname);
   });
   expect(unexpected).toEqual([]);
 });

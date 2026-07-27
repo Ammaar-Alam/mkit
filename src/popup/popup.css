@@ -7,7 +7,7 @@ body {
 
 .popup-shell {
   display: grid;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   padding: var(--space-lg);
 }
 
@@ -29,6 +29,22 @@ body {
   font-size: 1.25rem;
 }
 
+.master-control {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--moss);
+  background: var(--moss-quiet);
+}
+
+.master-control[data-enabled="false"] {
+  border-color: var(--rule);
+  background: var(--paper-raised);
+}
+
+.master-control .switch-copy strong {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+}
+
 .page-state {
   color: var(--moss);
   font-size: 0.75rem;
@@ -39,19 +55,28 @@ body {
 .page-context {
   display: grid;
   gap: var(--space-2xs);
-  padding: var(--space-md);
-  border-left: 3px solid var(--moss);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--moss);
   background: var(--moss-quiet);
 }
 
 .page-context[data-status="supported-not-running"] {
-  border-left-color: var(--clay);
+  border-color: var(--clay);
   background: var(--clay-quiet);
 }
 
 .page-context[data-status="unsupported"] {
-  border-left-color: var(--rule);
+  border-color: var(--rule);
   background: var(--paper-raised);
+}
+
+.page-context[data-status="disabled"] {
+  border-color: var(--rule);
+  background: var(--paper-raised);
+}
+
+.masthead:has(+ .master-control[data-enabled="false"]) .page-state {
+  color: var(--ink-muted);
 }
 
 .page-detail {
@@ -64,6 +89,10 @@ body {
   gap: var(--space-sm);
 }
 
+.section[hidden] {
+  display: none;
+}
+
 h1,
 h2 {
   margin: 0;
@@ -71,12 +100,8 @@ h2 {
   font-weight: 560;
 }
 
-h1 {
-  font-size: 1.5625rem;
-}
-
 h2 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
 }
 
 .empty-state {
@@ -100,7 +125,7 @@ h2 {
 
 .session-card {
   padding: var(--space-md);
-  border-left: 3px solid var(--moss);
+  border: 1px solid var(--rule);
   background: var(--paper-raised);
 }
 
@@ -114,13 +139,33 @@ h2 {
   border-top: 1px solid var(--rule);
 }
 
+.section--settings {
+  gap: 0;
+}
+
+.section--settings h2,
+.section--sessions h2 {
+  margin-bottom: var(--space-xs);
+}
+
 .storage-row {
   display: flex;
   justify-content: space-between;
   gap: var(--space-md);
   align-items: end;
-  padding-top: var(--space-md);
+  padding-top: var(--space-sm);
   border-top: 1px solid var(--rule);
+}
+
+.storage-row .eyebrow {
+  display: none;
+}
+
+.storage-row strong,
+#save-status {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .storage-row > span:first-child {
@@ -136,5 +181,4 @@ h2 {
 
 #save-status {
   color: var(--moss);
-  font-size: 0.8125rem;
 }

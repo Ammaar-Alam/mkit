@@ -4,7 +4,7 @@ import type {
   FullLengthReviewAdapter,
   SanitizedQuestionContext,
 } from "../adapter/contracts";
-import type { MKitPreflight } from "../content/preflight";
+import { type MKitPreflight, NORMAL_REVIEW_REQUEST_EVENT } from "../content/preflight";
 import type {
   AnswerChoice,
   AttemptRecord,
@@ -14,6 +14,7 @@ import type {
   SettingsRecord,
   StorageRepository,
 } from "../storage";
+import { attemptKey } from "../storage";
 import {
   type ActiveSessionSummary,
   type GateProps,
@@ -37,6 +38,12 @@ import { summarizeSession } from "./summary";
 import { ActiveQuestionTimer, type TimingSample } from "./timing";
 
 type ViewHandle = Pick<MKitViewHandle<unknown>, "destroy">;
+
+interface PendingNoteSave {
+  sessionId: string;
+  questionKey: string;
+  note: string;
+}
 
 export interface ReviewControllerOptions {
   adapter: FullLengthReviewAdapter;
@@ -66,11 +73,16 @@ export class ReviewController {
   #view: ViewHandle | null = null;
   #gateView: MKitViewHandle<GateProps> | null = null;
   #railView: MKitViewHandle<StudyRailProps> | null = null;
+  // The native toolbar anchor is viewport-relative. Keep the value captured
+  // when this rail mounts so save-state rerenders cannot move it after a scroll.
+  #railAnchor: StudyRailProps["anchor"] | null = null;
   #scoreView: MKitViewHandle<ScoreShieldProps> | null = null;
   #summaryView: MKitViewHandle<SummaryProps> | null = null;
   #stopObserver: (() => void) | null = null;
   #generation = 0;
   #normalReview = false;
+  readonly #pendingNoteSaves = new Map<string, PendingNoteSave>();
+  #noteSaveActive = false;
   readonly #keyboard: FreshAttemptKeyboardController;
 
   constructor(options: ReviewControllerOptions) {
@@ -147,16 +159,16 @@ export class ReviewController {
     try {
       this.#settings ??= await this.#repository.getSettings();
       if (generation !== this.#generation || this.#normalReview) return;
-      if (!this.#settings.enabled) {
-        this.normalReview();
-        return;
-      }
 
       if (pageKind === "score-report") {
         await this.#reconcileScoreReport(generation);
         return;
       }
 
+      this.#adapter.configureCleanSlate({
+        clearPreviousHighlightsEnabled: this.#settings.clearPreviousHighlightsEnabled,
+        clearPreviousCrossOutsEnabled: this.#settings.clearPreviousCrossOutsEnabled,
+      });
       const report = this.#adapter.applyCleanSlate();
       if (!report.safeToReveal) {
         this.#showUnsupported(report);
@@ -204,6 +216,11 @@ export class ReviewController {
     this.#state = reduceReviewState(this.#state, { type: "NORMAL_REVIEW" });
     this.#clearView();
     this.#preflight.setProtection("normal-review");
+  }
+
+  updateSettings(settings: SettingsRecord): void {
+    this.#settings = settings;
+    void this.reconcile();
   }
 
   dispose(): void {
@@ -281,7 +298,7 @@ export class ReviewController {
       onRetryDetection: () => {
         void this.reconcile();
       },
-      onNormalReview: () => this.normalReview(),
+      onNormalReview: () => this.#requestNormalReview(),
     });
   }
 
@@ -304,7 +321,7 @@ export class ReviewController {
       onRetryDetection: () => {
         void this.reconcile();
       },
-      onNormalReview: () => this.normalReview(),
+      onNormalReview: () => this.#requestNormalReview(),
     };
     if (activeSession) props.activeSession = activeSession;
     this.#preflight.host.dataset.mkitPlacement = "gate";
@@ -327,7 +344,7 @@ export class ReviewController {
       onRetryDetection: () => {
         void this.reconcile();
       },
-      onNormalReview: () => this.normalReview(),
+      onNormalReview: () => this.#requestNormalReview(),
     });
   }
 
@@ -353,7 +370,7 @@ export class ReviewController {
       onRetryDetection: () => {
         void this.reconcile();
       },
-      onNormalReview: () => this.normalReview(),
+      onNormalReview: () => this.#requestNormalReview(),
     });
   }
 
@@ -466,6 +483,7 @@ export class ReviewController {
     const attempt = this.#attempt;
     const section = sectionLabel(attempt.sectionKey);
     return {
+      anchor: this.#railAnchor ?? this.#adapter.getStudyRailAnchor(),
       mode: this.#session.mode,
       stage: this.#railStage(),
       progress: {
@@ -531,7 +549,7 @@ export class ReviewController {
       },
       onNavigate: () => undefined,
       onNoteChange: (note) => {
-        void this.#updateAttempt({ note });
+        this.#queueNoteSave(note);
       },
       onTagsChange: (tags) => {
         void this.#updateAttempt({ tags: [...tags] });
@@ -701,6 +719,57 @@ export class ReviewController {
     });
   }
 
+  #queueNoteSave(note: string): void {
+    if (!this.#session || !this.#attempt) return;
+    const draft: PendingNoteSave = {
+      sessionId: this.#session.id,
+      questionKey: this.#attempt.questionKey,
+      note,
+    };
+    this.#attempt = { ...this.#attempt, note };
+    this.#pendingNoteSaves.set(attemptKey(draft), draft);
+    if (!this.#noteSaveActive) void this.#drainNoteSaves();
+  }
+
+  async #drainNoteSaves(): Promise<void> {
+    if (this.#noteSaveActive) return;
+    this.#noteSaveActive = true;
+    try {
+      while (this.#pendingNoteSaves.size > 0) {
+        const next = this.#pendingNoteSaves.entries().next().value;
+        if (!next) break;
+        const [key, draft] = next;
+        this.#pendingNoteSaves.delete(key);
+        try {
+          const saved = await this.#sessions.updateAttempt(draft.sessionId, draft.questionKey, {
+            note: draft.note,
+          });
+          if (
+            this.#session?.id === draft.sessionId &&
+            this.#attempt?.questionKey === draft.questionKey
+          ) {
+            this.#attempt = {
+              ...this.#attempt,
+              updatedAt: Math.max(this.#attempt.updatedAt, saved.updatedAt),
+              ...(saved.noteUpdatedAt === undefined ? {} : { noteUpdatedAt: saved.noteUpdatedAt }),
+            };
+          }
+        } catch {
+          if (
+            this.#session?.id === draft.sessionId &&
+            this.#attempt?.questionKey === draft.questionKey
+          ) {
+            this.#saveState = "error";
+            this.#showRail();
+          }
+        }
+      }
+    } finally {
+      this.#noteSaveActive = false;
+      if (this.#pendingNoteSaves.size > 0) void this.#drainNoteSaves();
+    }
+  }
+
   async #withSave(operation: () => Promise<void>): Promise<void> {
     this.#saveState = "saving";
     this.#showRail();
@@ -780,6 +849,7 @@ export class ReviewController {
       return;
     }
     this.#resetView();
+    this.#railAnchor = props.anchor;
     this.#railView = mountStudyRail(this.#preflight.shadow, props);
     this.#view = this.#railView as unknown as ViewHandle;
   }
@@ -799,6 +869,7 @@ export class ReviewController {
     this.#view = null;
     this.#gateView = null;
     this.#railView = null;
+    this.#railAnchor = null;
     this.#scoreView = null;
     this.#summaryView = null;
     this.#preflight.shadow.replaceChildren(this.#uiStyle);
@@ -809,6 +880,12 @@ export class ReviewController {
     // rail that owns them.
     this.#keyboard.setEnabled(false);
     this.#resetView();
+  }
+
+  #requestNormalReview(): void {
+    this.#preflight.host.dispatchEvent(
+      new CustomEvent(NORMAL_REVIEW_REQUEST_EVENT, { bubbles: true, composed: true }),
+    );
   }
 }
 

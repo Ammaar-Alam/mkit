@@ -37,7 +37,14 @@ export const DEFAULT_SYNC_MIN_INTERVAL_MS = 600;
 type SettingsPatch = Partial<
   Pick<
     SettingsRecord,
-    "enabled" | "defaultMode" | "encouragementEnabled" | "scoreShieldEnabled" | "syncEnabled"
+    | "enabled"
+    | "defaultMode"
+    | "encouragementEnabled"
+    | "scoreShieldEnabled"
+    | "clearPreviousHighlightsEnabled"
+    | "clearPreviousCrossOutsEnabled"
+    | "hideSectionResultMarksEnabled"
+    | "syncEnabled"
   >
 >;
 
@@ -87,6 +94,12 @@ export class StorageRepository {
         defaultMode: patch.defaultMode ?? current.defaultMode,
         encouragementEnabled: patch.encouragementEnabled ?? current.encouragementEnabled,
         scoreShieldEnabled: patch.scoreShieldEnabled ?? current.scoreShieldEnabled,
+        clearPreviousHighlightsEnabled:
+          patch.clearPreviousHighlightsEnabled ?? current.clearPreviousHighlightsEnabled,
+        clearPreviousCrossOutsEnabled:
+          patch.clearPreviousCrossOutsEnabled ?? current.clearPreviousCrossOutsEnabled,
+        hideSectionResultMarksEnabled:
+          patch.hideSectionResultMarksEnabled ?? current.hideSectionResultMarksEnabled,
         timerDisplayEnabled: false,
         syncEnabled: patch.syncEnabled ?? current.syncEnabled,
         updatedAt: nextTimestamp(current.updatedAt, this.now()),
@@ -568,7 +581,11 @@ export class StorageRepository {
 export function mergeLocalAndRemote(local: MKitStore, remote: DecodedSyncSnapshot): MKitStore {
   const merged = canonicalizeStore(local);
   if (remote.settings !== undefined) {
-    merged.settings = pickNewestRecord(merged.settings, remote.settings);
+    const localEnabled = merged.settings.enabled;
+    merged.settings = {
+      ...pickNewestRecord(merged.settings, remote.settings),
+      enabled: localEnabled,
+    };
   }
 
   merged.sessionTombstones = mergeByKey(

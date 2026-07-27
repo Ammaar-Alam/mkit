@@ -110,6 +110,34 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
   ).toBe(true);
 });
 
+test("notes are usable before reveal and persist without exposing review feedback", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const note = rail.locator("[data-focus-key='private-note']");
+  const copy = "Compare the limiting cases before choosing.";
+
+  await expect(note).toBeVisible();
+  await note.pressSequentially(copy);
+  await expect(note).toHaveValue(copy);
+  await expect.poll(() => page.evaluate(() => window.__mkitPrivacyHarness.savedNote())).toBe(copy);
+
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+  await expect(page.locator("#inline-feedback")).toBeHidden();
+  await expect(page.locator("#known-feedback")).toBeHidden();
+  await expect(page.locator(".multi-choice.correct")).toHaveCount(0);
+  await expectLiveFeedbackAbsent(page);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.restartController());
+  await host.locator("[data-focus-key='resume']").click();
+  await expect(rail.locator("[data-focus-key='private-note']")).toHaveValue(copy);
+});
+
 test("completed section review uses Fresh Attempt with truthful scope and native navigation", async ({
   page,
 }) => {
@@ -463,6 +491,42 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   const answerA = rail.locator("[data-focus-key='answer-A']");
   const eliminateA = rail.locator("[data-focus-key='eliminate-A']");
 
+  expect(
+    await rail.evaluate((element) => {
+      const answer = element.querySelector<HTMLElement>("[data-focus-key='answer-A']");
+      const eliminate = element.querySelector<HTMLElement>("[data-focus-key='eliminate-A']");
+      if (!answer || !eliminate) return null;
+      const answerBounds = answer.getBoundingClientRect();
+      const eliminateBounds = eliminate.getBoundingClientRect();
+      const answerStyle = getComputedStyle(answer);
+      return {
+        answerIsLarger: answerBounds.height > eliminateBounds.height,
+        answerMeetsTarget: answerBounds.height >= 52,
+        eliminateMeetsTarget: eliminateBounds.height >= 44,
+        stacked:
+          eliminateBounds.top >= answerBounds.bottom &&
+          eliminateBounds.top - answerBounds.bottom <= 8,
+        centerAligned:
+          Math.abs(
+            answerBounds.left +
+              answerBounds.width / 2 -
+              (eliminateBounds.left + eliminateBounds.width / 2),
+          ) < 1,
+        answerIsRound:
+          answerStyle.borderRadius === "50%" &&
+          Math.abs(answerBounds.width - answerBounds.height) < 1,
+      };
+    }),
+  ).toEqual({
+    answerIsLarger: true,
+    answerMeetsTarget: true,
+    eliminateMeetsTarget: true,
+    stacked: true,
+    centerAligned: true,
+    answerIsRound: true,
+  });
+  await expect(eliminateA.locator(".mkit-icon--slash")).toHaveCount(1);
+  await expect(eliminateA).toHaveAttribute("title", "Cross out choice A");
   await expect(check).toBeDisabled();
   await expect(check).toContainText("Check");
   const disabledCheck = await controlColors(check);
@@ -473,35 +537,52 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   await answerA.click();
   await expect(answerA).toHaveClass(/is-selected/);
   await expect(answerA).toHaveAttribute("aria-checked", "true");
-  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Selected");
-  expect(
-    await answerA.locator(".mkit-answer__state").evaluate((element) => ({
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    })),
-  ).toMatchObject({
-    clientWidth: expect.any(Number),
-    scrollWidth: expect.any(Number),
-  });
-  expect(
-    await answerA
-      .locator(".mkit-answer__state")
-      .evaluate((element) => element.scrollWidth <= element.clientWidth),
-  ).toBe(true);
+  await expect(answerA).toHaveAttribute("aria-label", "Choice A, selected");
+  await expect(answerA).toHaveText("A");
   await expect(check).toBeEnabled();
   const selectedVisual = await answerA.evaluate((element) => {
     const row = element.closest<HTMLElement>(".mkit-answer-row");
+    const letter = element.querySelector<HTMLElement>(".mkit-answer__letter");
     const style = getComputedStyle(element);
     const rowStyle = row ? getComputedStyle(row) : null;
+    const letterStyle = letter ? getComputedStyle(letter) : null;
     return {
       backgroundColor: style.backgroundColor,
       boxShadow: rowStyle?.boxShadow ?? "",
       color: style.color,
+      letterBorderTopWidth: letterStyle?.borderTopWidth ?? "",
+      answerBorderRadius: style.borderRadius,
     };
   });
   expect(selectedVisual.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(selectedVisual.backgroundColor).not.toBe(selectedVisual.color);
-  expect(selectedVisual.boxShadow).not.toBe("none");
+  expect(selectedVisual.boxShadow).toBe("none");
+  expect(selectedVisual.letterBorderTopWidth).toBe("0px");
+  expect(selectedVisual.answerBorderRadius).toBe("50%");
+
+  expect(
+    await rail.evaluate((element) => {
+      const confidence = element.querySelector<HTMLElement>(".mkit-segments");
+      const bookmark = element.querySelector<HTMLElement>("[data-focus-key='flag']");
+      const confidenceStyle = confidence ? getComputedStyle(confidence) : null;
+      const bookmarkStyle = bookmark ? getComputedStyle(bookmark) : null;
+      return {
+        bookmarkBorderRadius: bookmarkStyle?.borderRadius ?? "",
+        bookmarkBorderTopWidth: bookmarkStyle?.borderTopWidth ?? "",
+        confidenceBorderRadius: confidenceStyle?.borderRadius ?? "",
+        confidenceBorderTopWidth: confidenceStyle?.borderTopWidth ?? "",
+        markBackgroundImage: getComputedStyle(
+          element.querySelector<HTMLElement>(".mkit-folio__mark") ?? element,
+        ).backgroundImage,
+      };
+    }),
+  ).toEqual({
+    bookmarkBorderRadius: "0px",
+    bookmarkBorderTopWidth: "0px",
+    confidenceBorderRadius: "0px",
+    confidenceBorderTopWidth: "0px",
+    markBackgroundImage: 'url("http://127.0.0.1:4173/icons/icon-48.png")',
+  });
 
   const enabledCheck = await controlColors(check);
   expect(enabledCheck.color).not.toBe(enabledCheck.backgroundColor);
@@ -512,7 +593,7 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   await answerA.click();
   await expect(answerA).not.toHaveClass(/is-selected/);
   await expect(answerA).toHaveAttribute("aria-checked", "false");
-  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Choose");
+  await expect(answerA).toHaveAttribute("aria-label", "Choice A");
   await expect(check).toBeDisabled();
 
   await answerA.click();
@@ -524,14 +605,17 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   await expect(answerA).toHaveClass(/is-eliminated/);
   await expect(answerA).toHaveAttribute("aria-checked", "false");
   await expect(answerA).toHaveAttribute("aria-disabled", "true");
-  await expect(answerA.locator(".mkit-answer__state")).toBeEmpty();
+  await expect(answerA).toHaveAttribute("aria-label", "Choice A, eliminated");
   await expect(rail).not.toContainText("Eliminated");
+  await expect(rail).not.toContainText("Choose");
+  await expect(rail).not.toContainText("Selected");
   await expect(answerA.locator(".mkit-answer__letter")).toHaveCSS(
     "text-decoration-line",
     "line-through",
   );
   await expect(eliminateA).toHaveAttribute("aria-pressed", "true");
   await expect(eliminateA).toHaveAttribute("aria-label", "Restore choice A");
+  await expect(eliminateA).toHaveAttribute("title", "Restore choice A");
   await expect(check).toBeDisabled();
   const eliminatedVisual = await answerA.evaluate((element) => {
     const row = element.closest<HTMLElement>(".mkit-answer-row");
@@ -549,7 +633,7 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   await eliminateA.click();
   await expect(answerA).toBeEnabled();
   await expect(answerA).not.toHaveClass(/is-eliminated/);
-  await expect(answerA.locator(".mkit-answer__state")).toHaveText("Choose");
+  await expect(answerA).toHaveAttribute("aria-label", "Choice A");
   await expect(eliminateA).toHaveAttribute("aria-pressed", "false");
 
   await rail.locator("[data-focus-key='eliminate-B']").click();
@@ -557,6 +641,61 @@ test("Practice rail distinguishes selection, elimination, and primary action sta
   await answerA.press("ArrowRight");
   await expect(rail.locator("[data-focus-key='answer-C']")).toHaveAttribute("aria-checked", "true");
   await expect(rail.locator("[data-focus-key='answer-B']")).toBeDisabled();
+});
+
+test("Practice rail makes reflection controls quiet at rest and clear when selected", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const confidence = rail.locator("[data-focus-key='confidence-unsure']");
+  const bookmark = rail.locator("[data-focus-key='flag']");
+  const reviewAgain = rail.locator("[data-focus-key='review-again']");
+  const tag = rail.locator("[data-focus-key='tag-content gap']");
+  const note = rail.locator("[data-focus-key='private-note']");
+
+  expect(
+    await rail.evaluate((element) => {
+      const tags = element.querySelector(".mkit-tags");
+      const note = element.querySelector("[data-focus-key='private-note']");
+      return Boolean(
+        tags && note && tags.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }),
+  ).toBe(true);
+
+  const confidenceRest = await controlStateColors(confidence);
+  const confidenceMarkerRest = await controlMarkerColors(confidence);
+  await confidence.click();
+  await expect(confidence).toHaveAttribute("aria-checked", "true");
+  await expect(confidence).toHaveClass(/is-selected/);
+  const confidenceSelected = await controlStateColors(confidence);
+  expect(confidenceSelected.backgroundColor).toBe(confidenceRest.backgroundColor);
+  expect(confidenceSelected.color).not.toBe(confidenceRest.color);
+  expect(await controlMarkerColors(confidence)).not.toEqual(confidenceMarkerRest);
+
+  for (const control of [bookmark, reviewAgain]) {
+    const rest = await controlStateColors(control);
+    await control.click();
+    await expect(control).toHaveAttribute("aria-pressed", "true");
+    await expect(control).toHaveClass(/is-active/);
+    await expect(control).toContainText("On");
+    expect(await controlStateColors(control)).not.toEqual(rest);
+  }
+
+  const tagRest = await controlStateColors(tag);
+  const tagMarkerRest = await controlMarkerColors(tag);
+  await tag.click();
+  await expect(tag).toHaveAttribute("aria-pressed", "true");
+  await expect(tag).toHaveClass(/is-selected/);
+  const tagSelected = await controlStateColors(tag);
+  expect(tagSelected.backgroundColor).toBe(tagRest.backgroundColor);
+  expect(tagSelected.borderBottomColor).not.toBe(tagRest.borderBottomColor);
+  expect(await controlMarkerColors(tag)).not.toEqual(tagMarkerRest);
+  await expect(note).toBeVisible();
 });
 
 test("Resume and Check share a readable primary treatment at rest", async ({ page }) => {
@@ -658,6 +797,22 @@ test("Practice rail minimizes accessibly without moving the page or viewport bou
   await expect(toggle).toHaveAttribute("aria-label", "Expand Fresh Attempt rail");
   await expect(toggle.locator(".mkit-icon--plus-minus path").nth(1)).toHaveCSS("opacity", "1");
   await expect(content).toBeHidden();
+  expect(
+    await rail.evaluate((element) => {
+      const header = element.querySelector<HTMLElement>(".mkit-folio");
+      const mark = element.querySelector<HTMLElement>(".mkit-folio__mark");
+      if (!header || !mark) return null;
+      const headerBounds = header.getBoundingClientRect();
+      const markBounds = mark.getBoundingClientRect();
+      const bottomInset = headerBounds.bottom - markBounds.bottom;
+      const topInset = markBounds.top - headerBounds.top;
+      return {
+        balanced: Math.abs(bottomInset - topInset) <= 1,
+        bottomHasRoom: bottomInset >= 12,
+        topHasRoom: topInset >= 12,
+      };
+    }),
+  ).toEqual({ balanced: true, bottomHasRoom: true, topHasRoom: true });
   expect(Math.abs((await page.evaluate(() => scrollY)) - initialScroll)).toBeLessThanOrEqual(1);
   expect(await host.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
 
@@ -912,6 +1067,18 @@ test("unsupported layouts stay covered and Normal review restores native state",
 
   await page.evaluate(() => window.__mkitPrivacyHarness.normalReview());
   await expect(page.locator("#exam-review-shell")).toBeVisible();
+  await expect(page.locator("[data-mkit-host]")).toBeHidden();
+  expect(
+    await page.locator("[data-mkit-host]").evaluate((host) => {
+      const style = getComputedStyle(host);
+      return {
+        display: style.display,
+        pointerEvents: style.pointerEvents,
+      };
+    }),
+  ).toEqual({ display: "none", pointerEvents: "none" });
+  await page.locator("#native-next").click();
+  expect(await page.evaluate(() => window.__nativeEvents.next)).toBe(1);
   expect(await snapshotNativeState(page)).toEqual(unsupportedNativeState);
 });
 
@@ -1221,6 +1388,34 @@ async function expectLiveFeedbackAbsent(page: import("@playwright/test").Page): 
   for (const sentinel of LIVE_FEEDBACK_SPOILERS) {
     expect(pdf.includes(Buffer.from(sentinel))).toBe(false);
   }
+}
+
+async function controlStateColors(locator: import("@playwright/test").Locator): Promise<{
+  backgroundColor: string;
+  borderBottomColor: string;
+  color: string;
+}> {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderBottomColor: style.borderBottomColor,
+      color: style.color,
+    };
+  });
+}
+
+async function controlMarkerColors(locator: import("@playwright/test").Locator): Promise<{
+  backgroundColor: string;
+  borderTopColor: string;
+}> {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element, "::before");
+    return {
+      backgroundColor: style.backgroundColor,
+      borderTopColor: style.borderTopColor,
+    };
+  });
 }
 
 async function controlColors(locator: import("@playwright/test").Locator): Promise<{

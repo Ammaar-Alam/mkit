@@ -5,8 +5,11 @@ import { ReviewController } from "../../src/core/review-controller";
 import { type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface RouteGuardHarness {
+  armGateMutationOnPointerDown(): void;
   dispose(): void;
-  status(): { attached: boolean; issues: string[]; route: string };
+  setEnabled(enabled: boolean): void;
+  setHideSectionResultMarksEnabled(enabled: boolean): void;
+  status(): { issues: string[]; route: string; state: string };
   restoreCompletedReviewCapability(): {
     footerDisplay: string;
     hostConnected: boolean;
@@ -54,11 +57,13 @@ const searchParams = new URL(location.href).searchParams;
 const bootstrapFailure = searchParams.has("bootstrap-fail");
 const controllerFailure = searchParams.has("controller-fail");
 const disconnectedPreflight = searchParams.has("disconnected-preflight");
-const initialHash = searchParams.has("section")
-  ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
-  : searchParams.has("answer")
-    ? "#exams/answers/synthetic-exam/synthetic-question"
-    : "#exams";
+const initialHash = searchParams.has("section-overview")
+  ? "#exams/details/exam_section/synthetic-section"
+  : searchParams.has("section")
+    ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
+    : searchParams.has("answer")
+      ? "#exams/answers/synthetic-exam/synthetic-question"
+      : "#exams";
 let route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${initialHash}`);
 const repository = new StorageRepository({ local: new MemoryStorageArea() });
 const lifecycle = startContentLifecycle({
@@ -87,7 +92,19 @@ const lifecycle = startContentLifecycle({
 });
 
 window.__mkitRouteGuardHarness = {
+  armGateMutationOnPointerDown: () => {
+    document.addEventListener(
+      "pointerdown",
+      () => {
+        document.querySelector("#main-footer")?.classList.toggle("synthetic-live-mutation");
+      },
+      { capture: true, once: true },
+    );
+  },
   dispose: () => lifecycle.dispose(),
+  setEnabled: (enabled) => lifecycle.setEnabled(enabled),
+  setHideSectionResultMarksEnabled: (enabled) =>
+    lifecycle.setHideSectionResultMarksEnabled(enabled),
   status: () => lifecycle.status(),
   restoreCompletedReviewCapability: () => {
     const reviewControl = document.querySelector(".review-answer");

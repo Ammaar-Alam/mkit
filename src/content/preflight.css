@@ -8,13 +8,14 @@ html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   user-select: none !important;
 }
 
-/* The section overview paints its correctness cue with a ::before selected by the
-   row's state class. With that class removed the cell would be blank, so a
-   neutral mark keeps the column aligned and readable. */
+/* Keep the result column aligned without preserving either outcome. */
 [data-mkit-outcome-hidden]::before {
-  content: "\00B7" !important;
-  color: oklch(43% 0.022 65) !important;
-  font-weight: 700 !important;
+  content: "" !important;
+  display: inline-grid !important;
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  place-items: center !important;
+  background: transparent url("__MKIT_RESULT_MARK_URL__") center / contain no-repeat !important;
 }
 
 html[data-mkit-protection="masked"]
@@ -43,6 +44,11 @@ html[data-mkit-protection="masked"]
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
+}
+
+[data-mkit-host][hidden] {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 html[data-mkit-protection="masked"] [data-mkit-host][data-mkit-placement="rail"] {

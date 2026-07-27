@@ -74,16 +74,11 @@ select {
 }
 
 .folio-mark {
-  display: inline-grid;
+  display: block;
   width: 2.5rem;
   height: 2.5rem;
-  place-items: center;
-  background: var(--ink);
-  color: var(--paper-raised);
-  font-family: var(--font-heading);
-  font-size: 1.15rem;
-  font-weight: 650;
-  clip-path: polygon(0 0, 100% 0, 100% 78%, 76% 100%, 0 100%);
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .eyebrow {

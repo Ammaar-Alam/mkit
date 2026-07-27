@@ -16,17 +16,28 @@ interface SanitizedStyleSnapshot {
   masked: string | null;
 }
 
+interface TextSnapshot {
+  authored: string;
+  masked: string;
+}
+
 export class ReversibleDomMask {
   readonly #hiddenByGroup = new Map<string, Map<Element, ElementSnapshot>>();
   readonly #attributesByGroup = new Map<string, Map<Element, Map<string, AttributeSnapshot>>>();
   readonly #classesByGroup = new Map<string, Map<Element, Set<string>>>();
   readonly #stylesByGroup = new Map<string, Map<HTMLElement, string | null>>();
   readonly #sanitizedStylesByGroup = new Map<string, Map<HTMLElement, SanitizedStyleSnapshot>>();
+  readonly #textByGroup = new Map<string, Map<Element, TextSnapshot>>();
   readonly #originalClassAttributes = new WeakMap<Element, string | null>();
 
   hide(elements: Iterable<Element>, group: string): void {
     const snapshots = getOrCreate(this.#hiddenByGroup, group, () => new Map());
+    const selections = new Set<Selection>();
     for (const element of elements) {
+      const selection = element.ownerDocument.defaultView?.getSelection();
+      if (selection && selectionIntersects(selection, element)) {
+        selections.add(selection);
+      }
       if (!snapshots.has(element)) {
         snapshots.set(element, {
           hidden: element instanceof HTMLElement ? element.hidden : null,
@@ -57,9 +68,9 @@ export class ReversibleDomMask {
       }
       element.setAttribute("aria-hidden", "true");
       element.setAttribute("tabindex", "-1");
-      if (element.contains(document.activeElement)) {
-        window.getSelection()?.removeAllRanges();
-      }
+    }
+    for (const selection of selections) {
+      selection.removeAllRanges();
     }
   }
 
@@ -168,6 +179,21 @@ export class ReversibleDomMask {
     }
   }
 
+  replaceText(elements: Iterable<Element>, replacement: string, group: string): void {
+    const snapshots = getOrCreate(this.#textByGroup, group, () => new Map());
+    for (const element of elements) {
+      const current = element.textContent ?? "";
+      const existing = snapshots.get(element);
+      const snapshot = existing ?? { authored: current, masked: replacement };
+      if (existing && current !== existing.masked) {
+        snapshot.authored = current;
+      }
+      element.textContent = replacement;
+      snapshot.masked = replacement;
+      snapshots.set(element, snapshot);
+    }
+  }
+
   restoreGroup(group: string): void {
     for (const [element, snapshot] of this.#hiddenByGroup.get(group) ?? []) {
       if (!snapshot.hadMarker) {
@@ -208,6 +234,11 @@ export class ReversibleDomMask {
       restoreAttribute(element, "style", snapshot.authored);
     }
     this.#sanitizedStylesByGroup.delete(group);
+
+    for (const [element, snapshot] of this.#textByGroup.get(group) ?? []) {
+      element.textContent = snapshot.authored;
+    }
+    this.#textByGroup.delete(group);
   }
 
   restoreAll(): void {
@@ -217,6 +248,7 @@ export class ReversibleDomMask {
       ...this.#classesByGroup.keys(),
       ...this.#stylesByGroup.keys(),
       ...this.#sanitizedStylesByGroup.keys(),
+      ...this.#textByGroup.keys(),
     ]);
     for (const group of groups) {
       this.restoreGroup(group);
@@ -264,4 +296,17 @@ function restoreAttribute(element: Element, name: string, value: string | null):
   } else {
     element.setAttribute(name, value);
   }
+}
+
+function selectionIntersects(selection: Selection, element: Element): boolean {
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    try {
+      if (selection.getRangeAt(index).intersectsNode(element)) {
+        return true;
+      }
+    } catch {
+      // A detached or cross-document range cannot expose this concealed element.
+    }
+  }
+  return false;
 }

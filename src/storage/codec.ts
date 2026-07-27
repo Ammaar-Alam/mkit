@@ -26,6 +26,9 @@ export const DEFAULT_SETTINGS: SettingsRecord = {
   defaultMode: "practice",
   encouragementEnabled: true,
   scoreShieldEnabled: true,
+  clearPreviousHighlightsEnabled: true,
+  clearPreviousCrossOutsEnabled: true,
+  hideSectionResultMarksEnabled: true,
   timerDisplayEnabled: false,
   syncEnabled: false,
   updatedAt: 0,
@@ -60,6 +63,12 @@ export function decodeSettings(value: unknown): SettingsRecord | undefined {
     (value.defaultMode !== "practice" && value.defaultMode !== "test") ||
     typeof value.encouragementEnabled !== "boolean" ||
     typeof value.scoreShieldEnabled !== "boolean" ||
+    (value.clearPreviousHighlightsEnabled !== undefined &&
+      typeof value.clearPreviousHighlightsEnabled !== "boolean") ||
+    (value.clearPreviousCrossOutsEnabled !== undefined &&
+      typeof value.clearPreviousCrossOutsEnabled !== "boolean") ||
+    (value.hideSectionResultMarksEnabled !== undefined &&
+      typeof value.hideSectionResultMarksEnabled !== "boolean") ||
     value.timerDisplayEnabled !== false ||
     typeof value.syncEnabled !== "boolean" ||
     (value.aiHandoffTarget !== undefined && !isAiHandoffTarget(value.aiHandoffTarget)) ||
@@ -73,6 +82,9 @@ export function decodeSettings(value: unknown): SettingsRecord | undefined {
     defaultMode: value.defaultMode,
     encouragementEnabled: value.encouragementEnabled,
     scoreShieldEnabled: value.scoreShieldEnabled,
+    clearPreviousHighlightsEnabled: value.clearPreviousHighlightsEnabled ?? true,
+    clearPreviousCrossOutsEnabled: value.clearPreviousCrossOutsEnabled ?? true,
+    hideSectionResultMarksEnabled: value.hideSectionResultMarksEnabled ?? true,
     timerDisplayEnabled: false,
     syncEnabled: value.syncEnabled,
     updatedAt: value.updatedAt,
@@ -103,6 +115,18 @@ export function migrateLegacySettings(value: unknown, now: number): SettingsReco
     defaultMode: value.defaultMode,
     encouragementEnabled: value.encouragementEnabled,
     scoreShieldEnabled: value.scoreShieldEnabled,
+    clearPreviousHighlightsEnabled:
+      typeof value.clearPreviousHighlightsEnabled === "boolean"
+        ? value.clearPreviousHighlightsEnabled
+        : true,
+    clearPreviousCrossOutsEnabled:
+      typeof value.clearPreviousCrossOutsEnabled === "boolean"
+        ? value.clearPreviousCrossOutsEnabled
+        : true,
+    hideSectionResultMarksEnabled:
+      typeof value.hideSectionResultMarksEnabled === "boolean"
+        ? value.hideSectionResultMarksEnabled
+        : true,
     timerDisplayEnabled: false,
     syncEnabled: value.syncEnabled,
     updatedAt: isTimestamp(value.updatedAt) ? value.updatedAt : now,

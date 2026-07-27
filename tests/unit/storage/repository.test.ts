@@ -12,6 +12,25 @@ import { deferred, FakeStorageArea } from "./fake-storage";
 import { makeAttempt, makeSession, makeStore } from "./fixtures";
 
 describe("local-first storage repository", () => {
+  it("persists all review concealment preferences independently", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: () => 10,
+    });
+
+    await repository.writeSettings({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+      hideSectionResultMarksEnabled: false,
+    });
+
+    await expect(repository.getSettings()).resolves.toMatchObject({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+      hideSectionResultMarksEnabled: false,
+    });
+  });
+
   it("awaits the local write before starting nonblocking sync", async () => {
     const events: string[] = [];
     const local = new FakeStorageArea("local", {}, events);
@@ -202,6 +221,32 @@ describe("local-first storage repository", () => {
 });
 
 describe("updatedAt merge and tombstones", () => {
+  it("keeps enabled browser-local while merging newer synced preferences", () => {
+    const local = makeStore();
+    local.settings = {
+      ...local.settings,
+      enabled: false,
+      clearPreviousHighlightsEnabled: true,
+      updatedAt: 10,
+    };
+    const remoteStore = makeStore();
+    remoteStore.settings = {
+      ...remoteStore.settings,
+      enabled: true,
+      clearPreviousHighlightsEnabled: false,
+      updatedAt: 20,
+    };
+
+    const merged = mergeLocalAndRemote(
+      local,
+      decodeSyncSnapshot(buildSyncSnapshot(remoteStore).items),
+    );
+
+    expect(merged.settings.enabled).toBe(false);
+    expect(merged.settings.clearPreviousHighlightsEnabled).toBe(false);
+    expect(merged.settings.updatedAt).toBe(20);
+  });
+
   it("takes newer records in both directions", () => {
     const localNewer = makeStore();
     localNewer.sessions = [makeSession({ updatedAt: 20, status: "archived" })];

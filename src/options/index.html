@@ -9,7 +9,14 @@
   <body>
     <header class="options-masthead">
       <a href="../popup/index.html" class="brand">
-        <span class="folio-mark" aria-hidden="true">M</span>
+        <img
+          class="folio-mark"
+          src="../icons/icon-48.png"
+          width="40"
+          height="40"
+          alt=""
+          aria-hidden="true"
+        >
         <span>
           <span class="eyebrow">The MCAT Kit</span>
           <strong>MKit settings</strong>
@@ -19,17 +26,46 @@
     </header>
 
     <main class="options-shell">
-      <section aria-labelledby="review-protection-heading">
+      <section id="mkit-control" class="master-setting" aria-labelledby="mkit-heading">
         <div class="section-heading">
           <span class="folio-number" aria-hidden="true">01</span>
-          <h1 id="review-protection-heading">Review protection</h1>
+          <h1 id="mkit-heading">MKit</h1>
+        </div>
+        <label class="switch-row master-switch-row">
+          <span class="switch-copy">
+            <strong>Use MKit on supported reviews</strong>
+            <span>Turn off to leave review pages unchanged.</span>
+            <span id="mkit-state" class="switch-state">On</span>
+          </span>
+          <input id="mkit-enabled" class="switch" type="checkbox">
+        </label>
+      </section>
+
+      <section aria-labelledby="review-protection-heading">
+        <div class="section-heading">
+          <span class="folio-number" aria-hidden="true">02</span>
+          <h2 id="review-protection-heading">Review protection</h2>
         </div>
         <label class="switch-row">
           <span class="switch-copy">
-            <strong>Protect completed reviews</strong>
-            <span>Hide prior answers and results until you choose Normal review.</span>
+            <strong>Hide section result marks</strong>
+            <span>Hide correct and incorrect marks in section review lists.</span>
           </span>
-          <input id="protect-reviews" class="switch" type="checkbox">
+          <input id="hide-section-result-marks" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Clear previous highlights</strong>
+            <span>Remove highlights from your previous attempt.</span>
+          </span>
+          <input id="clear-previous-highlights" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Clear previous cross-outs</strong>
+            <span>Remove crossed-out choices from your previous attempt.</span>
+          </span>
+          <input id="clear-previous-cross-outs" class="switch" type="checkbox">
         </label>
         <label class="switch-row">
           <span class="switch-copy">
@@ -42,7 +78,7 @@
 
       <section aria-labelledby="fresh-attempt-heading">
         <div class="section-heading">
-          <span class="folio-number" aria-hidden="true">02</span>
+          <span class="folio-number" aria-hidden="true">03</span>
           <h2 id="fresh-attempt-heading">Fresh Attempt</h2>
         </div>
         <fieldset>
@@ -61,7 +97,7 @@
 
       <section aria-labelledby="sync-heading">
         <div class="section-heading">
-          <span class="folio-number" aria-hidden="true">03</span>
+          <span class="folio-number" aria-hidden="true">04</span>
           <h2 id="sync-heading">Browser sync</h2>
         </div>
         <label class="switch-row">
@@ -75,7 +111,7 @@
 
       <section aria-labelledby="about-heading">
         <div class="section-heading">
-          <span class="folio-number" aria-hidden="true">04</span>
+          <span class="folio-number" aria-hidden="true">05</span>
           <h2 id="about-heading">About</h2>
         </div>
         <p>MKit saves your study progress in your browser. It has no analytics.</p>
@@ -89,7 +125,7 @@
 
       <section aria-labelledby="diagnostics-heading">
         <div class="section-heading">
-          <span class="folio-number" aria-hidden="true">05</span>
+          <span class="folio-number" aria-hidden="true">06</span>
           <h2 id="diagnostics-heading">Diagnostics</h2>
         </div>
         <p>Recent compatibility checks stay on this device and contain no page text.</p>

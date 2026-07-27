@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   AdapterEvent,
   CapabilityReport,
+  CleanSlatePreferences,
   FullLengthReviewAdapter,
   SanitizedQuestionContext,
 } from "../../../src/adapter/contracts";
@@ -52,6 +53,10 @@ describe("ReviewController generation safety", () => {
     q1.resolve(context("question-q1"));
     await firstReconcile;
 
+    expect(adapter.cleanSlatePreferences).toEqual({
+      clearPreviousHighlightsEnabled: true,
+      clearPreviousCrossOutsEnabled: true,
+    });
     const practice = preflight.shadow.querySelector<HTMLButtonElement>(
       "[data-focus-key='practice']",
     );
@@ -70,11 +75,89 @@ describe("ReviewController generation safety", () => {
 
     controller.dispose();
   });
+
+  it("keeps the mounted rail anchor stable through answer save rerenders", async () => {
+    const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+        "297px",
+      );
+    });
+
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[0]?.selection).toBe("A");
+    });
+
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+      "297px",
+    );
+    expect(adapter.anchorRequests).toBe(1);
+
+    controller.dispose();
+  });
+
+  it("persists the latest note draft without redrawing the textarea per keystroke", async () => {
+    const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(
+        preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']"),
+      ).not.toBeNull();
+    });
+    const note = preflight.shadow.querySelector<HTMLTextAreaElement>(
+      "[data-focus-key='private-note']",
+    );
+    if (!note) throw new Error("Study Rail note editor was not rendered.");
+
+    for (const draft of ["C", "Compare", "Compare the limiting cases."]) {
+      note.value = draft;
+      note.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(
+        preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']"),
+      ).toBe(note);
+    }
+
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[0]?.note).toBe("Compare the limiting cases.");
+    });
+    expect(note.isConnected).toBe(true);
+    controller.dispose();
+  });
 });
 
 class ControlledAdapter implements FullLengthReviewAdapter {
+  anchorRequests = 0;
   contextRequests = 0;
   studyRailMounts = 0;
+  cleanSlatePreferences: CleanSlatePreferences | null = null;
   readonly #contexts: Array<Promise<SanitizedQuestionContext | null>>;
 
   constructor(contexts: Array<Promise<SanitizedQuestionContext | null>>) {
@@ -88,6 +171,13 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     const request = this.#contexts[this.contextRequests];
     this.contextRequests += 1;
     return request ?? null;
+  };
+  configureCleanSlate = (preferences: CleanSlatePreferences) => {
+    this.cleanSlatePreferences = preferences;
+  };
+  getStudyRailAnchor = () => {
+    this.anchorRequests += 1;
+    return this.anchorRequests === 1 ? { top: 297, right: 16 } : { top: 16, right: 16 };
   };
   applyCleanSlate = () => SAFE_REVIEW_REPORT;
   applyScoreShield = () => SAFE_REVIEW_REPORT;

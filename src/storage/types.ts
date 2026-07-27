@@ -15,6 +15,9 @@ export interface SettingsRecord {
   defaultMode: FreshAttemptMode;
   encouragementEnabled: boolean;
   scoreShieldEnabled: boolean;
+  clearPreviousHighlightsEnabled: boolean;
+  clearPreviousCrossOutsEnabled: boolean;
+  hideSectionResultMarksEnabled: boolean;
   timerDisplayEnabled: false;
   syncEnabled: boolean;
   aiHandoffTarget?: AiHandoffTarget;

@@ -14,6 +14,8 @@ import type { MKitViewHandle, StudyRailProps } from "./types";
 const ANSWERS: readonly AnswerSelection[] = ["A", "B", "C", "D"];
 const CONFIDENCE: readonly Confidence[] = ["guessing", "unsure", "confident"];
 const TAGS: readonly AttemptTag[] = ["content gap", "reasoning", "misread", "timing"];
+const VIEWPORT_MARGIN = 16;
+const FALLBACK_ANCHOR = { top: VIEWPORT_MARGIN, right: VIEWPORT_MARGIN } as const;
 
 export function mountStudyRail(
   target: HTMLElement | ShadowRoot,
@@ -22,19 +24,17 @@ export function mountStudyRail(
   const headingId = nextId("rail-heading");
   const answersId = nextId("answers");
   const noteId = nextId("note");
-  const reflectionId = nextId("reflection");
   const contentId = nextId("rail-content");
   let previousStage: StudyRailProps["stage"] | undefined;
   let previousFinishConfirmation = false;
   let minimized = false;
   const placement = createRailPlacement();
 
-  return mountView(target, "mkit-surface mkit-study-rail", props, (root, next) => {
+  const view = mountView(target, "mkit-surface mkit-study-rail", props, (root, next) => {
     root.replaceChildren();
     root.classList.toggle("is-minimized", minimized);
     root.setAttribute("role", "region");
     root.setAttribute("aria-labelledby", headingId);
-    placement.attach(root);
 
     const modeLabel = next.mode === "practice" ? "Practice" : "Test";
     const content = element("div", {
@@ -44,6 +44,7 @@ export function mountStudyRail(
         "aria-hidden": minimized ? "true" : undefined,
       },
     });
+    const scroller = element("div", { className: "mkit-study-rail__scroller" });
     content.inert = minimized;
     root.append(
       folioHeader(
@@ -66,7 +67,7 @@ export function mountStudyRail(
         ),
       ),
     );
-    content.append(
+    scroller.append(
       progress(next),
       answerControls(next),
       confidenceControls(next),
@@ -78,16 +79,10 @@ export function mountStudyRail(
       next.stage === "practice-revealed" ||
       next.stage === "original-revealed" ||
       next.stage === "test-finished";
-    if (feedbackVisible && next.outcome) content.append(outcome(next.outcome));
-
-    if (next.mode === "practice") {
-      content.append(practiceActions(next, answersId, reflectionId));
-    } else {
-      content.append(testActions(next, answersId, reflectionId));
-    }
+    if (feedbackVisible && next.outcome) scroller.append(outcome(next.outcome));
 
     if (next.answersRevealed) {
-      content.append(
+      scroller.append(
         element("p", {
           className: "mkit-reveal-status",
           text: "Answers shown in the review.",
@@ -96,12 +91,10 @@ export function mountStudyRail(
       );
     }
 
-    if (next.stage === "original-revealed") {
-      content.append(reflectionEditor(next, noteId, reflectionId));
-    }
+    scroller.append(reflectionEditor(next, noteId));
 
     if (next.encouragement) {
-      content.append(
+      scroller.append(
         element("p", {
           className: "mkit-encouragement",
           text: encouragementCopy(next.encouragement),
@@ -110,12 +103,16 @@ export function mountStudyRail(
     }
 
     if (next.canNavigatePrevious || next.canNavigateNext) {
-      content.append(navigation(next));
+      scroller.append(navigation(next));
     }
-    if (next.saveState !== "idle") {
-      content.append(saveStatus(next.saveState));
+    if (next.saveState === "saving" || next.saveState === "error") {
+      scroller.append(saveStatus(next.saveState));
     }
+    const actions =
+      next.mode === "practice" ? practiceActions(next, answersId) : testActions(next, answersId);
+    content.append(scroller, element("div", { className: "mkit-study-rail__dock" }, actions));
     root.append(content);
+    placement.attach(root, next.anchor);
     if (previousStage !== next.stage) {
       if (next.stage === "original-revealed") {
         scheduleFocus(root.querySelector<HTMLElement>("[data-focus-key='private-note']"));
@@ -130,10 +127,19 @@ export function mountStudyRail(
     previousStage = next.stage;
     previousFinishConfirmation = next.finishConfirmationOpen ?? false;
   });
+
+  return {
+    ...view,
+    destroy(): void {
+      placement.destroy();
+      view.destroy();
+    },
+  };
 }
 
 interface RailPlacement {
-  attach(root: HTMLElement): void;
+  attach(root: HTMLElement, anchor: StudyRailProps["anchor"]): void;
+  destroy(): void;
   handle(root: HTMLElement): HTMLElement;
 }
 
@@ -147,25 +153,42 @@ interface RailPlacement {
 function createRailPlacement(): RailPlacement {
   let offset: { top: number; left: number } | null = null;
   let target: HTMLElement | null = null;
+  let anchor: StudyRailProps["anchor"] = FALLBACK_ANCHOR;
 
   const apply = (): void => {
     if (!target) return;
     if (!offset) {
-      target.style.removeProperty("top");
+      const anchored = clampAnchor(anchor, target);
+      target.style.top = `${anchored.top}px`;
       target.style.removeProperty("left");
+      target.style.right = `${anchored.right}px`;
+      target.style.maxHeight = `${availableHeight(anchored.top)}px`;
       target.classList.remove("is-moved");
       return;
     }
+
     const rect = target.getBoundingClientRect();
-    const maxLeft = Math.max(0, window.innerWidth - rect.width);
-    const maxTop = Math.max(0, window.innerHeight - rect.height);
+    const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.width - VIEWPORT_MARGIN);
+    const preliminaryTop = clamp(
+      offset.top,
+      VIEWPORT_MARGIN,
+      Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN),
+    );
+    target.style.maxHeight = `${availableHeight(preliminaryTop)}px`;
+    const fittedRect = target.getBoundingClientRect();
+    const maxTop = Math.max(
+      VIEWPORT_MARGIN,
+      window.innerHeight - fittedRect.height - VIEWPORT_MARGIN,
+    );
     offset = {
-      left: Math.min(Math.max(0, offset.left), maxLeft),
-      top: Math.min(Math.max(0, offset.top), maxTop),
+      left: clamp(offset.left, VIEWPORT_MARGIN, maxLeft),
+      top: clamp(preliminaryTop, VIEWPORT_MARGIN, maxTop),
     };
     target.classList.add("is-moved");
     target.style.top = `${offset.top}px`;
     target.style.left = `${offset.left}px`;
+    target.style.removeProperty("right");
+    target.style.maxHeight = `${availableHeight(offset.top)}px`;
   };
 
   const moveBy = (deltaX: number, deltaY: number): void => {
@@ -179,9 +202,14 @@ function createRailPlacement(): RailPlacement {
   window.addEventListener("resize", apply);
 
   return {
-    attach(root: HTMLElement): void {
+    attach(root: HTMLElement, nextAnchor: StudyRailProps["anchor"]): void {
       target = root;
+      anchor = sanitizeAnchor(nextAnchor);
       apply();
+    },
+    destroy(): void {
+      window.removeEventListener("resize", apply);
+      target = null;
     },
     handle(root: HTMLElement): HTMLElement {
       const grip = element("span", {
@@ -244,6 +272,39 @@ function createRailPlacement(): RailPlacement {
       return grip;
     },
   };
+}
+
+function sanitizeAnchor(anchor: StudyRailProps["anchor"]): StudyRailProps["anchor"] {
+  return {
+    top: Number.isFinite(anchor.top) ? anchor.top : FALLBACK_ANCHOR.top,
+    right: Number.isFinite(anchor.right) ? anchor.right : FALLBACK_ANCHOR.right,
+  };
+}
+
+function clampAnchor(
+  anchor: StudyRailProps["anchor"],
+  target: HTMLElement,
+): StudyRailProps["anchor"] {
+  const top = clamp(
+    anchor.top,
+    VIEWPORT_MARGIN,
+    Math.max(VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN),
+  );
+  target.style.maxHeight = `${availableHeight(top)}px`;
+  const width = target.getBoundingClientRect().width;
+  const maxRight = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN);
+  return {
+    top,
+    right: clamp(anchor.right, VIEWPORT_MARGIN, maxRight),
+  };
+}
+
+function availableHeight(top: number): number {
+  return Math.max(0, window.innerHeight - top - VIEWPORT_MARGIN);
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
 }
 
 function railToggle(
@@ -338,16 +399,16 @@ function answerControls(props: StudyRailProps): HTMLElement {
           role: "radio",
           "aria-checked": String(selected),
           "aria-disabled": eliminated ? "true" : undefined,
-          "aria-label": eliminated ? `Choice ${choice}, eliminated` : undefined,
+          "aria-label": eliminated
+            ? `Choice ${choice}, eliminated`
+            : selected
+              ? `Choice ${choice}, selected`
+              : `Choice ${choice}`,
           disabled: eliminated,
           "data-focus-key": `answer-${choice}`,
         },
       },
       element("span", { className: "mkit-answer__letter", text: choice }),
-      element("span", {
-        className: "mkit-answer__state",
-        text: eliminated ? "" : selected ? "Selected" : "Choose",
-      }),
     );
     answer.addEventListener("click", () => props.onSelect(choice));
     answer.addEventListener("keydown", (event) => moveWithinAnswers(event, choice, props));
@@ -360,11 +421,11 @@ function answerControls(props: StudyRailProps): HTMLElement {
           type: "button",
           "aria-pressed": String(eliminated),
           "aria-label": `${eliminated ? "Restore" : "Eliminate"} choice ${choice}`,
+          title: `${eliminated ? "Restore" : "Cross out"} choice ${choice}`,
           "data-focus-key": `eliminate-${choice}`,
         },
       },
       icon("slash"),
-      element("span", { text: eliminated ? "Restore" : "Eliminate" }),
     );
     eliminate.addEventListener("click", () => props.onToggleElimination(choice));
     group.append(
@@ -383,7 +444,7 @@ function answerControls(props: StudyRailProps): HTMLElement {
   return element(
     "fieldset",
     { className: "mkit-fieldset" },
-    element("legend", { text: "Your answer" }),
+    element("legend", { className: "mkit-sr-only", text: "Fresh answer" }),
     group,
   );
 }
@@ -414,7 +475,7 @@ function moveWithinAnswers(
 function confidenceControls(props: StudyRailProps): HTMLElement {
   return element(
     "fieldset",
-    { className: "mkit-fieldset mkit-fieldset--compact" },
+    { className: "mkit-fieldset mkit-fieldset--compact mkit-fieldset--confidence" },
     element("legend", { text: "Confidence" }),
     element(
       "div",
@@ -447,28 +508,17 @@ function reflectionToggles(props: StudyRailProps): HTMLElement {
   return element(
     "div",
     { className: "mkit-toggle-list" },
-    toggleButton(
-      "Bookmark",
-      "Jump back to this question later",
-      "flag",
-      "flag",
-      props.flagged,
-      () => props.onFlagChange(!props.flagged),
+    toggleButton("Bookmark", "flag", "flag", props.flagged, () =>
+      props.onFlagChange(!props.flagged),
     ),
-    toggleButton(
-      "Needs more practice",
-      "Counts toward your weak topics",
-      "circle",
-      "review-again",
-      props.reviewAgain,
-      () => props.onReviewAgainChange(!props.reviewAgain),
+    toggleButton("Review again", "circle", "review-again", props.reviewAgain, () =>
+      props.onReviewAgainChange(!props.reviewAgain),
     ),
   );
 }
 
 function toggleButton(
   label: string,
-  hint: string,
   iconName: "flag" | "circle",
   focusKey: string,
   pressed: boolean,
@@ -489,7 +539,6 @@ function toggleButton(
       "span",
       { className: "mkit-toggle__copy" },
       element("span", { className: "mkit-toggle__label", text: label }),
-      element("span", { className: "mkit-toggle__hint", text: hint }),
     ),
     element("strong", { text: pressed ? "On" : "Off" }),
   );
@@ -515,11 +564,7 @@ function outcome(value: NonNullable<StudyRailProps["outcome"]>): HTMLElement {
   );
 }
 
-function practiceActions(
-  props: StudyRailProps,
-  answersId: string,
-  reflectionId: string,
-): HTMLElement {
+function practiceActions(props: StudyRailProps, answersId: string): HTMLElement {
   const checked =
     props.stage === "practice-checked" ||
     props.stage === "practice-revealed" ||
@@ -530,7 +575,7 @@ function practiceActions(
       primaryButton("Check", props.onCheck, {
         disabled: props.selection === null,
         focusKey: "check",
-        icon: "check",
+        icon: null,
       }),
     );
     return actions;
@@ -552,8 +597,6 @@ function practiceActions(
         "mkit-button mkit-button--secondary",
         props.onRevealOriginal,
         {
-          expanded: false,
-          controls: reflectionId,
           focusKey: "reveal-original",
           icon: "shield",
         },
@@ -569,7 +612,7 @@ function practiceActions(
   return actions;
 }
 
-function testActions(props: StudyRailProps, answersId: string, reflectionId: string): HTMLElement {
+function testActions(props: StudyRailProps, answersId: string): HTMLElement {
   const actions = element("div", { className: "mkit-actions mkit-actions--stacked" });
   if (props.stage === "test-finished" || props.stage === "original-revealed") {
     if (!props.answersRevealed && props.stage !== "original-revealed") {
@@ -589,8 +632,6 @@ function testActions(props: StudyRailProps, answersId: string, reflectionId: str
           "mkit-button mkit-button--secondary",
           props.onRevealOriginal,
           {
-            expanded: false,
-            controls: reflectionId,
             focusKey: "reveal-original",
             icon: "shield",
           },
@@ -644,18 +685,14 @@ function finishConfirmation(props: StudyRailProps, finishLabel: string): HTMLEle
   );
 }
 
-function reflectionEditor(
-  props: StudyRailProps,
-  noteId: string,
-  reflectionId: string,
-): HTMLElement {
+function reflectionEditor(props: StudyRailProps, noteId: string): HTMLElement {
   const note = element("textarea", {
     className: "mkit-note",
     attributes: {
       id: noteId,
       rows: 3,
       maxlength: 500,
-      placeholder: "What changed in your reasoning?",
+      placeholder: "Jot down your reasoning…",
       "data-focus-key": "private-note",
     },
   });
@@ -664,17 +701,11 @@ function reflectionEditor(
 
   return element(
     "section",
-    { className: "mkit-reflection", attributes: { id: reflectionId } },
-    element("label", {
-      className: "mkit-label",
-      text: "Private note",
-      attributes: { for: noteId },
-    }),
-    note,
+    { className: "mkit-reflection" },
     element(
       "fieldset",
       { className: "mkit-fieldset mkit-fieldset--compact" },
-      element("legend", { text: "Quick tags" }),
+      element("legend", { text: "Tags" }),
       element(
         "div",
         { className: "mkit-tags" },
@@ -699,6 +730,12 @@ function reflectionEditor(
         }),
       ),
     ),
+    element("label", {
+      className: "mkit-label",
+      text: "Notes",
+      attributes: { for: noteId },
+    }),
+    note,
   );
 }
 

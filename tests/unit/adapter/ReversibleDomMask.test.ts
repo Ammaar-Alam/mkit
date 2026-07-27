@@ -58,6 +58,49 @@ describe("ReversibleDomMask", () => {
     expect(element.hasAttribute("data-mkit-hidden")).toBe(true);
   });
 
+  it("clears only selections that intersect newly concealed content", () => {
+    document.body.innerHTML = `
+      <p id="allowed">Allowed passage text</p>
+      <p id="spoiler">Concealed solution text</p>
+    `;
+    const allowed = document.querySelector("#allowed");
+    const spoiler = document.querySelector("#spoiler");
+    if (!allowed || !spoiler) throw new Error("Selection fixtures are missing.");
+    const mask = new ReversibleDomMask();
+    const selection = window.getSelection();
+    if (!selection) throw new Error("Selection API is unavailable.");
+
+    const allowedRange = document.createRange();
+    allowedRange.selectNodeContents(allowed);
+    selection.addRange(allowedRange);
+    mask.hide([spoiler], "feedback");
+    expect(selection.toString()).toBe("Allowed passage text");
+
+    mask.restoreGroup("feedback");
+    selection.removeAllRanges();
+    const spoilerRange = document.createRange();
+    spoilerRange.selectNodeContents(spoiler);
+    selection.addRange(spoilerRange);
+    mask.hide([spoiler], "feedback");
+    expect(selection.rangeCount).toBe(0);
+  });
+
+  it("replaces accessible text reversibly and preserves later authored updates", () => {
+    document.body.innerHTML = '<p id="result">This was answered correctly</p>';
+    const result = document.querySelector("#result");
+    if (!result) throw new Error("Result fixture is missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.replaceText([result], "Hidden", "section-overview");
+    expect(result.textContent).toBe("Hidden");
+
+    result.textContent = "This was answered incorrectly";
+    mask.replaceText([result], "Hidden", "section-overview");
+    mask.restoreGroup("section-overview");
+
+    expect(result.textContent).toBe("This was answered incorrectly");
+  });
+
   it("restores the latest page-authored attribute and style after remasking", () => {
     document.body.innerHTML =
       '<div id="spoiler" title="first" style="border: 4px solid red">Synthetic</div>';

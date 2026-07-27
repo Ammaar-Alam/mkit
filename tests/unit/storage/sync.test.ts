@@ -10,6 +10,26 @@ import {
 import { makeAttempt, makeSession, makeStore } from "./fixtures";
 
 describe("quota-aware sync serialization", () => {
+  it("serializes enabled as on without changing the browser-local setting", () => {
+    const store = makeStore();
+    store.settings = {
+      ...store.settings,
+      enabled: false,
+      clearPreviousCrossOutsEnabled: false,
+      updatedAt: 12,
+    };
+
+    const snapshot = buildSyncSnapshot(store);
+    const decoded = decodeSyncSnapshot(snapshot.items);
+
+    expect(decoded.settings).toMatchObject({
+      enabled: true,
+      clearPreviousCrossOutsEnabled: false,
+      updatedAt: 12,
+    });
+    expect(store.settings.enabled).toBe(false);
+  });
+
   it("measures UTF-8 bytes rather than JavaScript string length", () => {
     const key = "mkit.😀";
     const value = { note: "漢字🙂" };

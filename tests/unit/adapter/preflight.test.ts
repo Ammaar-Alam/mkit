@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createPreflight } from "../../../src/content/preflight";
+import { createPreflight, NORMAL_REVIEW_REQUEST_EVENT } from "../../../src/content/preflight";
 
 const PREFLIGHT_CSS = readFileSync(resolve(process.cwd(), "src/content/preflight.css"), "utf8");
 
@@ -32,6 +32,10 @@ describe("document-start preflight", () => {
     expect(preflight.host.dataset.mkitPlacement).toBe("gate");
     expect(preflight.shadow.textContent).toContain("Preparing a clean view");
     expect(preflight.shadow.querySelector("[data-normal-review]")).not.toBeNull();
+    const mark = preflight.shadow.querySelector<HTMLImageElement>(".mark");
+    expect(mark?.tagName).toBe("IMG");
+    expect(mark?.getAttribute("src")).toBe("icons/icon-48.png");
+    expect(mark?.getAttribute("alt")).toBe("");
     expect(getComputedStyle(nativeReview).display).toBe("none");
     expect(getComputedStyle(preflight.host).display).toBe("block");
 
@@ -39,9 +43,17 @@ describe("document-start preflight", () => {
     expect(getComputedStyle(nativeReview).display).toBe("none");
     expect(preflight.host.hidden).toBe(false);
 
+    let normalReviewRequests = 0;
+    preflight.host.addEventListener(NORMAL_REVIEW_REQUEST_EVENT, () => {
+      normalReviewRequests += 1;
+      preflight.setProtection("normal-review");
+    });
     preflight.shadow.querySelector<HTMLButtonElement>("[data-normal-review]")?.click();
+    expect(normalReviewRequests).toBe(1);
     expect(document.documentElement.dataset.mkitProtection).toBe("normal-review");
     expect(preflight.host.hidden).toBe(true);
+    expect(getComputedStyle(preflight.host).display).toBe("none");
+    expect(getComputedStyle(preflight.host).pointerEvents).toBe("none");
     expect(getComputedStyle(nativeReview).display).not.toBe("none");
   });
 
@@ -50,6 +62,9 @@ describe("document-start preflight", () => {
     expect(PREFLIGHT_CSS).toMatch(/\[data-mkit-hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
     expect(PREFLIGHT_CSS).toMatch(/data-mkit-protection="boot"/);
     expect(PREFLIGHT_CSS).toMatch(/data-mkit-protection="unsupported"/);
+    expect(PREFLIGHT_CSS).toMatch(
+      /\[data-mkit-host\]\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important;[\s\S]*pointer-events:\s*none\s*!important/,
+    );
     expect(PREFLIGHT_CSS).not.toMatch(
       /data-mkit-route="answer-review"[^,{]*:not\(\[data-mkit-protection\]\)/,
     );

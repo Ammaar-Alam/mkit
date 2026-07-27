@@ -16,6 +16,7 @@ export type {
   ScoreShieldState,
   SectionLabel,
   SectionSummary,
+  StudyRailAnchor,
   StudyRailProps,
   StudyRailStage,
   SummaryCounts,

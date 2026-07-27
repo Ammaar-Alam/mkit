@@ -9,7 +9,14 @@
   <body>
     <main class="popup-shell">
       <header class="masthead">
-        <span class="folio-mark" aria-hidden="true">M</span>
+        <img
+          class="folio-mark"
+          src="../icons/icon-48.png"
+          width="40"
+          height="40"
+          alt=""
+          aria-hidden="true"
+        >
         <span>
           <span class="eyebrow">The MCAT Kit</span>
           <strong>MKit</strong>
@@ -17,24 +24,45 @@
         <span id="page-state" class="page-state">Checking page</span>
       </header>
 
+      <section id="mkit-control" class="master-control" aria-labelledby="mkit-toggle-label">
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong id="mkit-toggle-label">MKit</strong>
+            <span id="mkit-state" class="switch-state">On</span>
+          </span>
+          <input id="mkit-enabled" class="switch" type="checkbox">
+        </label>
+      </section>
+
       <section aria-labelledby="page-heading" class="page-context">
         <span id="page-heading" class="eyebrow">This page</span>
         <strong id="page-status">Checking this page</strong>
         <span id="page-detail" class="page-detail">Looking for a completed review.</span>
       </section>
 
-      <section aria-labelledby="continue-heading" class="section">
-        <h1 id="continue-heading">Continue</h1>
-        <div id="active-sessions" class="session-list" aria-live="polite"></div>
-      </section>
-
-      <section aria-labelledby="history-heading" class="section">
-        <h2 id="history-heading">History</h2>
-        <div id="session-history" class="session-list"></div>
-      </section>
-
-      <section aria-labelledby="protection-heading" class="section">
+      <section id="protection-section" aria-labelledby="protection-heading" class="section section--settings">
         <h2 id="protection-heading">Review settings</h2>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Hide section result marks</strong>
+            <span id="result-marks-state" class="switch-state">On</span>
+          </span>
+          <input id="hide-section-result-marks" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Clear previous highlights</strong>
+            <span id="highlights-state" class="switch-state">On</span>
+          </span>
+          <input id="clear-previous-highlights" class="switch" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span class="switch-copy">
+            <strong>Clear previous cross-outs</strong>
+            <span id="cross-outs-state" class="switch-state">On</span>
+          </span>
+          <input id="clear-previous-cross-outs" class="switch" type="checkbox">
+        </label>
         <label class="switch-row">
           <span class="switch-copy">
             <strong>Score Shield</strong>
@@ -42,6 +70,16 @@
           </span>
           <input id="score-shield" class="switch" type="checkbox">
         </label>
+      </section>
+
+      <section id="continue-section" aria-labelledby="continue-heading" class="section section--sessions">
+        <h2 id="continue-heading">Active attempt</h2>
+        <div id="active-sessions" class="session-list" aria-live="polite"></div>
+      </section>
+
+      <section id="history-section" aria-labelledby="history-heading" class="section section--sessions">
+        <h2 id="history-heading">History</h2>
+        <div id="session-history" class="session-list"></div>
       </section>
 
       <section aria-labelledby="storage-heading" class="storage-row">
@@ -53,7 +91,7 @@
         <span id="save-status" role="status" aria-live="polite"></span>
       </section>
 
-      <button id="open-settings" class="button-link" type="button">Settings</button>
+      <button id="open-settings" class="button-link" type="button">All settings</button>
     </main>
     <script src="./index.js"></script>
   </body>
