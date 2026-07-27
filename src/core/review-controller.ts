@@ -325,7 +325,7 @@ export class ReviewController {
       },
       onResume: () => {
         if (this.#availableSession) {
-          void this.#resumeSession(this.#availableSession, this.#generation);
+          this.#resumeFromGate(this.#availableSession);
         }
       },
       onArchive: () => undefined,
@@ -347,7 +347,7 @@ export class ReviewController {
       activeSession: this.#activeSessionSummary(session),
       onSelectMode: () => undefined,
       onResume: () => {
-        void this.#resumeSession(session, this.#generation);
+        this.#resumeFromGate(session);
       },
       onArchive: () => {
         void this.#archiveAndStart(session);
@@ -387,6 +387,7 @@ export class ReviewController {
 
   async #selectMode(mode: FreshAttemptMode): Promise<void> {
     if (!this.#context) return;
+    this.#preflight.setProtection("boot");
     const conflict = (await this.#repository.listSessions()).find(
       (session) =>
         session.examKey === this.#context?.examKey &&
@@ -403,10 +404,16 @@ export class ReviewController {
 
   async #archiveAndStart(session: SessionRecord): Promise<void> {
     if (!this.#pendingMode) return;
+    this.#preflight.setProtection("boot");
     const mode = this.#pendingMode;
     await this.#sessions.archive(session.id);
     this.#pendingMode = null;
     await this.#startSession(mode);
+  }
+
+  #resumeFromGate(session: SessionRecord): void {
+    this.#preflight.setProtection("boot");
+    void this.#resumeSession(session, this.#generation);
   }
 
   async #startSession(mode: FreshAttemptMode): Promise<void> {

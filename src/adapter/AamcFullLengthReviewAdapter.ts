@@ -42,6 +42,14 @@ const PRIOR_CROSS_OUT_CLASSES = [
   "eliminated",
   "strikethrough",
 ] as const;
+const NATIVE_ANNOTATION_ACTION_SELECTOR = [
+  ".add-highlight",
+  ".remove-highlight",
+  ".strikethrough-ctrl",
+  ".highlight-prompt",
+  ".state-container.highlight-color",
+  ".state-container.remove",
+].join(",");
 
 interface AnnotationBaseline {
   readonly signatures: Set<string>;
@@ -53,6 +61,11 @@ interface AnnotationBaseline {
 interface AnnotationCarrierSnapshot {
   readonly signature: string;
   readonly classState: string;
+}
+
+interface ReaderAnnotationIntent {
+  readonly question: Element;
+  readonly questionIdentifier: string | null;
 }
 
 interface AnnotationBaselines {
@@ -69,6 +82,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #locationPoll: number | null = null;
   #lastLocation = "";
   #processing = false;
+  #readerAnnotationIntent: ReaderAnnotationIntent | null = null;
+  #readerAnnotationIntentTimeout: number | null = null;
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
   #highlightBaselines = createAnnotationBaselines();
@@ -743,6 +758,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
           listener({ type: "question-change" });
         }
       } finally {
+        this.#clearReaderAnnotationIntent();
         this.#processing = false;
         if (this.#observer) {
           this.#observeDocument();
@@ -764,6 +780,35 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     window.addEventListener("popstate", routeListener);
     window.addEventListener("hashchange", routeListener);
     window.addEventListener("pageshow", routeListener);
+    const annotationActionListener = (event: Event): void => {
+      if (
+        event.isTrusted &&
+        event.target instanceof Element &&
+        event.target.closest(NATIVE_ANNOTATION_ACTION_SELECTOR)
+      ) {
+        this.#recordReaderAnnotationIntent();
+      }
+    };
+    const annotationShortcutListener = (event: KeyboardEvent): void => {
+      const target = event.target;
+      if (
+        !event.isTrusted ||
+        !event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        (target instanceof Element &&
+          (target.closest("[data-mkit-host]") ||
+            target.matches("input, textarea, select, [contenteditable='true']")))
+      ) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "h" || key === "s") {
+        this.#recordReaderAnnotationIntent();
+      }
+    };
+    this.#document.addEventListener("click", annotationActionListener, true);
+    this.#document.addEventListener("keydown", annotationShortcutListener, true);
     this.#locationPoll = window.setInterval(() => {
       const href = this.#url().href;
       if (href !== this.#lastLocation) {
@@ -782,6 +827,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       window.removeEventListener("popstate", routeListener);
       window.removeEventListener("hashchange", routeListener);
       window.removeEventListener("pageshow", routeListener);
+      this.#document.removeEventListener("click", annotationActionListener, true);
+      this.#document.removeEventListener("keydown", annotationShortcutListener, true);
+      this.#clearReaderAnnotationIntent();
     };
   }
 
@@ -876,7 +924,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const baseline = this.#annotationBaseline(question, questionIdentifier, baselines);
 
     if (baseline.sealed && !maskEnabled) {
-      this.#releaseModifiedRestoredAnnotations(question, candidates, baseline, classes);
+      this.#releaseModifiedRestoredAnnotations(
+        question,
+        questionIdentifier,
+        candidates,
+        baseline,
+        classes,
+      );
       return;
     }
 
@@ -957,6 +1011,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #releaseModifiedRestoredAnnotations(
     question: Element,
+    questionIdentifier: string | null,
     candidates: readonly Element[],
     baseline: AnnotationBaseline,
     classes: readonly string[],
@@ -971,7 +1026,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         const replacement = candidates.find(
           (candidate) => annotationCarrierSignature(question, candidate) === owned.signature,
         );
-        if (replacement) {
+        if (replacement && !this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
           baseline.ownedElements.delete(element);
           baseline.restoredElements.delete(element);
           baseline.ownedElements.set(replacement, {
@@ -988,6 +1043,45 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       baseline.ownedElements.delete(element);
       baseline.restoredElements.delete(element);
     }
+  }
+
+  #recordReaderAnnotationIntent(): void {
+    const preferences = this.#cleanSlatePreferences;
+    if (
+      !preferences ||
+      (preferences.clearPreviousHighlightsEnabled && preferences.clearPreviousCrossOutsEnabled)
+    ) {
+      return;
+    }
+    const question = this.#activeAnnotationQuestion();
+    if (!question) return;
+    const intent: ReaderAnnotationIntent = {
+      question,
+      questionIdentifier: this.#readQuestionIdentifier(),
+    };
+    this.#clearReaderAnnotationIntent();
+    this.#readerAnnotationIntent = intent;
+    this.#readerAnnotationIntentTimeout = window.setTimeout(() => {
+      if (this.#readerAnnotationIntent === intent) {
+        this.#readerAnnotationIntent = null;
+      }
+      this.#readerAnnotationIntentTimeout = null;
+    }, 0);
+  }
+
+  #matchesReaderAnnotationIntent(question: Element, questionIdentifier: string | null): boolean {
+    const intent = this.#readerAnnotationIntent;
+    return Boolean(
+      intent && intent.question === question && intent.questionIdentifier === questionIdentifier,
+    );
+  }
+
+  #clearReaderAnnotationIntent(): void {
+    if (this.#readerAnnotationIntentTimeout !== null) {
+      window.clearTimeout(this.#readerAnnotationIntentTimeout);
+      this.#readerAnnotationIntentTimeout = null;
+    }
+    this.#readerAnnotationIntent = null;
   }
 
   #activeAnnotationQuestion(): Element | null {

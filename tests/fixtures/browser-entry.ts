@@ -22,6 +22,7 @@ interface KeyboardLog {
 interface PrivacyHarness {
   readonly events: AdapterEvent[];
   capabilities(): CapabilityReport;
+  configureAnnotationClearing(enabled: boolean): void;
   mask(): CapabilityReport;
   maskAndObserve(): CapabilityReport;
   normalReview(): void;
@@ -36,6 +37,7 @@ interface PrivacyHarness {
   savedSelection(): Promise<string | null>;
   setKeyboardEnabled(enabled: boolean): void;
   setReviewQuestion(questionIdentifier: string): void;
+  sealAnnotations(): void;
   startController(): void;
   stopController(): void;
   stop(): void;
@@ -104,6 +106,13 @@ const setProtectionFrom = (report: CapabilityReport): void => {
 window.__mkitPrivacyHarness = {
   events,
   capabilities: () => adapter.inspectCapabilities(),
+  configureAnnotationClearing: (enabled) => {
+    adapter.configureCleanSlate({
+      clearPreviousHighlightsEnabled: enabled,
+      clearPreviousCrossOutsEnabled: enabled,
+    });
+    adapter.applyCleanSlate();
+  },
   mask: () => {
     const report = adapter.applyCleanSlate();
     setProtectionFrom(report);
@@ -159,6 +168,7 @@ window.__mkitPrivacyHarness = {
     reviewQuestionIdentifier = questionIdentifier;
     dispatchEvent(new HashChangeEvent("hashchange"));
   },
+  sealAnnotations: () => adapter.sealPriorAnnotations(),
   startController: () => startReviewController(),
   stopController: () => {
     reviewController?.dispose();

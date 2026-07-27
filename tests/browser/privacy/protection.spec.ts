@@ -203,6 +203,61 @@ test("Clean Slate captures delayed native annotations before Practice", async ({
   ).toEqual({ cross: true, highlight: true });
 });
 
+test("Clean Slate preserves atomic replacements from trusted annotation controls", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/review");
+  await page.evaluate(() => {
+    const question = document.querySelector("#question-q1");
+    const passage = document.querySelector("#allowed-passage");
+    const choice = document.querySelector("#choice-c");
+    if (!question || !passage || !choice) {
+      throw new Error("Synthetic annotation carriers are missing.");
+    }
+    passage.innerHTML =
+      '<span id="atomic-prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="atomic-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+
+    const highlight = document.createElement("button");
+    highlight.className = "add-highlight";
+    highlight.textContent = "Highlight";
+    highlight.addEventListener("click", () => {
+      passage.innerHTML =
+        '<span id="atomic-reader-highlight" class="user-highlight">Prior highlight.</span>';
+    });
+    const crossOut = document.createElement("button");
+    crossOut.className = "strikethrough-ctrl";
+    crossOut.textContent = "Cross out";
+    crossOut.addEventListener("click", () => {
+      document.querySelector("#atomic-prior-cross")?.remove();
+      choice.insertAdjacentHTML(
+        "beforeend",
+        '<span id="atomic-reader-cross" class="user-strikethrough">Prior cross-out.</span>',
+      );
+    });
+    question.prepend(highlight, crossOut);
+
+    window.__mkitPrivacyHarness.configureAnnotationClearing(true);
+    window.__mkitPrivacyHarness.maskAndObserve();
+    window.__mkitPrivacyHarness.sealAnnotations();
+    window.__mkitPrivacyHarness.configureAnnotationClearing(false);
+    const host = document.querySelector<HTMLElement>("[data-mkit-host]");
+    if (host) host.style.pointerEvents = "none";
+  });
+
+  await page.locator(".add-highlight").click();
+  await expect(page.locator("#atomic-reader-highlight")).toHaveClass(/user-highlight/);
+  await page.locator(".strikethrough-ctrl").click();
+  await expect(page.locator("#atomic-reader-cross")).toHaveClass(/user-strikethrough/);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.configureAnnotationClearing(true));
+  await expect(page.locator("#atomic-reader-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#atomic-reader-cross")).toHaveClass(/user-strikethrough/);
+});
+
 test("Clean Slate keeps capturing hydration after active-question navigation", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
   await page.evaluate(() => window.__mkitPrivacyHarness.startController());

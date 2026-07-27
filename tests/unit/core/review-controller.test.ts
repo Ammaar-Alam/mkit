@@ -27,6 +27,44 @@ const SAFE_REVIEW_REPORT: CapabilityReport = {
 };
 
 describe("ReviewController generation safety", () => {
+  it("keeps the native review covered until a slow session start seals annotations", async () => {
+    const local = new FakeStorageArea("local");
+    const repository = new StorageRepository({
+      local,
+      now: monotonicNow(),
+    });
+    const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    const protectionCount = preflight.protections.length;
+    const storageGate = deferred<void>();
+    local.setGate = storageGate.promise;
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+
+    expect(preflight.protections).toHaveLength(protectionCount + 1);
+    expect(preflight.protections.at(-1)).toBe("boot");
+    expect(adapter.annotationSeals).toBe(0);
+    expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();
+
+    await vi.waitFor(() => expect(local.events).toContain("local:set"));
+    expect(preflight.protections.at(-1)).toBe("boot");
+    expect(adapter.annotationSeals).toBe(0);
+    expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();
+
+    storageGate.resolve(undefined);
+    await vi.waitFor(() => expect(adapter.annotationSeals).toBe(1));
+    expect(preflight.protections.at(-1)).toBe("masked");
+    expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    controller.dispose();
+  });
+
   it("discards a stale Q1 context that resolves after Q2 and starts only the Q2 attempt", async () => {
     const q1 = deferred<SanitizedQuestionContext | null>();
     const q2 = deferred<SanitizedQuestionContext | null>();

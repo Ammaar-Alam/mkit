@@ -142,7 +142,7 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     stop();
   });
 
-  it("preserves same-range replacement annotations authored while clearing is disabled", async () => {
+  it("keeps eventless same-range replacements in the original annotation baseline", async () => {
     mountCompleteReviewFixture();
     const passage = requiredElement("#passage-copy");
     const choice = requiredElement("#choice-c");
@@ -164,7 +164,6 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     });
     passage.textContent = "Prior highlight.";
     requiredElement("#replaceable-prior-cross").remove();
-    await mutationTurn();
     passage.innerHTML =
       '<span id="replacement-highlight" class="user-highlight">Prior highlight.</span>';
     choice.insertAdjacentHTML(
@@ -177,12 +176,19 @@ describe("AamcFullLengthReviewAdapter observer", () => {
     adapter.applyCleanSlate();
 
     expect(requiredElement("#replacement-highlight").classList.contains("user-highlight")).toBe(
+      false,
+    );
+    expect(requiredElement("#replacement-cross").classList.contains("user-strikethrough")).toBe(
+      false,
+    );
+    stop();
+    adapter.restoreNormalReview();
+    expect(requiredElement("#replacement-highlight").classList.contains("user-highlight")).toBe(
       true,
     );
     expect(requiredElement("#replacement-cross").classList.contains("user-strikethrough")).toBe(
       true,
     );
-    stop();
   });
 
   it("masks prior annotations that hydrate after the initial scan", async () => {
