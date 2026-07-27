@@ -72,6 +72,7 @@ describe("ReviewController generation safety", () => {
     expect(sessions[0]?.currentQuestionKey).toBe("question-q2");
     expect(attempts.map((attempt) => attempt.questionKey)).toEqual(["question-q2"]);
     expect(adapter.studyRailMounts).toBe(1);
+    expect(adapter.annotationSeals).toBe(1);
 
     controller.dispose();
   });
@@ -141,13 +142,51 @@ describe("ReviewController generation safety", () => {
 
     expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
     expect(adapter.anchorRequests).toBe(2);
+    expect(adapter.annotationSeals).toBe(1);
     preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
     await vi.waitFor(async () => {
       expect((await repository.listAttempts())[1]?.selection).toBe("A");
     });
+    expect(adapter.annotationSeals).toBe(2);
     expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
     expect(adapter.anchorRequests).toBe(2);
 
+    controller.dispose();
+  });
+
+  it("keeps navigated annotations unsealed across a transient detection gate", async () => {
+    const adapter = new ControlledAdapter([
+      Promise.resolve(context("question-q1")),
+      Promise.resolve(null),
+      Promise.resolve(context("question-q2")),
+    ]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => expect(adapter.annotationSeals).toBe(1));
+
+    await controller.reconcile();
+    expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();
+    await controller.reconcile();
+
+    expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    expect(adapter.annotationSeals).toBe(1);
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[1]?.selection).toBe("A");
+    });
+    expect(adapter.annotationSeals).toBe(2);
     controller.dispose();
   });
 
@@ -232,6 +271,7 @@ describe("ReviewController generation safety", () => {
 });
 
 class ControlledAdapter implements FullLengthReviewAdapter {
+  annotationSeals = 0;
   anchorRequests = 0;
   contextRequests = 0;
   studyRailMounts = 0;
@@ -258,6 +298,9 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     return this.anchorRequests === 1 ? { top: 297, right: 16 } : { top: 16, right: 16 };
   };
   applyCleanSlate = () => SAFE_REVIEW_REPORT;
+  sealPriorAnnotations = () => {
+    this.annotationSeals += 1;
+  };
   applyScoreShield = () => SAFE_REVIEW_REPORT;
   applySectionOverviewCover = () => false;
   revealSectionOverview = () => undefined;

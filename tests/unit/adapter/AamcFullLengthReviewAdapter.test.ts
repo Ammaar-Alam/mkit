@@ -186,6 +186,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
 
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
     adapter.applyCleanSlate();
+    adapter.sealPriorAnnotations();
 
     expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(false);
     expect(requiredElement("#prior-cross-letter").classList.contains("user-strikethrough")).toBe(
@@ -247,6 +248,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     const adapter = new AamcFullLengthReviewAdapter(document, reviewUrl);
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
     adapter.applyCleanSlate();
+    adapter.sealPriorAnnotations();
 
     expect(requiredElement("#question-one-highlight").classList.contains("user-highlight")).toBe(
       false,
@@ -269,11 +271,11 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     questionIdentifier = "question-two";
     question.innerHTML = `
       <div class="reading-passage">
-        <span id="question-two-highlight" class="user-highlight">Question two highlight.</span>
+        <span id="question-two-highlight">Question two highlight.</span>
       </div>
       <ul class="question-choices-multi results">
         <li class="multi-choice incorrect" data-choice="A">
-          <span id="question-two-cross" class="user-strikethrough">A.</span>
+          <span id="question-two-cross">A.</span>
         </li>
         <li class="multi-choice corrected" data-choice="B"></li>
         <li class="multi-choice" data-choice="C"></li>
@@ -281,6 +283,10 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
       </ul>
     `;
     adapter.applyCleanSlate();
+    requiredElement("#question-two-highlight").classList.add("user-highlight");
+    requiredElement("#question-two-cross").classList.add("user-strikethrough");
+    adapter.applyCleanSlate();
+    adapter.sealPriorAnnotations();
 
     expect(requiredElement("#question-two-highlight").classList.contains("user-highlight")).toBe(
       false,
@@ -361,6 +367,16 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
 
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
     adapter.applyCleanSlate();
+    adapter.sealPriorAnnotations();
+    passage.insertAdjacentHTML(
+      "beforeend",
+      '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
+    );
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+    );
+    adapter.applyCleanSlate();
     adapter.configureCleanSlate({
       clearPreviousHighlightsEnabled: false,
       clearPreviousCrossOutsEnabled: false,
@@ -368,6 +384,16 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
 
     expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(true);
     expect(requiredElement("#prior-cross").classList.contains("user-strikethrough")).toBe(true);
+    expect(requiredElement("#fresh-highlight").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#fresh-cross").classList.contains("user-strikethrough")).toBe(true);
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#prior-cross").classList.contains("user-strikethrough")).toBe(false);
+    expect(requiredElement("#fresh-highlight").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#fresh-cross").classList.contains("user-strikethrough")).toBe(true);
   });
 
   it("reveals feedback and original attempt only in their deliberate stages", () => {
