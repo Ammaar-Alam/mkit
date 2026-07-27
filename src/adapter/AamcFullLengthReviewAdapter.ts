@@ -42,14 +42,17 @@ const PRIOR_CROSS_OUT_CLASSES = [
   "eliminated",
   "strikethrough",
 ] as const;
+const NATIVE_CROSS_OUT_ACTION_SELECTOR = ".strikethrough-ctrl";
 const NATIVE_ANNOTATION_ACTION_SELECTOR = [
   ".add-highlight",
   ".remove-highlight",
-  ".strikethrough-ctrl",
+  NATIVE_CROSS_OUT_ACTION_SELECTOR,
   ".highlight-prompt",
   ".state-container.highlight-color",
   ".state-container.remove",
 ].join(",");
+
+type ReaderAnnotationType = "highlight" | "cross-out";
 
 interface AnnotationBaseline {
   readonly signatures: Set<string>;
@@ -452,16 +455,21 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     });
   }
 
-  sealPriorAnnotations(): void {
+  sealPriorAnnotations(annotationType?: ReaderAnnotationType): void {
     const preferences = this.#cleanSlatePreferences;
     if (!preferences) return;
     this.#withoutObservation(() => {
       const activeQuestion = this.#applyPriorAnnotationMasks();
       if (!activeQuestion) return;
       const { question, questionIdentifier } = activeQuestion;
-      this.#annotationBaseline(question, questionIdentifier, this.#highlightBaselines).sealed =
-        true;
-      this.#annotationBaseline(question, questionIdentifier, this.#crossOutBaselines).sealed = true;
+      if (annotationType !== "cross-out") {
+        this.#annotationBaseline(question, questionIdentifier, this.#highlightBaselines).sealed =
+          true;
+      }
+      if (annotationType !== "highlight") {
+        this.#annotationBaseline(question, questionIdentifier, this.#crossOutBaselines).sealed =
+          true;
+      }
     });
   }
 
@@ -780,13 +788,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     window.addEventListener("hashchange", routeListener);
     window.addEventListener("pageshow", routeListener);
     const annotationActionListener = (event: Event): void => {
-      if (
-        event.isTrusted &&
-        event.target instanceof Element &&
-        event.target.closest(NATIVE_ANNOTATION_ACTION_SELECTOR)
-      ) {
-        this.#recordReaderAnnotationIntent();
-      }
+      if (!event.isTrusted || !(event.target instanceof Element)) return;
+      const action = event.target.closest(NATIVE_ANNOTATION_ACTION_SELECTOR);
+      if (!action) return;
+      this.#recordReaderAnnotationIntent(
+        action.matches(NATIVE_CROSS_OUT_ACTION_SELECTOR) ? "cross-out" : "highlight",
+      );
     };
     const annotationShortcutListener = (event: KeyboardEvent): void => {
       const target = event.target;
@@ -802,9 +809,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         return;
       }
       const key = event.key.toLowerCase();
-      if (key === "h" || key === "s") {
-        this.#recordReaderAnnotationIntent();
-      }
+      if (key === "h") this.#recordReaderAnnotationIntent("highlight");
+      if (key === "s") this.#recordReaderAnnotationIntent("cross-out");
     };
     this.#document.addEventListener("click", annotationActionListener, true);
     this.#document.addEventListener("keydown", annotationShortcutListener, true);
@@ -1063,13 +1069,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     }
   }
 
-  #recordReaderAnnotationIntent(): void {
+  #recordReaderAnnotationIntent(annotationType: ReaderAnnotationType): void {
     if (!this.#cleanSlatePreferences) return;
     // AAMC can hydrate saved annotations after the question and MKit rail are
     // already visible. Keep capturing those carriers until the reader invokes
     // a native annotation action, then seal immediately before AAMC mutates the
     // selection so the new annotation remains available.
-    this.sealPriorAnnotations();
+    this.sealPriorAnnotations(annotationType);
     const question = this.#activeAnnotationQuestion();
     if (!question) return;
     const intent: ReaderAnnotationIntent = {

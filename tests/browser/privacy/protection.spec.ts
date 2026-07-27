@@ -219,6 +219,15 @@ test("Clean Slate captures delayed native annotations before Practice", async ({
   });
   await expect(page.locator("#post-rail-prior-highlight")).not.toHaveClass(/user-highlight/);
   await page.locator("#fresh-native-highlighter").click();
+  await page.evaluate(() => {
+    document
+      .querySelector(".multi-choice")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="post-highlight-prior-cross" class="user-strikethrough">Saved cross-out.</span>',
+      );
+  });
+  await expect(page.locator("#post-highlight-prior-cross")).not.toHaveClass(/user-strikethrough/);
   await page.locator("#fresh-native-cross-out").click();
 
   await expect
@@ -397,8 +406,17 @@ test("Clean Slate keeps capturing hydration after active-question navigation", a
   });
   await expect(page.locator("#navigated-later-prior-highlight")).not.toHaveClass(/user-highlight/);
 
-  await page.locator("#navigated-fresh-native-highlighter").click();
   await page.locator("#navigated-fresh-native-cross-out").click();
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="post-cross-out-prior-highlight" class="user-highlight">Saved highlight.</span>',
+      );
+  });
+  await expect(page.locator("#post-cross-out-prior-highlight")).not.toHaveClass(/user-highlight/);
+  await page.locator("#navigated-fresh-native-highlighter").click();
   await expect
     .poll(() =>
       page.evaluate(() => ({
