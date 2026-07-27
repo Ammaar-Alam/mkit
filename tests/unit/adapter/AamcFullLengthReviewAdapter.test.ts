@@ -231,6 +231,38 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     expect(requiredElement("#fresh-cross").classList.contains("user-strikethrough")).toBe(true);
   });
 
+  it("seals the same question identity used for the final baseline scan", () => {
+    mountConfirmedProductionFixture();
+    const question = requiredElement(".answer-container.question-container");
+    const passage = requiredElement(".reading-passage");
+    const choice = requiredElement(".multi-choice");
+    question.id = "annotation-question";
+    passage.innerHTML = '<span id="prior-highlight" class="user-highlight">Prior highlight.</span>';
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+    const style = document.createElement("style");
+    style.textContent = "#annotation-question:not(:has(.user-highlight)) { display: none; }";
+    document.head.append(style);
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    expect(adapter.sealPriorAnnotations()).toEqual({
+      question,
+      questionIdentifier: "synthetic-question",
+    });
+    passage.insertAdjacentHTML(
+      "beforeend",
+      '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
+    );
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#prior-cross").classList.contains("user-strikethrough")).toBe(false);
+    expect(requiredElement("#fresh-highlight").classList.contains("user-highlight")).toBe(true);
+  });
+
   it("captures new annotation baselines when the SPA reuses a question container", () => {
     mountConfirmedProductionFixture();
     let questionIdentifier = "question-one";

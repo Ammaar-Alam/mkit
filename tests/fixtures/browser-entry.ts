@@ -35,6 +35,7 @@ interface PrivacyHarness {
   attemptCount(): Promise<number>;
   savedNote(): Promise<string | null>;
   savedSelection(): Promise<string | null>;
+  setControllerAnnotationClearing(enabled: boolean): Promise<void>;
   setKeyboardEnabled(enabled: boolean): void;
   setReviewQuestion(questionIdentifier: string): void;
   sealAnnotations(): void;
@@ -159,6 +160,16 @@ window.__mkitPrivacyHarness = {
   savedSelection: async () => {
     const attempts = (await reviewRepository?.listAttempts()) ?? [];
     return attempts[0]?.selection ?? null;
+  },
+  setControllerAnnotationClearing: async (enabled) => {
+    if (!reviewController || !reviewRepository) {
+      throw new Error("Synthetic review controller is unavailable.");
+    }
+    const settings = await reviewRepository.writeSettings({
+      clearPreviousHighlightsEnabled: enabled,
+      clearPreviousCrossOutsEnabled: enabled,
+    });
+    reviewController.updateSettings(settings);
   },
   setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
   setReviewQuestion: (questionIdentifier) => {
