@@ -387,6 +387,7 @@ export class ReviewController {
 
   async #selectMode(mode: FreshAttemptMode): Promise<void> {
     if (!this.#context) return;
+    this.#sealPriorAnnotations();
     this.#preflight.setProtection("boot");
     const conflict = (await this.#repository.listSessions()).find(
       (session) =>
@@ -412,6 +413,7 @@ export class ReviewController {
   }
 
   #resumeFromGate(session: SessionRecord): void {
+    this.#sealPriorAnnotations();
     this.#preflight.setProtection("boot");
     void this.#resumeSession(session, this.#generation);
   }
@@ -435,7 +437,7 @@ export class ReviewController {
         selection: this.#attempt.selection,
       };
       this.#answersRevealed = false;
-      this.#showRail(true);
+      this.#showRail();
     } catch {
       this.#saveState = "error";
       this.#showUnsupported(this.#adapter.inspectCapabilities());
@@ -478,18 +480,15 @@ export class ReviewController {
       );
     }
     this.#answersRevealed = sameQuestion && this.#answersRevealed;
-    this.#showRail(!sameQuestion && !hadActiveQuestion);
+    this.#showRail();
   }
 
-  #showRail(sealPriorAnnotations = false): void {
+  #showRail(): void {
     if (!this.#session || !this.#attempt || !this.#context) return;
     this.#preflight.host.dataset.mkitPlacement = "rail";
     if (!this.#adapter.mountStudyRail(this.#preflight.host)) {
       this.#showUnsupported(this.#adapter.inspectCapabilities());
       return;
-    }
-    if (sealPriorAnnotations) {
-      this.#sealPriorAnnotations();
     }
     this.#preflight.setProtection("masked");
     this.#timer.visitQuestion(this.#context.questionKey);

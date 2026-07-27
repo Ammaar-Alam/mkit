@@ -27,7 +27,7 @@ const SAFE_REVIEW_REPORT: CapabilityReport = {
 };
 
 describe("ReviewController generation safety", () => {
-  it("keeps the native review covered until a slow session start seals annotations", async () => {
+  it("seals annotations before covering a slow session start", async () => {
     const local = new FakeStorageArea("local");
     const repository = new StorageRepository({
       local,
@@ -50,18 +50,20 @@ describe("ReviewController generation safety", () => {
 
     expect(preflight.protections).toHaveLength(protectionCount + 1);
     expect(preflight.protections.at(-1)).toBe("boot");
-    expect(adapter.annotationSeals).toBe(0);
+    expect(adapter.annotationSeals).toBe(1);
     expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();
 
     await vi.waitFor(() => expect(local.events).toContain("local:set"));
     expect(preflight.protections.at(-1)).toBe("boot");
-    expect(adapter.annotationSeals).toBe(0);
+    expect(adapter.annotationSeals).toBe(1);
     expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();
 
     storageGate.resolve(undefined);
-    await vi.waitFor(() => expect(adapter.annotationSeals).toBe(1));
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    expect(adapter.annotationSeals).toBe(1);
     expect(preflight.protections.at(-1)).toBe("masked");
-    expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
     controller.dispose();
   });
 
@@ -213,6 +215,9 @@ describe("ReviewController generation safety", () => {
     await controller.reconcile();
     preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
     await vi.waitFor(() => expect(adapter.annotationSeals).toBe(1));
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
 
     await controller.reconcile();
     expect(preflight.shadow.querySelector(".mkit-study-rail")).toBeNull();

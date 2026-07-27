@@ -11,6 +11,9 @@ All notable changes to MKit are documented here.
 - Cleared prior highlights and crossed-out choices that AAMC hydrates or
   reapplies after the first review scan, while preserving annotations added
   after a Fresh Attempt begins.
+- Restored prior annotations immediately when their clearing settings are
+  turned Off, and kept native highlighting and cross-outs usable after Start or
+  Resume without reloading the review.
 
 ## [0.2.0] - 2026-07-26
 

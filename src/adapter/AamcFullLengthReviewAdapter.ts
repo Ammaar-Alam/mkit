@@ -456,10 +456,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const preferences = this.#cleanSlatePreferences;
     if (!preferences) return;
     this.#withoutObservation(() => {
-      this.#applyPriorAnnotationMasks();
-      const question = this.#activeAnnotationQuestion();
-      if (!question) return;
-      const questionIdentifier = this.#readQuestionIdentifier();
+      const activeQuestion = this.#applyPriorAnnotationMasks();
+      if (!activeQuestion) return;
+      const { question, questionIdentifier } = activeQuestion;
       this.#annotationBaseline(question, questionIdentifier, this.#highlightBaselines).sealed =
         true;
       this.#annotationBaseline(question, questionIdentifier, this.#crossOutBaselines).sealed = true;
@@ -882,11 +881,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return !this.#revealedGroups.has(group);
   }
 
-  #applyPriorAnnotationMasks(): void {
+  #applyPriorAnnotationMasks(): {
+    question: Element;
+    questionIdentifier: string | null;
+  } | null {
     const preferences = this.#cleanSlatePreferences;
-    if (!preferences) return;
+    if (!preferences) return null;
     const question = this.#activeAnnotationQuestion();
-    if (!question) return;
+    if (!question) return null;
     const questionIdentifier = this.#readQuestionIdentifier();
 
     this.#applyPriorAnnotationMask(
@@ -907,6 +909,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       PRIOR_CROSS_OUTS_GROUP,
       preferences.clearPreviousCrossOutsEnabled,
     );
+    return { question, questionIdentifier };
   }
 
   #applyPriorAnnotationMask(

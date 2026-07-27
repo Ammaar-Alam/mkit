@@ -203,6 +203,64 @@ test("Clean Slate captures delayed native annotations before Practice", async ({
   ).toEqual({ cross: true, highlight: true });
 });
 
+test("Clean Slate toggles restore originals live without absorbing new annotations after Resume", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await page.evaluate(() => window.__mkitPrivacyHarness.restartController());
+
+  await page.evaluate(() => {
+    const passage = document.querySelector("#live-style-question");
+    const choice = document.querySelector(".multi-choice");
+    if (!passage || !choice) throw new Error("Synthetic annotation carriers are missing.");
+    passage.insertAdjacentHTML(
+      "beforeend",
+      '<span id="resume-prior-highlight" class="user-highlight">Prior highlight.</span>',
+    );
+    choice.insertAdjacentHTML(
+      "beforeend",
+      '<span id="resume-prior-cross" class="user-strikethrough">Prior cross-out.</span>',
+    );
+  });
+  await expect(page.locator("#resume-prior-highlight")).not.toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-prior-cross")).not.toHaveClass(/user-strikethrough/);
+
+  await host.locator("[data-focus-key='resume']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await page.evaluate(() => {
+    document
+      .querySelector("#live-style-question")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="resume-fresh-highlight" class="user-highlight">Fresh highlight.</span>',
+      );
+    document
+      .querySelectorAll(".multi-choice")[2]
+      ?.insertAdjacentHTML(
+        "beforeend",
+        '<span id="resume-fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
+      );
+  });
+  await expect(page.locator("#resume-fresh-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-fresh-cross")).toHaveClass(/user-strikethrough/);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.setControllerAnnotationClearing(false));
+  await expect(page.locator("#resume-prior-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-prior-cross")).toHaveClass(/user-strikethrough/);
+  await expect(page.locator("#resume-fresh-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-fresh-cross")).toHaveClass(/user-strikethrough/);
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.setControllerAnnotationClearing(true));
+  await expect(page.locator("#resume-prior-highlight")).not.toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-prior-cross")).not.toHaveClass(/user-strikethrough/);
+  await expect(page.locator("#resume-fresh-highlight")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#resume-fresh-cross")).toHaveClass(/user-strikethrough/);
+});
+
 test("Clean Slate preserves atomic replacements from trusted annotation controls", async ({
   page,
 }) => {
