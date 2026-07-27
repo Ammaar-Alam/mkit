@@ -48,6 +48,16 @@ export interface SanitizedQuestionContext {
   };
 }
 
+export interface CleanSlatePreferences {
+  clearPreviousHighlightsEnabled: boolean;
+  clearPreviousCrossOutsEnabled: boolean;
+}
+
+export interface StudyRailAnchor {
+  top: number;
+  right: number;
+}
+
 export type AdapterEvent =
   | { type: "page-change"; pageKind: PageKind }
   | { type: "question-change" }
@@ -58,6 +68,7 @@ export interface FullLengthReviewAdapter {
   inspectCapabilities(): CapabilityReport;
   getExamKey(): Promise<string | null>;
   getQuestionContext(): Promise<SanitizedQuestionContext | null>;
+  configureCleanSlate(preferences: CleanSlatePreferences): void;
   applyCleanSlate(): CapabilityReport;
   applyScoreShield(): CapabilityReport;
   /** Neutralizes row-level correctness cues on a completed section overview. */
@@ -71,6 +82,7 @@ export interface FullLengthReviewAdapter {
   restoreNormalReview(): void;
   mountFreshAttemptEntry(host: HTMLElement): boolean;
   mountStudyRail(host: HTMLElement): boolean;
+  getStudyRailAnchor(): StudyRailAnchor;
   navigate(direction: "previous" | "next"): boolean;
   observe(listener: (event: AdapterEvent) => void): () => void;
 }

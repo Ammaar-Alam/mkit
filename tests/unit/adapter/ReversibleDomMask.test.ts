@@ -58,6 +58,49 @@ describe("ReversibleDomMask", () => {
     expect(element.hasAttribute("data-mkit-hidden")).toBe(true);
   });
 
+  it("clears only selections that intersect newly concealed content", () => {
+    document.body.innerHTML = `
+      <p id="allowed">Allowed passage text</p>
+      <p id="spoiler">Concealed solution text</p>
+    `;
+    const allowed = document.querySelector("#allowed");
+    const spoiler = document.querySelector("#spoiler");
+    if (!allowed || !spoiler) throw new Error("Selection fixtures are missing.");
+    const mask = new ReversibleDomMask();
+    const selection = window.getSelection();
+    if (!selection) throw new Error("Selection API is unavailable.");
+
+    const allowedRange = document.createRange();
+    allowedRange.selectNodeContents(allowed);
+    selection.addRange(allowedRange);
+    mask.hide([spoiler], "feedback");
+    expect(selection.toString()).toBe("Allowed passage text");
+
+    mask.restoreGroup("feedback");
+    selection.removeAllRanges();
+    const spoilerRange = document.createRange();
+    spoilerRange.selectNodeContents(spoiler);
+    selection.addRange(spoilerRange);
+    mask.hide([spoiler], "feedback");
+    expect(selection.rangeCount).toBe(0);
+  });
+
+  it("replaces accessible text reversibly and preserves later authored updates", () => {
+    document.body.innerHTML = '<p id="result">This was answered correctly</p>';
+    const result = document.querySelector("#result");
+    if (!result) throw new Error("Result fixture is missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.replaceText([result], "Hidden", "section-overview");
+    expect(result.textContent).toBe("Hidden");
+
+    result.textContent = "This was answered incorrectly";
+    mask.replaceText([result], "Hidden", "section-overview");
+    mask.restoreGroup("section-overview");
+
+    expect(result.textContent).toBe("This was answered incorrectly");
+  });
+
   it("restores the latest page-authored attribute and style after remasking", () => {
     document.body.innerHTML =
       '<div id="spoiler" title="first" style="border: 4px solid red">Synthetic</div>';
@@ -78,6 +121,23 @@ describe("ReversibleDomMask", () => {
     expect(element.getAttribute("style")).toBe("border: 6px solid blue");
   });
 
+  it("sets an accessibility attribute repeatedly without snapshotting its own mask", () => {
+    document.body.innerHTML = '<div id="result">Synthetic result</div>';
+    const element = document.querySelector("#result");
+    if (!element) throw new Error("Result fixture is missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.restoreGroup("section-overview");
+    expect(element.hasAttribute("aria-hidden")).toBe(false);
+
+    element.setAttribute("aria-hidden", "false");
+    mask.setAttributes([element], { "aria-hidden": "true" }, "section-overview");
+    mask.restoreGroup("section-overview");
+    expect(element.getAttribute("aria-hidden")).toBe("false");
+  });
+
   it("can inspect a masked authored class without restoring it", () => {
     document.body.innerHTML = '<div id="choice" class="multi-choice correct">Synthetic</div>';
     const element = document.querySelector<HTMLElement>("#choice");
@@ -90,6 +150,26 @@ describe("ReversibleDomMask", () => {
     expect(mask.hasClass(element, "correct", "feedback")).toBe(true);
     expect(mask.hasClass(element, "incorrect", "feedback")).toBe(false);
     expect(element.classList.contains("correct")).toBe(false);
+  });
+
+  it("can release a reauthored class while preserving untouched baseline restoration", () => {
+    document.body.innerHTML = `
+      <span id="reauthored" class="user-highlight">Reauthored</span>
+      <span id="untouched" class="user-highlight">Untouched</span>
+    `;
+    const reauthored = document.querySelector("#reauthored");
+    const untouched = document.querySelector("#untouched");
+    if (!reauthored || !untouched) throw new Error("Annotation fixtures are missing.");
+    const mask = new ReversibleDomMask();
+
+    mask.removeClasses([reauthored, untouched], ["user-highlight"], "prior-highlights");
+    reauthored.classList.add("user-highlight");
+    mask.releaseClasses([reauthored], ["user-highlight"], "prior-highlights");
+    reauthored.classList.remove("user-highlight");
+    mask.restoreGroup("prior-highlights");
+
+    expect(reauthored.classList.contains("user-highlight")).toBe(false);
+    expect(untouched.classList.contains("user-highlight")).toBe(true);
   });
 
   it("removes only correctness visuals and restores the latest authored style exactly", () => {

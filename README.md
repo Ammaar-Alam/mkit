@@ -22,19 +22,26 @@ It works in Chrome and Arc.
 - Hides your old answers, the correct answers, explanations, results, and review markers.
 - Offers two modes: **Practice** lets you check each answer, while **Test** waits until you finish.
 - Lets you answer questions, cross out choices, rate your confidence, flag questions, and write notes.
+- Starts without earlier highlights or crossed-out choices by default while
+  leaving AAMC's native annotation tools available.
+- Can hide the correct and incorrect marks in a completed section's question
+  list without disabling its filters, previews, or Review links.
 - Saves your progress and study time in your browser.
 - Leaves your original AAMC attempt unchanged.
 
 ## How to use it
 
 1. Open a completed full-length or section review on AAMC's official practice website.
-2. Choose **Practice** or **Test**. Choose **Normal review** to see the page without MKit.
+2. Choose **Practice** or **Test**. Choose **Normal review** to see the native
+   review, or turn **MKit** Off from the popup.
 3. Answer the questions again.
 4. Check each answer in Practice, or finish the review in Test.
 
 ## Supported pages
 
-MKit currently works on completed full-length answer reviews and completed section **Review All** pages. It never runs during an active exam.
+MKit currently works on completed full-length answer reviews, completed section
+**Review All** pages, and completed section question lists. It never runs during
+an active exam.
 
 See [Supported pages](docs/supported-pages.md) for the exact list and known limits.
 

@@ -41,6 +41,13 @@ test("production manifest keeps the extension worker-free and narrowly permissio
   expect(matches).not.toContain("https://apps.aamc.org/mrs/*");
   expect(matches).not.toContain("https://prep.aamc.org/*");
   expect(matches.every((match) => match.startsWith("https://"))).toBe(true);
+
+  expect(manifest.web_accessible_resources).toEqual([
+    {
+      resources: ["icons/icon-48.png"],
+      matches: ["https://www.mcatofficialprep.org/*"],
+    },
+  ]);
 });
 
 test("runtime source and build configuration contain no network or remote-code primitives", async () => {
@@ -96,6 +103,9 @@ test("built bundle and packaged ZIP contain no maps, test artifacts, remote code
   }
 
   const auditableBundleFiles = distFiles.filter((file) => /\.(?:css|html|js|json)$/i.test(file));
+  const preflightCss = await readFile(resolve(root, "dist/content/preflight.css"), "utf8");
+  expect(preflightCss).toContain("data:image/png;base64,");
+  expect(preflightCss).not.toContain("__MKIT_RESULT_MARK_URL__");
   const bundle = (
     await Promise.all(auditableBundleFiles.map((file) => readFile(file, "utf8")))
   ).join("\n");

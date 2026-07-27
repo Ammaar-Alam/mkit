@@ -3,9 +3,11 @@ import type {
   AdapterEvent,
   AdapterIssueCode,
   CapabilityReport,
+  CleanSlatePreferences,
   FullLengthReviewAdapter,
   PageKind,
   SanitizedQuestionContext,
+  StudyRailAnchor,
 } from "./contracts";
 import { ReversibleDomMask } from "./ReversibleDomMask";
 
@@ -13,10 +15,16 @@ const FEEDBACK_GROUP = "feedback";
 const ORIGINAL_GROUP = "original";
 const CLEAN_SLATE_GROUP = "clean-slate";
 const SCORE_SHIELD_GROUP = "score-shield";
+const PRIOR_HIGHLIGHTS_GROUP = "prior-highlights";
+const PRIOR_CROSS_OUTS_GROUP = "prior-cross-outs";
 const CONFIRMED_REVIEW_SWITCHES = new WeakSet<Element>();
 const CONFIRMED_REVIEW_SWITCH_MARKER = "data-mkit-review-switch";
 const SECTION_OVERVIEW_GROUP = "section-overview";
 const SECTION_OVERVIEW_MARKER = "data-mkit-outcome-hidden";
+const SECTION_OVERVIEW_RESULT_MARKER = "data-mkit-result-hidden";
+const STUDY_RAIL_VIEWPORT_MARGIN = 16;
+const STUDY_RAIL_PALETTE_CLEARANCE = 96;
+const STUDY_RAIL_PALETTE_GAP = 8;
 const CORRECTNESS_VISUAL_PROPERTIES = [
   "background",
   "background-color",
@@ -26,6 +34,24 @@ const CORRECTNESS_VISUAL_PROPERTIES = [
   "outline",
   "outline-color",
 ] as const;
+const PRIOR_HIGHLIGHT_CLASSES = ["user-highlight", "was-highlighted", "highlighted"] as const;
+const PRIOR_CROSS_OUT_CLASSES = [
+  "user-strikethrough",
+  "removed-choice",
+  "was-eliminated",
+  "eliminated",
+  "strikethrough",
+] as const;
+
+interface AnnotationBaseline {
+  readonly signatures: Set<string>;
+  readonly maskedElements: Set<Element>;
+}
+
+interface AnnotationBaselines {
+  readonly byQuestion: Map<string, AnnotationBaseline>;
+  readonly byContainer: WeakMap<Element, AnnotationBaseline>;
+}
 
 export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   readonly #document: Document;
@@ -36,6 +62,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #lastLocation = "";
   #processing = false;
   #completedReviewSwitch: Element | null = null;
+  #cleanSlatePreferences: CleanSlatePreferences | null = null;
+  #highlightBaselines = createAnnotationBaselines();
+  #crossOutBaselines = createAnnotationBaselines();
   /**
    * Groups the reader has intentionally revealed. Masking runs again on every
    * page mutation, so without this a revealed solution would be concealed again
@@ -56,7 +85,6 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         '[data-mkit-fixture-page="score-report"]',
         '[data-page-kind="score-report"]',
       ],
-      sectionOverview: ["table.answers-wrapper", '[data-mkit-fixture-page="section-overview"]'],
     },
     /**
      * Row-level correctness on the completed section overview. The glyph is
@@ -64,8 +92,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
      * rather than in any child node.
      */
     sectionOverviewCorrectness: [
-      "table.answers-wrapper .li-cell.correctness",
+      "ul.answers-wrapper.list-table > li.content .li-cell.correctness",
       '[data-mkit-fixture="section-overview-correctness"]',
+    ],
+    sectionOverviewAccessibleResult: [
+      'table.answers-wrapper tr.content > td[headers^="answer-listing-header-correctness-"]',
+      '[data-mkit-fixture="section-overview-accessible-result"]',
     ],
     questionRegion: [
       ".reviewable > .question-content-container",
@@ -164,13 +196,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".answer-incorrect",
       ".selected-answer",
     ],
-    staleClassCarrier: [
+    priorHighlightCarrier: ["span.user-highlight", ".was-highlighted", ".highlighted"],
+    priorCrossOutCarrier: [
+      "span.user-strikethrough",
       ".removed-choice",
       ".was-eliminated",
-      ".was-highlighted",
       ".eliminated",
       ".strikethrough",
-      ".highlighted",
     ],
     correctnessVisualCarrier: [
       ".reviewable > .question-content-container",
@@ -205,6 +237,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       '[data-mkit-fixture="study-rail-mount"]',
       "#official-results-rail",
     ],
+    studyRailToolbar: [
+      ".reviewable .answer-toolbar-wrapper",
+      '[data-mkit-fixture="answer-toolbar"]',
+    ],
+    studyRailPalette: [
+      ".reviewable .highlight-color-options",
+      '[data-mkit-fixture="highlight-palette"]',
+    ],
     previous: [
       ".icon-bar.navigate [role='button'].toolbar-btn.previous",
       '[data-mkit-fixture="previous"]',
@@ -236,17 +276,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     ) {
       return "review";
     }
+    if (parseSectionOverviewRoute(this.#url())) {
+      return "section-overview";
+    }
     if (this.#queryAny(this.#selectors.page.scoreReport)) {
       return "score-report";
     }
     if (route) {
       return "unknown-review";
-    }
-    if (
-      parseSectionOverviewRoute(this.#url()) &&
-      this.#queryAny(this.#selectors.page.sectionOverview)
-    ) {
-      return "section-overview";
     }
     return "non-review";
   }
@@ -371,6 +408,27 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return examIdentifier ? sha256Guard(`exam:${examIdentifier}`) : null;
   }
 
+  configureCleanSlate(preferences: CleanSlatePreferences): void {
+    const previous = this.#cleanSlatePreferences;
+    if (
+      previous?.clearPreviousHighlightsEnabled === preferences.clearPreviousHighlightsEnabled &&
+      previous.clearPreviousCrossOutsEnabled === preferences.clearPreviousCrossOutsEnabled
+    ) {
+      return;
+    }
+    this.#cleanSlatePreferences = { ...preferences };
+    this.#withoutObservation(() => {
+      if (previous?.clearPreviousHighlightsEnabled && !preferences.clearPreviousHighlightsEnabled) {
+        this.#mask.restoreGroup(PRIOR_HIGHLIGHTS_GROUP);
+        this.#highlightBaselines = createAnnotationBaselines();
+      }
+      if (previous?.clearPreviousCrossOutsEnabled && !preferences.clearPreviousCrossOutsEnabled) {
+        this.#mask.restoreGroup(PRIOR_CROSS_OUTS_GROUP);
+        this.#crossOutBaselines = createAnnotationBaselines();
+      }
+    });
+  }
+
   applyCleanSlate(): CapabilityReport {
     const report = this.inspectCapabilities();
     if (report.pageKind !== "review") {
@@ -415,14 +473,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
     const feedbackClassCarriers = this.#queryAll(this.#selectors.feedbackClassCarrier);
     const originalClassCarriers = this.#queryAll(this.#selectors.originalClassCarrier);
-    const staleClassCarriers = this.#queryAll(this.#selectors.staleClassCarrier);
     this.#mask.sanitizeInlineStyles(
       this.#queryAll(this.#selectors.correctnessVisualCarrier),
       CORRECTNESS_VISUAL_PROPERTIES,
       CLEAN_SLATE_GROUP,
     );
     this.#mask.clearInlineStyles(
-      [...feedbackClassCarriers, ...originalClassCarriers, ...staleClassCarriers].filter(
+      [...feedbackClassCarriers, ...originalClassCarriers].filter(
         (element) => !element.matches(".multi-choice"),
       ),
       CLEAN_SLATE_GROUP,
@@ -448,19 +505,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         ORIGINAL_GROUP,
       );
     }
-    this.#mask.removeClasses(
-      staleClassCarriers,
-      [
-        "removed-choice",
-        "was-eliminated",
-        "was-highlighted",
-        "eliminated",
-        "strikethrough",
-        "highlighted",
-      ],
-      CLEAN_SLATE_GROUP,
-    );
-    window.getSelection()?.removeAllRanges();
+    this.#applyPriorAnnotationMasks();
     return report;
   }
 
@@ -490,7 +535,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       return false;
     }
     const cues = this.#queryAll(this.#selectors.sectionOverviewCorrectness);
-    if (cues.length === 0) {
+    const accessibleResults = this.#queryAll(this.#selectors.sectionOverviewAccessibleResult);
+    if (cues.length === 0 && accessibleResults.length === 0) {
       return false;
     }
     if (this.#revealedGroups.has(SECTION_OVERVIEW_GROUP)) {
@@ -498,8 +544,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     }
     this.#mask.removeClasses(cues, ["correct", "incorrect"], SECTION_OVERVIEW_GROUP);
     this.#mask.removeAttributes(cues, ["title", "aria-label"], SECTION_OVERVIEW_GROUP);
+    this.#mask.setAttributes(cues, { "aria-hidden": "true" }, SECTION_OVERVIEW_GROUP);
     for (const cue of cues) {
       cue.setAttribute(SECTION_OVERVIEW_MARKER, "");
+    }
+    this.#mask.replaceText(accessibleResults, "Hidden", SECTION_OVERVIEW_GROUP);
+    for (const result of accessibleResults) {
+      result.setAttribute(SECTION_OVERVIEW_RESULT_MARKER, "");
     }
     return true;
   }
@@ -510,6 +561,9 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#mask.restoreGroup(SECTION_OVERVIEW_GROUP);
       for (const marked of this.#document.querySelectorAll(`[${SECTION_OVERVIEW_MARKER}]`)) {
         marked.removeAttribute(SECTION_OVERVIEW_MARKER);
+      }
+      for (const marked of this.#document.querySelectorAll(`[${SECTION_OVERVIEW_RESULT_MARKER}]`)) {
+        marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
       }
     });
   }
@@ -548,12 +602,15 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#revealedGroups.clear();
       this.#mask.restoreAll();
       for (const marked of this.#document.querySelectorAll(
-        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}]`,
+        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}], [${SECTION_OVERVIEW_RESULT_MARKER}]`,
       )) {
         marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
         marked.removeAttribute(SECTION_OVERVIEW_MARKER);
+        marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
       }
       this.#completedReviewSwitch = null;
+      this.#highlightBaselines = createAnnotationBaselines();
+      this.#crossOutBaselines = createAnnotationBaselines();
       window.getSelection()?.removeAllRanges();
     });
   }
@@ -580,6 +637,38 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return true;
   }
 
+  getStudyRailAnchor(): StudyRailAnchor {
+    const fallback = {
+      top: STUDY_RAIL_VIEWPORT_MARGIN,
+      right: STUDY_RAIL_VIEWPORT_MARGIN,
+    };
+    const reviewRoot = this.#activeReviewRoot();
+    const toolbar = this.#renderedElement(
+      this.#queryAll(this.#selectors.studyRailToolbar).filter(
+        (element) => !reviewRoot || reviewRoot.contains(element),
+      ),
+    );
+    if (!toolbar) {
+      return fallback;
+    }
+    const toolbarRect = toolbar.getBoundingClientRect();
+    let bottom = toolbarRect.bottom + STUDY_RAIL_PALETTE_CLEARANCE;
+    const palette = this.#renderedElement(
+      this.#queryAll(this.#selectors.studyRailPalette).filter((element) =>
+        toolbar.contains(element),
+      ),
+    );
+    if (palette) {
+      bottom =
+        Math.max(toolbarRect.bottom, palette.getBoundingClientRect().bottom) +
+        STUDY_RAIL_PALETTE_GAP;
+    }
+    return {
+      top: Math.ceil(Math.max(STUDY_RAIL_VIEWPORT_MARGIN, bottom)),
+      right: STUDY_RAIL_VIEWPORT_MARGIN,
+    };
+  }
+
   navigate(direction: "previous" | "next"): boolean {
     void direction;
     return false;
@@ -592,6 +681,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     this.#lastLocation = this.#url().href;
     let lastPageKind = this.classifyPage();
     let lastQuestionKey = this.#readQuestionIdentifier();
+    let lastCapabilitySignature =
+      lastPageKind === "review" ? capabilityReportSignature(this.inspectCapabilities()) : null;
 
     const process = (): void => {
       if (this.#processing) return;
@@ -610,7 +701,16 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
             this.#revealedGroups.clear();
           }
           const report = this.applyCleanSlate();
-          listener({ type: "capability-change", report });
+          const nextCapabilitySignature = capabilityReportSignature(report);
+          if (nextCapabilitySignature !== lastCapabilitySignature) {
+            lastCapabilitySignature = nextCapabilitySignature;
+            listener({ type: "capability-change", report });
+          }
+        } else if (pageKind === "section-overview") {
+          this.applySectionOverviewCover();
+          lastCapabilitySignature = null;
+        } else {
+          lastCapabilitySignature = null;
         }
         if (pageChanged) {
           lastPageKind = pageKind;
@@ -686,12 +786,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #withoutObservation(action: () => void): void {
-    const observing = this.#observer !== null;
+    const shouldResume = this.#observer !== null && !this.#processing;
     this.#observer?.disconnect();
     try {
       action();
     } finally {
-      if (observing && this.#observer) {
+      if (shouldResume && this.#observer) {
         this.#observeDocument();
       }
     }
@@ -712,6 +812,104 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return !this.#revealedGroups.has(group);
   }
 
+  #applyPriorAnnotationMasks(): void {
+    const preferences = this.#cleanSlatePreferences;
+    if (!preferences) return;
+    const question = this.#activeAnnotationQuestion();
+    if (!question) return;
+    const questionIdentifier = this.#readQuestionIdentifier();
+
+    if (preferences.clearPreviousHighlightsEnabled) {
+      this.#applyPriorAnnotationMask(
+        question,
+        questionIdentifier,
+        this.#selectors.priorHighlightCarrier,
+        this.#highlightBaselines,
+        PRIOR_HIGHLIGHT_CLASSES,
+        PRIOR_HIGHLIGHTS_GROUP,
+      );
+    }
+    if (preferences.clearPreviousCrossOutsEnabled) {
+      this.#applyPriorAnnotationMask(
+        question,
+        questionIdentifier,
+        this.#selectors.priorCrossOutCarrier,
+        this.#crossOutBaselines,
+        PRIOR_CROSS_OUT_CLASSES,
+        PRIOR_CROSS_OUTS_GROUP,
+      );
+    }
+  }
+
+  #applyPriorAnnotationMask(
+    question: Element,
+    questionIdentifier: string | null,
+    selectors: readonly string[],
+    baselines: AnnotationBaselines,
+    classes: readonly string[],
+    group: string,
+  ): void {
+    const candidates = this.#queryAllWithin(question, selectors).filter((element) =>
+      this.#isAuthoredVisible(element),
+    );
+    let baseline = questionIdentifier
+      ? baselines.byQuestion.get(questionIdentifier)
+      : baselines.byContainer.get(question);
+    if (!baseline) {
+      baseline = {
+        signatures: new Set(
+          candidates.map((element) => annotationCarrierSignature(question, element)),
+        ),
+        maskedElements: new Set(),
+      };
+      if (questionIdentifier) {
+        baselines.byQuestion.set(questionIdentifier, baseline);
+      } else {
+        baselines.byContainer.set(question, baseline);
+      }
+    }
+
+    const toMask: Element[] = [];
+    for (const element of candidates) {
+      const signature = annotationCarrierSignature(question, element);
+      if (!baseline.signatures.has(signature)) {
+        continue;
+      }
+      if (!baseline.maskedElements.has(element)) {
+        baseline.maskedElements.add(element);
+        toMask.push(element);
+        continue;
+      }
+      // Once an original carrier regains an annotation class, that class is a
+      // new reader action. Release MKit's old snapshot so later restoration
+      // follows the reader's latest state instead of resurrecting the baseline.
+      this.#mask.releaseClasses([element], classes, group);
+      baseline.maskedElements.delete(element);
+      baseline.signatures.delete(signature);
+    }
+    this.#mask.removeClasses(toMask, classes, group);
+  }
+
+  #activeAnnotationQuestion(): Element | null {
+    if (!parseConfirmedReviewRoute(this.#url())) {
+      const candidates = this.#queryAll(this.#selectors.questionRegion).filter((element) =>
+        this.#isAuthoredVisible(element),
+      );
+      return candidates.length === 1 ? (candidates[0] ?? null) : null;
+    }
+
+    const reviewRoot = this.#activeReviewRoot();
+    if (!reviewRoot) return null;
+    const containers = new Set(
+      this.#structuralAnswerChoices(reviewRoot)
+        .map((choice) => choice.closest(".answer-container.question-container"))
+        .filter((element): element is Element => element !== null),
+    );
+    if (containers.size !== 1) return null;
+    const question = [...containers][0] ?? null;
+    return question && this.#isAuthoredVisible(question) ? question : null;
+  }
+
   #queryAny(selectors: readonly string[]): Element | null {
     for (const selector of selectors) {
       const element = this.#document.querySelector(selector);
@@ -730,8 +928,31 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return [...elements];
   }
 
+  #queryAllWithin(root: Element, selectors: readonly string[]): Element[] {
+    const elements = new Set<Element>();
+    for (const selector of selectors) {
+      if (root.matches(selector)) {
+        elements.add(root);
+      }
+      for (const element of root.querySelectorAll(selector)) {
+        elements.add(element);
+      }
+    }
+    return [...elements];
+  }
+
   #queryAnyWithin(root: Element, selectors: readonly string[]): Element | null {
     return this.#queryAll(selectors).find((element) => root.contains(element)) ?? null;
+  }
+
+  #renderedElement(elements: readonly Element[]): HTMLElement | null {
+    return (
+      elements.find((element): element is HTMLElement => {
+        if (!(element instanceof HTMLElement)) return false;
+        const rect = element.getBoundingClientRect();
+        return Number.isFinite(rect.bottom) && rect.bottom > 0 && rect.width > 0;
+      }) ?? null
+    );
   }
 
   #resolveCompletedReviewSwitch(reviewRoot: Element): Element | null {
@@ -1042,6 +1263,51 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     const protection = this.#document.documentElement.dataset.mkitProtection;
     return protection === "boot" || protection === "unsupported";
   }
+}
+
+function createAnnotationBaselines(): AnnotationBaselines {
+  return {
+    byQuestion: new Map(),
+    byContainer: new WeakMap(),
+  };
+}
+
+function annotationCarrierSignature(question: Element, element: Element): string {
+  const candidate = element.parentElement?.closest(
+    ".reading-passage, .multi-choice, .choice-content, p, li",
+  );
+  const region = candidate && question.contains(candidate) ? candidate : question;
+  const path: string[] = [];
+  let current: Element | null = region;
+  while (current && current !== question) {
+    const parent: Element | null = current.parentElement;
+    if (!parent) break;
+    path.push(`${current.localName}:${[...parent.children].indexOf(current)}`);
+    current = parent;
+  }
+  const preceding = element.ownerDocument.createRange();
+  preceding.selectNodeContents(region);
+  preceding.setEndBefore(element);
+  const start = preceding.toString().length;
+  const text = (element.textContent ?? "").replaceAll(/\s+/g, " ").trim();
+  return `${path.reverse().join("/")}|${start}:${element.textContent?.length ?? 0}|${text}`;
+}
+
+function capabilityReportSignature(report: CapabilityReport): string {
+  return JSON.stringify([
+    report.pageKind,
+    report.safeToReveal,
+    report.questionRegionFound,
+    report.answerChoiceCount,
+    report.navigatorFound,
+    report.feedbackRegionFound,
+    report.explanationFound,
+    report.correctAnswerParseable,
+    report.categoryCodeFound,
+    report.scoreRegionCount,
+    report.reviewControlFound,
+    report.issues,
+  ]);
 }
 
 function readFirstSafeAttribute(element: Element | null, names: readonly string[]): string | null {

@@ -60,7 +60,13 @@ export type StudyRailStage =
   | "test-active"
   | "test-finished";
 
+export interface StudyRailAnchor {
+  top: number;
+  right: number;
+}
+
 export interface StudyRailProps {
+  anchor: StudyRailAnchor;
   mode: FreshAttemptMode;
   stage: StudyRailStage;
   progress: FreshProgress;

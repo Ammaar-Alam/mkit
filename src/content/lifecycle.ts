@@ -4,9 +4,11 @@ import {
   CONTENT_DETECTION_FAILED_ISSUE,
   CONTENT_STARTUP_FAILED_ISSUE,
   type ContentRouteKind,
+  type ContentRuntimeState,
   type ContentStatusResponse,
 } from "../shared/popup-status";
-import type { DisposableMKitPreflight } from "./preflight";
+import type { SettingsRecord } from "../storage";
+import { type DisposableMKitPreflight, NORMAL_REVIEW_REQUEST_EVENT } from "./preflight";
 
 export interface ContentLifecycleDependencies {
   createAdapter(): FullLengthReviewAdapter;
@@ -18,13 +20,17 @@ export interface ContentLifecycleDependencies {
 }
 
 export interface ContentLifecycle {
+  applySettings(settings: SettingsRecord): void;
   dispose(): void;
   reconcile(): void;
+  setEnabled(enabled: boolean): void;
+  setHideSectionResultMarksEnabled(enabled: boolean): void;
   status(): ContentStatusResponse;
 }
 
 export function startContentLifecycle(
   dependencies: ContentLifecycleDependencies,
+  initialSettings?: Pick<SettingsRecord, "enabled" | "hideSectionResultMarksEnabled">,
 ): ContentLifecycle {
   const routeMarker = "answer-review";
   let adapter: FullLengthReviewAdapter | null = null;
@@ -32,13 +38,21 @@ export function startContentLifecycle(
   let preflight: DisposableMKitPreflight | null = null;
   let probeFrame: number | null = null;
   let disposed = false;
+  // Persisted settings are asynchronous. Until they arrive, the lifecycle must
+  // leave the native page untouched instead of briefly applying default-on
+  // protection to a reader who has turned MKit off.
+  let enabled = initialSettings?.enabled ?? false;
+  let hideSectionResultMarksEnabled = initialSettings?.hideSectionResultMarksEnabled ?? true;
+  let normalReviewBypass = false;
   let routeKind: ContentRouteKind = "non-review";
   let routeIssues: string[] = [];
+  let runtimeState: ContentRuntimeState = enabled ? "unsupported" : "disabled";
   /**
    * The adapter that covered a section overview. Its class mask is reversible, so
    * leaving that page has to restore it even though no host was ever mounted.
    */
   let sectionOverviewAdapter: FullLengthReviewAdapter | null = null;
+  let stopSectionOverviewObserver: (() => void) | null = null;
 
   const stopProbe = (): void => {
     if (probeFrame === null) return;
@@ -99,6 +113,13 @@ export function startContentLifecycle(
   };
 
   const releaseSectionOverview = (): void => {
+    const stopObserver = stopSectionOverviewObserver;
+    stopSectionOverviewObserver = null;
+    try {
+      stopObserver?.();
+    } catch {
+      // Restoration below must still run if observation teardown is incomplete.
+    }
     const owner = sectionOverviewAdapter;
     sectionOverviewAdapter = null;
     if (!owner) return;
@@ -120,6 +141,15 @@ export function startContentLifecycle(
     restoreNativePage(currentAdapter, currentController, currentPreflight);
   };
 
+  const requestNormalReview = (): void => {
+    if (disposed || !enabled) return;
+    normalReviewBypass = true;
+    routeIssues = [];
+    runtimeState = "normal-review";
+    releaseSectionOverview();
+    deactivate();
+  };
+
   const scheduleProbe = (): void => {
     if (probeFrame !== null || disposed) return;
     probeFrame = requestAnimationFrame(() => {
@@ -130,6 +160,10 @@ export function startContentLifecycle(
 
   const reconcile = (): void => {
     if (disposed) return;
+    if (!enabled) {
+      runtimeState = "disabled";
+      return;
+    }
 
     if (!controller) {
       clearPageMarkers();
@@ -145,7 +179,25 @@ export function startContentLifecycle(
       pageKind = candidate.classifyPage();
       answerRoute = pageKind === "review" || pageKind === "unknown-review";
       routeKind =
-        pageKind === "review" ? "review" : answerRoute ? "incomplete-review" : "non-review";
+        pageKind === "review"
+          ? "review"
+          : answerRoute
+            ? "incomplete-review"
+            : pageKind === "section-overview"
+              ? "section-overview"
+              : "non-review";
+
+      if (normalReviewBypass) {
+        if (answerRoute) {
+          runtimeState = "normal-review";
+          stopProbe();
+          releaseSectionOverview();
+          restoreNativePage(null, null, null);
+          return;
+        }
+        normalReviewBypass = false;
+      }
+
       // The completed section overview is covered in place: it needs no host,
       // controller, or protection marker, so the native page stays intact and
       // only its row-level correctness cues are neutralized.
@@ -153,11 +205,24 @@ export function startContentLifecycle(
         if (controller || adapter || preflight) {
           deactivate();
         }
-        sectionOverviewAdapter = candidate;
-        if (candidate.applySectionOverviewCover()) {
+        if (!hideSectionResultMarksEnabled) {
           stopProbe();
+          releaseSectionOverview();
+          runtimeState = "supported-not-running";
+          return;
+        }
+        sectionOverviewAdapter ??= candidate;
+        if (sectionOverviewAdapter.applySectionOverviewCover()) {
+          stopSectionOverviewObserver ??= sectionOverviewAdapter.observe((event) => {
+            if (event.type === "page-change") {
+              scheduleProbe();
+            }
+          });
+          stopProbe();
+          runtimeState = "active";
         } else {
           scheduleProbe();
+          runtimeState = "supported-not-running";
         }
         return;
       }
@@ -170,6 +235,7 @@ export function startContentLifecycle(
       }
 
       if (!ready) {
+        runtimeState = answerRoute ? "supported-not-running" : "unsupported";
         if (controller || adapter || preflight) {
           deactivate();
         } else {
@@ -184,19 +250,21 @@ export function startContentLifecycle(
       }
     } catch {
       routeIssues = [CONTENT_DETECTION_FAILED_ISSUE];
+      runtimeState = answerRoute ? "supported-not-running" : "unsupported";
       releaseSectionOverview();
       if (controller || adapter || preflight) {
         deactivate();
       } else {
         restoreNativePage(null, null, null);
       }
-      if (answerRoute) scheduleProbe();
+      if (answerRoute || routeKind === "section-overview") scheduleProbe();
       return;
     }
 
     stopProbe();
     if (controller && preflight?.host.isConnected) {
       document.documentElement.dataset.mkitRoute = routeMarker;
+      runtimeState = "active";
       return;
     }
     if (controller || adapter || preflight) {
@@ -211,6 +279,7 @@ export function startContentLifecycle(
         throw new Error("MKit preflight host did not mount synchronously.");
       }
       nextPreflight.setProtection("boot");
+      nextPreflight.host.addEventListener(NORMAL_REVIEW_REQUEST_EVENT, requestNormalReview);
       nextController = dependencies.createController(candidate, nextPreflight);
       nextController.start();
       if (!nextPreflight.host.isConnected) {
@@ -218,6 +287,7 @@ export function startContentLifecycle(
       }
     } catch {
       routeIssues = [CONTENT_STARTUP_FAILED_ISSUE];
+      runtimeState = "supported-not-running";
       restoreNativePage(candidate, nextController, nextPreflight);
       scheduleProbe();
       return;
@@ -227,6 +297,7 @@ export function startContentLifecycle(
     preflight = nextPreflight;
     controller = nextController;
     document.documentElement.dataset.mkitRoute = routeMarker;
+    runtimeState = "active";
   };
 
   const routeListener = (): void => reconcile();
@@ -236,14 +307,53 @@ export function startContentLifecycle(
   document.addEventListener("DOMContentLoaded", routeListener);
   reconcile();
 
+  const setEnabled = (nextEnabled: boolean): void => {
+    if (disposed || enabled === nextEnabled) return;
+    enabled = nextEnabled;
+    normalReviewBypass = false;
+    routeIssues = [];
+    if (!enabled) {
+      runtimeState = "disabled";
+      stopProbe();
+      releaseSectionOverview();
+      deactivate();
+      return;
+    }
+    runtimeState = "unsupported";
+    reconcile();
+  };
+
+  const setHideSectionResultMarksEnabled = (nextEnabled: boolean): void => {
+    if (disposed || hideSectionResultMarksEnabled === nextEnabled) return;
+    hideSectionResultMarksEnabled = nextEnabled;
+    if (!hideSectionResultMarksEnabled) {
+      releaseSectionOverview();
+    }
+    if (enabled) {
+      reconcile();
+    }
+  };
+
   return {
+    applySettings(settings: SettingsRecord): void {
+      if (disposed) return;
+      if (!settings.enabled) {
+        setEnabled(false);
+        hideSectionResultMarksEnabled = settings.hideSectionResultMarksEnabled;
+        return;
+      }
+      setHideSectionResultMarksEnabled(settings.hideSectionResultMarksEnabled);
+      setEnabled(true);
+      controller?.updateSettings(settings);
+    },
     reconcile,
+    setEnabled,
+    setHideSectionResultMarksEnabled,
     status(): ContentStatusResponse {
-      const attached = Boolean(controller && preflight?.host.isConnected);
       return {
-        attached,
+        state: runtimeState,
         route: routeKind,
-        issues: attached ? [] : routeIssues,
+        issues: runtimeState === "active" || runtimeState === "normal-review" ? [] : routeIssues,
       };
     },
     dispose(): void {

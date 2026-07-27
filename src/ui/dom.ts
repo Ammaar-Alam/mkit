@@ -140,7 +140,6 @@ export function folioHeader(
     { className: "mkit-folio" },
     element("span", {
       className: "mkit-folio__mark",
-      text: "MK",
       attributes: { "aria-hidden": true },
     }),
     element(

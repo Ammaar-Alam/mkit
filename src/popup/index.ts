@@ -1,21 +1,38 @@
 import "./popup.css";
 import { summarizeSession } from "../core/summary";
-import { type AttemptRecord, createChromeStorageRepository, type SessionRecord } from "../storage";
-import { getPopupPageState, type PopupPageState } from "./page-status";
+import {
+  type AttemptRecord,
+  createChromeStorageRepository,
+  type SessionRecord,
+  type SettingsRecord,
+} from "../storage";
+import { getPopupPageState, type PopupPageState, reconcilePopupPageState } from "./page-status";
 
+const mkitControl = requiredElement("mkit-control");
+const mkitInput = requiredElement<HTMLInputElement>("mkit-enabled");
+const mkitState = requiredElement("mkit-state");
 const shieldInput = requiredElement<HTMLInputElement>("score-shield");
 const pageState = requiredElement("page-state");
 const pageContext = requiredElement("page-status").parentElement;
 const pageStatus = requiredElement("page-status");
 const pageDetail = requiredElement("page-detail");
+const hideSectionResultMarksInput = requiredElement<HTMLInputElement>("hide-section-result-marks");
+const resultMarksState = requiredElement("result-marks-state");
+const clearPreviousHighlightsInput = requiredElement<HTMLInputElement>("clear-previous-highlights");
+const highlightsState = requiredElement("highlights-state");
+const clearPreviousCrossOutsInput = requiredElement<HTMLInputElement>("clear-previous-cross-outs");
+const crossOutsState = requiredElement("cross-outs-state");
 const shieldState = requiredElement("shield-state");
 const saveStatus = requiredElement("save-status");
 const activeSessions = requiredElement("active-sessions");
 const sessionHistory = requiredElement("session-history");
+const historySection = requiredElement("history-section");
 const storageState = requiredElement("storage-state");
 const storageDetail = requiredElement("storage-detail");
 const openSettings = requiredElement<HTMLButtonElement>("open-settings");
 const repository = createChromeStorageRepository();
+let currentSettings: SettingsRecord | null = null;
+let currentPageState: PopupPageState | null = null;
 
 void initialize();
 
@@ -26,7 +43,8 @@ async function initialize(): Promise<void> {
     repository.listAttempts(),
     repository.getSyncStatus(),
   ]);
-  render(settings.scoreShieldEnabled);
+  currentSettings = settings;
+  renderSettings(settings);
   renderSessions(sessions, attempts);
   renderStorage(
     settings.syncEnabled,
@@ -34,11 +52,34 @@ async function initialize(): Promise<void> {
     syncStatus.someNotesLocalOnly,
     syncStatus.lastErrorCode !== undefined,
   );
-  renderPageState(await getPopupPageState());
+  currentPageState = await getPopupPageState();
+  renderPageState(currentPageState, settings.enabled);
   void repository.retryDirtySync().catch(() => undefined);
 
-  shieldInput.addEventListener("change", async () => {
-    await saveSetting({ scoreShieldEnabled: shieldInput.checked });
+  mkitInput.addEventListener("change", () => {
+    void saveEnabledSetting();
+  });
+
+  shieldInput.addEventListener("change", () => {
+    void savePageSetting({ scoreShieldEnabled: shieldInput.checked });
+  });
+
+  hideSectionResultMarksInput.addEventListener("change", () => {
+    void savePageSetting({
+      hideSectionResultMarksEnabled: hideSectionResultMarksInput.checked,
+    });
+  });
+
+  clearPreviousHighlightsInput.addEventListener("change", () => {
+    void savePageSetting({
+      clearPreviousHighlightsEnabled: clearPreviousHighlightsInput.checked,
+    });
+  });
+
+  clearPreviousCrossOutsInput.addEventListener("change", () => {
+    void savePageSetting({
+      clearPreviousCrossOutsEnabled: clearPreviousCrossOutsInput.checked,
+    });
   });
 
   openSettings.addEventListener("click", () => {
@@ -46,18 +87,50 @@ async function initialize(): Promise<void> {
   });
 }
 
-function render(scoreShieldEnabled: boolean): void {
-  shieldInput.checked = scoreShieldEnabled;
-  shieldState.textContent = scoreShieldEnabled ? "On" : "Off";
+async function saveEnabledSetting(): Promise<void> {
+  await savePageSetting({ enabled: mkitInput.checked });
 }
 
-function renderPageState(state: PopupPageState): void {
+async function savePageSetting(
+  patch: Parameters<typeof repository.writeSettings>[0],
+): Promise<void> {
+  const settings = await saveSetting(patch);
+  if (!settings) return;
+  currentPageState = await reconcilePopupPageState();
+  renderPageState(currentPageState, settings.enabled);
+}
+
+function renderSettings(settings: SettingsRecord): void {
+  mkitInput.checked = settings.enabled;
+  mkitState.textContent = settings.enabled ? "On" : "Off";
+  mkitControl.dataset.enabled = String(settings.enabled);
+  hideSectionResultMarksInput.checked = settings.hideSectionResultMarksEnabled;
+  resultMarksState.textContent = settings.hideSectionResultMarksEnabled ? "On" : "Off";
+  clearPreviousHighlightsInput.checked = settings.clearPreviousHighlightsEnabled;
+  highlightsState.textContent = settings.clearPreviousHighlightsEnabled ? "On" : "Off";
+  clearPreviousCrossOutsInput.checked = settings.clearPreviousCrossOutsEnabled;
+  crossOutsState.textContent = settings.clearPreviousCrossOutsEnabled ? "On" : "Off";
+  shieldInput.checked = settings.scoreShieldEnabled;
+  shieldState.textContent = settings.scoreShieldEnabled ? "On" : "Off";
+}
+
+function renderPageState(state: PopupPageState, enabled: boolean): void {
+  if (!enabled) {
+    if (pageContext instanceof HTMLElement) {
+      pageContext.dataset.status = "disabled";
+    }
+    pageState.textContent = "Off";
+    pageStatus.textContent = "MKit is off";
+    pageDetail.textContent = "This page is unchanged.";
+    return;
+  }
   if (pageContext instanceof HTMLElement) {
     pageContext.dataset.status = state.status;
   }
   if (state.status === "active") {
     pageState.textContent = "Ready";
-    pageStatus.textContent = "Fresh Attempt is ready";
+    pageStatus.textContent =
+      state.surface === "section-overview" ? "Results are hidden" : "Fresh Attempt is ready";
   } else if (state.status === "supported-not-running") {
     pageState.textContent = "Not covered";
     pageStatus.textContent = "Review not verified";
@@ -71,13 +144,28 @@ function renderPageState(state: PopupPageState): void {
       : state.detail;
 }
 
-async function saveSetting(patch: Parameters<typeof repository.writeSettings>[0]): Promise<void> {
+async function saveSetting(
+  patch: Parameters<typeof repository.writeSettings>[0],
+): Promise<SettingsRecord | null> {
+  const previous = currentSettings;
   try {
     const next = await repository.writeSettings(patch);
-    render(next.scoreShieldEnabled);
+    currentSettings = next;
+    renderSettings(next);
+    if (currentPageState) {
+      renderPageState(currentPageState, next.enabled);
+    }
     announce("Saved");
+    return next;
   } catch {
-    renderError();
+    if (previous) {
+      renderSettings(previous);
+      if (currentPageState) {
+        renderPageState(currentPageState, previous.enabled);
+      }
+    }
+    announce("Couldn’t save");
+    return null;
   }
 }
 
@@ -97,19 +185,20 @@ function renderSessions(sessions: SessionRecord[], attempts: AttemptRecord[]): v
 
   activeSessions.replaceChildren(
     ...(active.length === 0
-      ? [emptyState("No active attempts.", "Open a completed score report to start.")]
+      ? [emptyState("No active attempts.", "Start from a completed score report.")]
       : active.map((session) =>
           sessionCard(
             session,
             examNumbers.get(session.examKey) ?? 1,
             attempts.filter((attempt) => attempt.sessionId === session.id),
-            "Saved. Open the review to continue.",
+            "Saved here.",
           ),
         )),
   );
+  historySection.hidden = history.length === 0;
   sessionHistory.replaceChildren(
     ...(history.length === 0
-      ? [emptyState("No finished sessions yet.", "Your reflections will collect here.")]
+      ? []
       : history.map((session) =>
           sessionCard(
             session,
@@ -164,11 +253,6 @@ function renderStorage(
       : dirty && syncEnabled
         ? "Syncing"
         : "";
-}
-
-function renderError(): void {
-  announce("Couldn’t save");
-  shieldInput.disabled = true;
 }
 
 function announce(message: string): void {

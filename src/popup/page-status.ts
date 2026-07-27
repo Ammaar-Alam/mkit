@@ -1,10 +1,15 @@
-import { type ContentStatusResponse, POPUP_STATUS_MESSAGE } from "../shared/popup-status";
+import {
+  CONTENT_RECONCILE_MESSAGE,
+  type ContentStatusResponse,
+  POPUP_STATUS_MESSAGE,
+} from "../shared/popup-status";
 
 export type PopupPageStatus = "active" | "supported-not-running" | "unsupported";
 
 export interface PopupPageState {
   status: PopupPageStatus;
   detail: string;
+  surface?: "section-overview";
   issues?: string[];
 }
 
@@ -15,6 +20,11 @@ interface ActiveTab {
 interface PopupStatusDependencies {
   getActiveTab(): Promise<ActiveTab | undefined>;
   getContentStatus(tabId: number): Promise<ContentStatusResponse | undefined>;
+}
+
+interface PopupReconcileDependencies {
+  getActiveTab(): Promise<ActiveTab | undefined>;
+  reconcileContent(tabId: number): Promise<ContentStatusResponse | undefined>;
 }
 
 export async function getPopupPageState(
@@ -36,14 +46,59 @@ export async function getPopupPageState(
   if (status === undefined) {
     return unsupported();
   }
+  return mapContentStatus(status);
+}
 
-  if (status.attached) {
+export async function reconcilePopupPageState(
+  dependencies: PopupReconcileDependencies = chromePopupStatusDependencies(),
+): Promise<PopupPageState> {
+  const tab = await dependencies.getActiveTab();
+  if (tab?.id === undefined) {
+    return unsupported();
+  }
+
+  try {
+    const status = await dependencies.reconcileContent(tab.id);
+    return status === undefined ? unsupported() : mapContentStatus(status);
+  } catch {
+    return unsupported();
+  }
+}
+
+function mapContentStatus(status: ContentStatusResponse): PopupPageState {
+  if (status.state === "active") {
+    if (status.route === "section-overview") {
+      return {
+        status: "active",
+        detail: "Section result marks are hidden.",
+        surface: "section-overview",
+      };
+    }
     return {
       status: "active",
       detail: "Fresh Attempt is ready on this review.",
     };
   }
-  if (status.route === "review" || status.route === "incomplete-review") {
+  if (status.state === "normal-review") {
+    return {
+      status: "supported-not-running",
+      detail: "Normal review is open on this page.",
+    };
+  }
+  if (status.state === "disabled") {
+    return {
+      status: "supported-not-running",
+      detail: "MKit is turned off.",
+    };
+  }
+  if (status.state === "supported-not-running") {
+    if (status.route === "section-overview") {
+      return {
+        status: "supported-not-running",
+        detail: "Section result marks are visible.",
+        surface: "section-overview",
+      };
+    }
     const issues = status.issues ?? [];
     return {
       status: "supported-not-running",
@@ -61,7 +116,7 @@ function unsupported(): PopupPageState {
   };
 }
 
-function chromePopupStatusDependencies(): PopupStatusDependencies {
+function chromePopupStatusDependencies(): PopupStatusDependencies & PopupReconcileDependencies {
   return {
     async getActiveTab(): Promise<ActiveTab | undefined> {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -72,6 +127,11 @@ function chromePopupStatusDependencies(): PopupStatusDependencies {
     async getContentStatus(tabId: number): Promise<ContentStatusResponse | undefined> {
       return chrome.tabs.sendMessage(tabId, {
         type: POPUP_STATUS_MESSAGE,
+      }) as Promise<ContentStatusResponse | undefined>;
+    },
+    async reconcileContent(tabId: number): Promise<ContentStatusResponse | undefined> {
+      return chrome.tabs.sendMessage(tabId, {
+        type: CONTENT_RECONCILE_MESSAGE,
       }) as Promise<ContentStatusResponse | undefined>;
     },
   };

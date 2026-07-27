@@ -41,6 +41,35 @@
   padding: clamp(2rem, 7vw, 5rem) clamp(1rem, 5vw, 3rem) 6rem;
 }
 
+.master-setting {
+  padding: var(--space-lg);
+  border: 1px solid var(--moss);
+  background: var(--moss-quiet);
+}
+
+.master-setting[data-enabled="false"] {
+  border-color: var(--rule);
+  background: var(--paper-raised);
+}
+
+.master-switch-row {
+  min-height: 4rem;
+}
+
+.master-switch-row .switch-copy strong {
+  font-family: var(--font-heading);
+  font-size: 1.125rem;
+}
+
+.master-switch-row .switch-state {
+  color: var(--moss);
+  font-weight: 700;
+}
+
+.master-setting[data-enabled="false"] .switch-state {
+  color: var(--ink-muted);
+}
+
 section {
   display: grid;
   gap: var(--space-lg);

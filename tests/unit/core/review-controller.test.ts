@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   AdapterEvent,
   CapabilityReport,
+  CleanSlatePreferences,
   FullLengthReviewAdapter,
   SanitizedQuestionContext,
 } from "../../../src/adapter/contracts";
 import type { MKitPreflight, PreflightProtection } from "../../../src/content/preflight";
 import { ReviewController } from "../../../src/core/review-controller";
-import { StorageRepository } from "../../../src/storage";
+import { DEFAULT_SETTINGS, StorageRepository } from "../../../src/storage";
 import { FakeStorageArea } from "../storage/fake-storage";
 
 const SAFE_REVIEW_REPORT: CapabilityReport = {
@@ -52,6 +53,10 @@ describe("ReviewController generation safety", () => {
     q1.resolve(context("question-q1"));
     await firstReconcile;
 
+    expect(adapter.cleanSlatePreferences).toEqual({
+      clearPreviousHighlightsEnabled: true,
+      clearPreviousCrossOutsEnabled: true,
+    });
     const practice = preflight.shadow.querySelector<HTMLButtonElement>(
       "[data-focus-key='practice']",
     );
@@ -70,18 +75,174 @@ describe("ReviewController generation safety", () => {
 
     controller.dispose();
   });
+
+  it("keeps the mounted rail anchor stable through answer save rerenders", async () => {
+    const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+        "297px",
+      );
+    });
+
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[0]?.selection).toBe("A");
+    });
+
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+      "297px",
+    );
+    expect(adapter.anchorRequests).toBe(1);
+
+    controller.dispose();
+  });
+
+  it("remeasures the mounted rail when the active question changes", async () => {
+    const adapter = new ControlledAdapter([
+      Promise.resolve(context("question-q1")),
+      Promise.resolve(context("question-q2")),
+    ]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe(
+        "297px",
+      );
+    });
+    expect(adapter.anchorRequests).toBe(1);
+
+    await controller.reconcile();
+
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
+    expect(adapter.anchorRequests).toBe(2);
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[1]?.selection).toBe("A");
+    });
+    expect(preflight.shadow.querySelector<HTMLElement>(".mkit-study-rail")?.style.top).toBe("16px");
+    expect(adapter.anchorRequests).toBe(2);
+
+    controller.dispose();
+  });
+
+  it("persists a note with an immediate answer without per-keystroke redraws", async () => {
+    const adapter = new ControlledAdapter([Promise.resolve(context("question-q1"))]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(
+        preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']"),
+      ).not.toBeNull();
+    });
+    const note = preflight.shadow.querySelector<HTMLTextAreaElement>(
+      "[data-focus-key='private-note']",
+    );
+    if (!note) throw new Error("Study Rail note editor was not rendered.");
+
+    for (const draft of ["C", "Compare", "Compare the limiting cases."]) {
+      note.value = draft;
+      note.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(
+        preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']"),
+      ).toBe(note);
+    }
+    expect(note.isConnected).toBe(true);
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='answer-A']")?.click();
+
+    await vi.waitFor(async () => {
+      expect((await repository.listAttempts())[0]).toMatchObject({
+        note: "Compare the limiting cases.",
+        selection: "A",
+      });
+    });
+    expect(
+      preflight.shadow.querySelector<HTMLTextAreaElement>("[data-focus-key='private-note']")?.value,
+    ).toBe("Compare the limiting cases.");
+    controller.dispose();
+  });
+
+  it("restores native scores when live settings disable Score Shield", async () => {
+    const adapter = new ScoreReportAdapter();
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    expect(adapter.scoreShieldApplications).toBe(1);
+    expect(preflight.shadow.querySelector(".mkit-score-shield")).not.toBeNull();
+
+    controller.updateSettings({
+      ...DEFAULT_SETTINGS,
+      scoreShieldEnabled: false,
+      updatedAt: 42,
+    });
+    await vi.waitFor(() => expect(adapter.scoreReveals).toBe(1));
+
+    expect(adapter.scoreShieldApplications).toBe(1);
+    expect(preflight.shadow.querySelector(".mkit-score-shield")).toBeNull();
+    expect(preflight.protections.at(-1)).toBe("non-review");
+    controller.dispose();
+  });
 });
 
 class ControlledAdapter implements FullLengthReviewAdapter {
+  anchorRequests = 0;
   contextRequests = 0;
   studyRailMounts = 0;
+  cleanSlatePreferences: CleanSlatePreferences | null = null;
   readonly #contexts: Array<Promise<SanitizedQuestionContext | null>>;
 
   constructor(contexts: Array<Promise<SanitizedQuestionContext | null>>) {
     this.#contexts = contexts;
   }
 
-  classifyPage = () => "review" as const;
+  classifyPage: FullLengthReviewAdapter["classifyPage"] = () => "review";
   inspectCapabilities = () => SAFE_REVIEW_REPORT;
   getExamKey = async () => "synthetic-exam";
   getQuestionContext = async () => {
@@ -89,12 +250,19 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     this.contextRequests += 1;
     return request ?? null;
   };
+  configureCleanSlate = (preferences: CleanSlatePreferences) => {
+    this.cleanSlatePreferences = preferences;
+  };
+  getStudyRailAnchor = () => {
+    this.anchorRequests += 1;
+    return this.anchorRequests === 1 ? { top: 297, right: 16 } : { top: 16, right: 16 };
+  };
   applyCleanSlate = () => SAFE_REVIEW_REPORT;
   applyScoreShield = () => SAFE_REVIEW_REPORT;
   applySectionOverviewCover = () => false;
   revealSectionOverview = () => undefined;
   gradeFresh = () => "unknown" as const;
-  revealScores = () => undefined;
+  revealScores: FullLengthReviewAdapter["revealScores"] = () => undefined;
   revealFeedback = () => undefined;
   revealOriginalAttempt = () => undefined;
   remaskQuestion = () => undefined;
@@ -107,6 +275,29 @@ class ControlledAdapter implements FullLengthReviewAdapter {
   };
   navigate = () => false;
   observe = (_listener: (event: AdapterEvent) => void) => () => undefined;
+}
+
+class ScoreReportAdapter extends ControlledAdapter {
+  scoreShieldApplications = 0;
+  scoreReveals = 0;
+
+  constructor() {
+    super([]);
+  }
+
+  override classifyPage = () => "score-report" as const;
+  override inspectCapabilities = () => ({
+    ...SAFE_REVIEW_REPORT,
+    pageKind: "score-report" as const,
+    scoreRegionCount: 1,
+  });
+  override applyScoreShield = () => {
+    this.scoreShieldApplications += 1;
+    return this.inspectCapabilities();
+  };
+  override revealScores = () => {
+    this.scoreReveals += 1;
+  };
 }
 
 function context(questionKey: string): SanitizedQuestionContext {

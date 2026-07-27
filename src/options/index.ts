@@ -3,9 +3,15 @@ import {
   createChromeStorageRepository,
   type DebugLogRecord,
   type FreshAttemptMode,
+  type SettingsRecord,
 } from "../storage";
 
-const protectInput = requiredElement<HTMLInputElement>("protect-reviews");
+const mkitControl = requiredElement("mkit-control");
+const mkitInput = requiredElement<HTMLInputElement>("mkit-enabled");
+const mkitState = requiredElement("mkit-state");
+const hideSectionResultMarksInput = requiredElement<HTMLInputElement>("hide-section-result-marks");
+const clearPreviousHighlightsInput = requiredElement<HTMLInputElement>("clear-previous-highlights");
+const clearPreviousCrossOutsInput = requiredElement<HTMLInputElement>("clear-previous-cross-outs");
 const shieldInput = requiredElement<HTMLInputElement>("score-shield");
 const encouragementInput = requiredElement<HTMLInputElement>("encouragement");
 const syncInput = requiredElement<HTMLInputElement>("browser-sync");
@@ -25,7 +31,10 @@ async function initialize(): Promise<void> {
     repository.getSettings(),
     repository.listDebugLog(),
   ]);
-  protectInput.checked = settings.enabled;
+  renderMKitState(settings.enabled);
+  hideSectionResultMarksInput.checked = settings.hideSectionResultMarksEnabled;
+  clearPreviousHighlightsInput.checked = settings.clearPreviousHighlightsEnabled;
+  clearPreviousCrossOutsInput.checked = settings.clearPreviousCrossOutsEnabled;
   shieldInput.checked = settings.scoreShieldEnabled;
   encouragementInput.checked = settings.encouragementEnabled;
   syncInput.checked = settings.syncEnabled;
@@ -34,8 +43,21 @@ async function initialize(): Promise<void> {
     input.checked = input.value === settings.defaultMode;
   }
 
-  protectInput.addEventListener("change", () => save({ enabled: protectInput.checked }));
-  shieldInput.addEventListener("change", () => save({ scoreShieldEnabled: shieldInput.checked }));
+  mkitInput.addEventListener("change", () => {
+    void saveMKitSetting();
+  });
+  hideSectionResultMarksInput.addEventListener("change", () => {
+    void save({ hideSectionResultMarksEnabled: hideSectionResultMarksInput.checked });
+  });
+  clearPreviousHighlightsInput.addEventListener("change", () => {
+    void save({ clearPreviousHighlightsEnabled: clearPreviousHighlightsInput.checked });
+  });
+  clearPreviousCrossOutsInput.addEventListener("change", () => {
+    void save({ clearPreviousCrossOutsEnabled: clearPreviousCrossOutsInput.checked });
+  });
+  shieldInput.addEventListener("change", () => {
+    void save({ scoreShieldEnabled: shieldInput.checked });
+  });
   encouragementInput.addEventListener("change", () =>
     save({ encouragementEnabled: encouragementInput.checked }),
   );
@@ -59,13 +81,29 @@ async function initialize(): Promise<void> {
   void repository.retryDirtySync().catch(() => undefined);
 }
 
-async function save(patch: Parameters<typeof repository.writeSettings>[0]): Promise<void> {
+async function saveMKitSetting(): Promise<void> {
+  const previous = !mkitInput.checked;
+  const settings = await save({ enabled: mkitInput.checked });
+  renderMKitState(settings?.enabled ?? previous);
+}
+
+async function save(
+  patch: Parameters<typeof repository.writeSettings>[0],
+): Promise<SettingsRecord | null> {
   try {
-    await repository.writeSettings(patch);
+    const settings = await repository.writeSettings(patch);
     announceSaved("Settings saved");
+    return settings;
   } catch {
     announceSaved("Couldn’t save");
+    return null;
   }
+}
+
+function renderMKitState(enabled: boolean): void {
+  mkitInput.checked = enabled;
+  mkitState.textContent = enabled ? "On" : "Off";
+  mkitControl.dataset.enabled = String(enabled);
 }
 
 function renderDebugLog(records: DebugLogRecord[]): void {

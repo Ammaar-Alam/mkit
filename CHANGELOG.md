@@ -4,6 +4,65 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-26
+
+### Added
+
+- Added a browser-local MKit On/Off switch that releases supported open pages
+  without deleting Fresh Attempt progress.
+- Added settings to clear earlier AAMC highlights and crossed-out choices during
+  Fresh Attempt. Both default to On and leave new annotations usable.
+- Added a setting to replace per-question correct and incorrect marks on a
+  completed section score report with a neutral MKit mark.
+- Added the review settings to both the extension popup and the full settings
+  page.
+
+### Changed
+
+- Moved review settings to the top of the popup and hid empty session history.
+- Made notes and tags available throughout Practice and Test instead of only
+  after revealing the original attempt.
+- Redesigned the Fresh Attempt rail with a fixed compact header, fixed next
+  action, circular answer controls, quieter cross-outs, and clearer selected
+  states.
+- Placed the Fresh Attempt rail below AAMC's highlighting controls by default
+  and kept that position through answer and save updates.
+- Used the packaged MKit artwork in extension surfaces and for concealed result
+  marks.
+
+### Fixed
+
+- Made every Normal review action release MKit on the first click and removed the
+  transparent full-page host that could leave the restored AAMC page frozen.
+- Kept Practice, Test, and Normal review responsive while AAMC updates unrelated
+  parts of a completed review page.
+- Kept section-result marks concealed when AAMC mounts or replaces the question
+  list after a page refresh, and rendered the neutral MKit mark from bundled
+  artwork instead of the AAMC page origin. Repeated coverage now restores each
+  result cue's original accessibility state.
+- Preserved passage selection, copying, and native annotation tools during a
+  Fresh Attempt.
+- Kept a persisted MKit Off setting from touching a review during startup, and
+  restored the native page immediately when MKit is turned Off without a reload.
+- Restored native scores immediately when Score Shield is turned Off on an open
+  report.
+- Preserved notes, answers, confidence, and reflection changes made in quick
+  succession instead of allowing one save to overwrite another.
+- Kept ordinary study saves from refreshing unchanged settings and interrupting
+  typing in the note editor.
+- Kept the browser-local MKit switch from taking sync ownership of unrelated
+  review preferences changed on another browser.
+- Cleared prior highlights and cross-outs when AAMC reuses a question container
+  across navigation, while preserving annotations added during the current
+  Fresh Attempt on return visits.
+- Repositioned the rail for each new question while retaining its position
+  through saves on the current question.
+- Kept the rail inside the viewport and its header and next action reachable
+  while its contents scroll, including when native tools sit near the bottom of
+  a short viewport.
+- Used Chrome-valid origin matches for packaged page artwork so the unpacked
+  extension loads successfully.
+
 ## [0.1.2] - 2026-07-26
 
 ### Changed

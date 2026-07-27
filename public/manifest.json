@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MKit — The MCAT Kit",
   "short_name": "MKit",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Retry completed AAMC MCAT questions without seeing your old answers or the solutions.",
   "permissions": ["storage"],
   "action": {
@@ -27,6 +27,12 @@
       "run_at": "document_start",
       "world": "ISOLATED",
       "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/icon-48.png"],
+      "matches": ["https://www.mcatofficialprep.org/*"]
     }
   ],
   "options_page": "options/index.html"

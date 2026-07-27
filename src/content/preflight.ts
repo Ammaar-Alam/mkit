@@ -16,9 +16,14 @@ export interface DisposableMKitPreflight extends MKitPreflight {
   destroy(): void;
 }
 
+export const NORMAL_REVIEW_REQUEST_EVENT = "mkit:normal-review";
+
 declare global {
   var __mkitPreflight: DisposableMKitPreflight | undefined;
 }
+
+const runtimeUrl = (path: string): string =>
+  typeof chrome !== "undefined" && chrome.runtime?.getURL ? chrome.runtime.getURL(path) : path;
 
 export function createPreflight(): DisposableMKitPreflight {
   if (globalThis.__mkitPreflight) {
@@ -60,15 +65,10 @@ export function createPreflight(): DisposableMKitPreflight {
           clip-path: polygon(0 0, calc(100% - 1.5rem) 0, 100% 1.5rem, 100% 100%, 0 100%);
         }
         .mark {
-          display: grid;
+          display: block;
           width: 2.5rem;
           height: 2.5rem;
-          place-items: center;
-          background: oklch(24% 0.026 60);
-          color: oklch(98.5% 0.01 84);
-          font-family: Georgia, serif;
-          font-weight: 700;
-          clip-path: polygon(0 0, 100% 0, 100% 78%, 76% 100%, 0 100%);
+          object-fit: contain;
         }
         strong {
           font-family: Georgia, serif;
@@ -98,7 +98,14 @@ export function createPreflight(): DisposableMKitPreflight {
       </style>
       <main class="veil" aria-busy="true">
         <section class="folio" aria-labelledby="mkit-preparing-title">
-          <span class="mark" aria-hidden="true">M</span>
+          <img
+            class="mark"
+            src="${runtimeUrl("icons/icon-48.png")}"
+            width="40"
+            height="40"
+            alt=""
+            aria-hidden="true"
+          >
           <strong id="mkit-preparing-title">Preparing a clean view…</strong>
           <p>Your prior attempt stays covered while MKit checks this page.</p>
           <button type="button" data-normal-review>Normal review</button>
@@ -106,8 +113,9 @@ export function createPreflight(): DisposableMKitPreflight {
       </main>
     `;
     shadow.querySelector("[data-normal-review]")?.addEventListener("click", () => {
-      host.dispatchEvent(new CustomEvent("mkit:normal-review", { bubbles: true, composed: true }));
-      setProtection("normal-review");
+      host.dispatchEvent(
+        new CustomEvent(NORMAL_REVIEW_REQUEST_EVENT, { bubbles: true, composed: true }),
+      );
     });
   };
 

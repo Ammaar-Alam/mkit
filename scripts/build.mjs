@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { build } from "esbuild";
 
@@ -24,6 +25,18 @@ const common = {
 };
 
 const uiCss = await readFile(new URL("../src/content/ui.css", import.meta.url), "utf8");
+const preflightCssSource = await readFile(
+  new URL("../src/content/preflight.css", import.meta.url),
+  "utf8",
+);
+const resultMark = await readFile(new URL("../public/icons/icon-32.png", import.meta.url));
+const preflightCss = preflightCssSource.replaceAll(
+  "__MKIT_RESULT_MARK_URL__",
+  `data:image/png;base64,${Buffer.from(resultMark).toString("base64")}`,
+);
+if (preflightCss.includes("__MKIT_RESULT_MARK_URL__")) {
+  throw new Error("Preflight result mark was not embedded.");
+}
 
 await build({
   ...common,
@@ -45,10 +58,7 @@ await Promise.all([
     recursive: true,
     filter: (source) => !source.endsWith(".DS_Store"),
   }),
-  cp(
-    new URL("../src/content/preflight.css", import.meta.url),
-    new URL("../dist/content/preflight.css", import.meta.url),
-  ),
+  writeFile(new URL("../dist/content/preflight.css", import.meta.url), preflightCss),
   cp(
     new URL("../src/popup/index.html", import.meta.url),
     new URL("../dist/popup/index.html", import.meta.url),

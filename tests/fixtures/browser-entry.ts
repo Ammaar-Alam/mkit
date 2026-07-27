@@ -31,6 +31,8 @@ interface PrivacyHarness {
   keyboardLog(): KeyboardLog;
   navigate(direction: "previous" | "next"): boolean;
   restartController(): void;
+  savedNote(): Promise<string | null>;
+  savedSelection(): Promise<string | null>;
   setKeyboardEnabled(enabled: boolean): void;
   startController(): void;
   stopController(): void;
@@ -136,6 +138,14 @@ window.__mkitPrivacyHarness = {
     reviewController?.dispose();
     reviewController = null;
     startReviewController();
+  },
+  savedNote: async () => {
+    const attempts = (await reviewRepository?.listAttempts()) ?? [];
+    return attempts[0]?.note ?? null;
+  },
+  savedSelection: async () => {
+    const attempts = (await reviewRepository?.listAttempts()) ?? [];
+    return attempts[0]?.selection ?? null;
   },
   setKeyboardEnabled: (enabled) => keyboard.setEnabled(enabled),
   startController: () => startReviewController(),

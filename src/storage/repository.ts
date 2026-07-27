@@ -37,7 +37,14 @@ export const DEFAULT_SYNC_MIN_INTERVAL_MS = 600;
 type SettingsPatch = Partial<
   Pick<
     SettingsRecord,
-    "enabled" | "defaultMode" | "encouragementEnabled" | "scoreShieldEnabled" | "syncEnabled"
+    | "enabled"
+    | "defaultMode"
+    | "encouragementEnabled"
+    | "scoreShieldEnabled"
+    | "clearPreviousHighlightsEnabled"
+    | "clearPreviousCrossOutsEnabled"
+    | "hideSectionResultMarksEnabled"
+    | "syncEnabled"
   >
 >;
 
@@ -79,6 +86,7 @@ export class StorageRepository {
   }
 
   async writeSettings(patch: SettingsPatch): Promise<SettingsRecord> {
+    const affectsSync = Object.keys(patch).some((key) => key !== "enabled");
     const store = await this.mutate((draft) => {
       const current = draft.settings;
       const next: SettingsRecord = {
@@ -87,15 +95,21 @@ export class StorageRepository {
         defaultMode: patch.defaultMode ?? current.defaultMode,
         encouragementEnabled: patch.encouragementEnabled ?? current.encouragementEnabled,
         scoreShieldEnabled: patch.scoreShieldEnabled ?? current.scoreShieldEnabled,
+        clearPreviousHighlightsEnabled:
+          patch.clearPreviousHighlightsEnabled ?? current.clearPreviousHighlightsEnabled,
+        clearPreviousCrossOutsEnabled:
+          patch.clearPreviousCrossOutsEnabled ?? current.clearPreviousCrossOutsEnabled,
+        hideSectionResultMarksEnabled:
+          patch.hideSectionResultMarksEnabled ?? current.hideSectionResultMarksEnabled,
         timerDisplayEnabled: false,
         syncEnabled: patch.syncEnabled ?? current.syncEnabled,
-        updatedAt: nextTimestamp(current.updatedAt, this.now()),
+        updatedAt: affectsSync ? nextTimestamp(current.updatedAt, this.now()) : current.updatedAt,
       };
       if (current.aiHandoffTarget !== undefined) {
         next.aiHandoffTarget = current.aiHandoffTarget;
       }
       draft.settings = next;
-    });
+    }, affectsSync);
     return { ...store.settings };
   }
 
@@ -219,6 +233,43 @@ export class StorageRepository {
     const saved = store.attempts.find((attempt) => attemptKey(attempt) === attemptKey(record));
     if (saved === undefined) {
       throw new Error("Attempt was not saved");
+    }
+    return cloneAttempt(saved);
+  }
+
+  async mutateAttempt(
+    sessionId: string,
+    questionKey: string,
+    update: (current: AttemptRecord) => AttemptRecord,
+  ): Promise<AttemptRecord> {
+    const store = await this.mutate((draft) => {
+      if (isSessionDeleted(draft, sessionId)) {
+        throw new Error("Cannot update an attempt for a deleted session");
+      }
+      const index = draft.attempts.findIndex(
+        (attempt) =>
+          attempt.sessionId === sessionId &&
+          attempt.questionKey === questionKey &&
+          attempt.deletedAt === undefined,
+      );
+      const current = draft.attempts[index];
+      if (current === undefined) {
+        throw new Error("Cannot update an unknown Fresh Attempt question.");
+      }
+      const next = assertAttempt(update(cloneAttempt(current)));
+      if (next.sessionId !== sessionId || next.questionKey !== questionKey) {
+        throw new Error("An attempt mutation cannot change its identity.");
+      }
+      draft.attempts[index] = next;
+    });
+    const saved = store.attempts.find(
+      (attempt) =>
+        attempt.sessionId === sessionId &&
+        attempt.questionKey === questionKey &&
+        attempt.deletedAt === undefined,
+    );
+    if (saved === undefined) {
+      throw new Error("Attempt mutation was not saved.");
     }
     return cloneAttempt(saved);
   }
@@ -402,7 +453,9 @@ export class StorageRepository {
       }
       const sanitized = canonicalizeStore(draft);
       await this.local.set({ [LOCAL_STORE_KEY]: sanitized });
-      this.mutationVersion += 1;
+      if (affectsSync) {
+        this.mutationVersion += 1;
+      }
       return sanitized;
     });
     if (affectsSync && store.settings.syncEnabled) {
@@ -568,7 +621,15 @@ export class StorageRepository {
 export function mergeLocalAndRemote(local: MKitStore, remote: DecodedSyncSnapshot): MKitStore {
   const merged = canonicalizeStore(local);
   if (remote.settings !== undefined) {
-    merged.settings = pickNewestRecord(merged.settings, remote.settings);
+    const localEnabled = merged.settings.enabled;
+    const syncableLocalSettings = {
+      ...merged.settings,
+      enabled: true,
+    };
+    merged.settings = {
+      ...pickNewestRecord(syncableLocalSettings, remote.settings),
+      enabled: localEnabled,
+    };
   }
 
   merged.sessionTombstones = mergeByKey(

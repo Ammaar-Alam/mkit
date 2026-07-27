@@ -12,6 +12,25 @@ import { deferred, FakeStorageArea } from "./fake-storage";
 import { makeAttempt, makeSession, makeStore } from "./fixtures";
 
 describe("local-first storage repository", () => {
+  it("persists all review concealment preferences independently", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: () => 10,
+    });
+
+    await repository.writeSettings({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+      hideSectionResultMarksEnabled: false,
+    });
+
+    await expect(repository.getSettings()).resolves.toMatchObject({
+      clearPreviousHighlightsEnabled: false,
+      clearPreviousCrossOutsEnabled: false,
+      hideSectionResultMarksEnabled: false,
+    });
+  });
+
   it("awaits the local write before starting nonblocking sync", async () => {
     const events: string[] = [];
     const local = new FakeStorageArea("local", {}, events);
@@ -44,6 +63,56 @@ describe("local-first storage repository", () => {
     expect(await repository.getSyncStatus()).toMatchObject({
       dirty: true,
       lastErrorCode: "sync-read-failed",
+    });
+  });
+
+  it("keeps the browser switch local without overwriting newer synced preferences", async () => {
+    const localStore = makeStore();
+    localStore.settings = {
+      ...localStore.settings,
+      enabled: true,
+      syncEnabled: true,
+      scoreShieldEnabled: true,
+      clearPreviousHighlightsEnabled: true,
+      updatedAt: 10,
+    };
+    const remoteStore = makeStore();
+    remoteStore.settings = {
+      ...remoteStore.settings,
+      syncEnabled: true,
+      scoreShieldEnabled: false,
+      clearPreviousHighlightsEnabled: false,
+      updatedAt: 20,
+    };
+    const events: string[] = [];
+    const local = new FakeStorageArea("local", { [LOCAL_STORE_KEY]: localStore }, events);
+    const sync = new FakeStorageArea("sync", buildSyncSnapshot(remoteStore).items, events);
+    const repository = new StorageRepository({
+      local,
+      sync,
+      now: () => 30,
+      syncMinIntervalMs: 0,
+    });
+
+    const toggled = await repository.writeSettings({ enabled: false });
+    await repository.flushPendingSync();
+
+    expect(toggled).toMatchObject({ enabled: false, updatedAt: 10 });
+    expect(events.filter((event) => event === "sync:set")).toHaveLength(0);
+
+    await repository.synchronize();
+
+    await expect(repository.getSettings()).resolves.toMatchObject({
+      enabled: false,
+      scoreShieldEnabled: false,
+      clearPreviousHighlightsEnabled: false,
+      updatedAt: 20,
+    });
+    expect(decodeSyncSnapshot(sync.values).settings).toMatchObject({
+      enabled: true,
+      scoreShieldEnabled: false,
+      clearPreviousHighlightsEnabled: false,
+      updatedAt: 20,
     });
   });
 
@@ -202,6 +271,32 @@ describe("local-first storage repository", () => {
 });
 
 describe("updatedAt merge and tombstones", () => {
+  it("keeps enabled browser-local while merging newer synced preferences", () => {
+    const local = makeStore();
+    local.settings = {
+      ...local.settings,
+      enabled: false,
+      clearPreviousHighlightsEnabled: true,
+      updatedAt: 10,
+    };
+    const remoteStore = makeStore();
+    remoteStore.settings = {
+      ...remoteStore.settings,
+      enabled: true,
+      clearPreviousHighlightsEnabled: false,
+      updatedAt: 20,
+    };
+
+    const merged = mergeLocalAndRemote(
+      local,
+      decodeSyncSnapshot(buildSyncSnapshot(remoteStore).items),
+    );
+
+    expect(merged.settings.enabled).toBe(false);
+    expect(merged.settings.clearPreviousHighlightsEnabled).toBe(false);
+    expect(merged.settings.updatedAt).toBe(20);
+  });
+
   it("takes newer records in both directions", () => {
     const localNewer = makeStore();
     localNewer.sessions = [makeSession({ updatedAt: 20, status: "archived" })];

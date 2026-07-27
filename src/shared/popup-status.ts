@@ -1,4 +1,5 @@
 export const POPUP_STATUS_MESSAGE = "mkit:popup-status";
+export const CONTENT_RECONCILE_MESSAGE = "mkit:reconcile";
 
 /**
  * Reported when a recognized review passed capability admission but MKit's own
@@ -10,14 +11,25 @@ export const CONTENT_STARTUP_FAILED_ISSUE = "STARTUP_FAILED";
 /** Reported when route or capability detection itself threw. */
 export const CONTENT_DETECTION_FAILED_ISSUE = "DETECTION_FAILED";
 
-export type ContentRouteKind = "review" | "incomplete-review" | "non-review";
+export type ContentRouteKind = "review" | "incomplete-review" | "section-overview" | "non-review";
+
+export type ContentRuntimeState =
+  | "active"
+  | "disabled"
+  | "normal-review"
+  | "supported-not-running"
+  | "unsupported";
 
 export interface ContentStatusResponse {
-  attached: boolean;
+  state: ContentRuntimeState;
   route: ContentRouteKind;
   /**
    * Content-free adapter issue codes explaining why a recognized review was not
    * covered. Empty when protection is armed or the page is not a review.
    */
   issues: string[];
+}
+
+export interface ContentReconcileMessage {
+  type: typeof CONTENT_RECONCILE_MESSAGE;
 }

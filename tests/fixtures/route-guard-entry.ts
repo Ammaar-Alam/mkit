@@ -2,11 +2,14 @@ import { AamcFullLengthReviewAdapter } from "../../src/adapter/AamcFullLengthRev
 import { startContentLifecycle } from "../../src/content/lifecycle";
 import { createPreflight } from "../../src/content/preflight";
 import { ReviewController } from "../../src/core/review-controller";
-import { type StorageAreaLike, StorageRepository } from "../../src/storage";
+import { DEFAULT_SETTINGS, type StorageAreaLike, StorageRepository } from "../../src/storage";
 
 interface RouteGuardHarness {
+  armGateMutationOnPointerDown(): void;
   dispose(): void;
-  status(): { attached: boolean; issues: string[]; route: string };
+  setEnabled(enabled: boolean): void;
+  setHideSectionResultMarksEnabled(enabled: boolean): void;
+  status(): { issues: string[]; route: string; state: string };
   restoreCompletedReviewCapability(): {
     footerDisplay: string;
     hostConnected: boolean;
@@ -23,6 +26,7 @@ declare global {
     __mkitRouteGuardSyncDisplay: string;
     __mkitRouteGuardSyncFooterDisplay: string;
     __mkitRouteGuardSyncQuestionVisibility: string;
+    __mkitRouteGuardStartupMutations: number;
   }
 }
 
@@ -54,13 +58,37 @@ const searchParams = new URL(location.href).searchParams;
 const bootstrapFailure = searchParams.has("bootstrap-fail");
 const controllerFailure = searchParams.has("controller-fail");
 const disconnectedPreflight = searchParams.has("disconnected-preflight");
-const initialHash = searchParams.has("section")
-  ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
-  : searchParams.has("answer")
-    ? "#exams/answers/synthetic-exam/synthetic-question"
-    : "#exams";
+const initialHash = searchParams.has("section-overview")
+  ? "#exams/details/exam_section/synthetic-section"
+  : searchParams.has("section")
+    ? "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question"
+    : searchParams.has("answer")
+      ? "#exams/answers/synthetic-exam/synthetic-question"
+      : "#exams";
 let route = new URL(`https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1${initialHash}`);
 const repository = new StorageRepository({ local: new MemoryStorageArea() });
+window.__mkitRouteGuardStartupMutations = 0;
+const startupObserver = new MutationObserver((records) => {
+  for (const record of records) {
+    if (record.type === "attributes" && record.attributeName?.startsWith("data-mkit")) {
+      window.__mkitRouteGuardStartupMutations += 1;
+    }
+    for (const node of record.addedNodes) {
+      if (
+        node instanceof Element &&
+        (node.matches("[data-mkit-host], [data-mkit-hidden], [data-mkit-outcome-hidden]") ||
+          node.querySelector("[data-mkit-host], [data-mkit-hidden], [data-mkit-outcome-hidden]"))
+      ) {
+        window.__mkitRouteGuardStartupMutations += 1;
+      }
+    }
+  }
+});
+startupObserver.observe(document, {
+  attributes: true,
+  childList: true,
+  subtree: true,
+});
 const lifecycle = startContentLifecycle({
   createAdapter: () => new AamcFullLengthReviewAdapter(document, () => new URL(route.href)),
   createPreflight: () => {
@@ -85,9 +113,28 @@ const lifecycle = startContentLifecycle({
     });
   },
 });
+lifecycle.applySettings({
+  ...DEFAULT_SETTINGS,
+  enabled: !searchParams.has("disabled"),
+});
 
 window.__mkitRouteGuardHarness = {
-  dispose: () => lifecycle.dispose(),
+  armGateMutationOnPointerDown: () => {
+    document.addEventListener(
+      "pointerdown",
+      () => {
+        document.querySelector("#main-footer")?.classList.toggle("synthetic-live-mutation");
+      },
+      { capture: true, once: true },
+    );
+  },
+  dispose: () => {
+    startupObserver.disconnect();
+    lifecycle.dispose();
+  },
+  setEnabled: (enabled) => lifecycle.setEnabled(enabled),
+  setHideSectionResultMarksEnabled: (enabled) =>
+    lifecycle.setHideSectionResultMarksEnabled(enabled),
   status: () => lifecycle.status(),
   restoreCompletedReviewCapability: () => {
     const reviewControl = document.querySelector(".review-answer");

@@ -3,7 +3,7 @@ import { SessionService } from "../../../src/core/session-service";
 import { StorageRepository } from "../../../src/storage";
 import { FakeStorageArea } from "../storage/fake-storage";
 
-describe("SessionService eliminations", () => {
+describe("SessionService attempt mutations", () => {
   it("makes an eliminated selection unavailable and restores the choice without reselecting it", async () => {
     let now = 100;
     const repository = new StorageRepository({
@@ -83,5 +83,50 @@ describe("SessionService eliminations", () => {
     expect((await repository.getAttempt(session.id, "synthetic-toggle-question"))?.selection).toBe(
       null,
     );
+  });
+
+  it("preserves concurrent note and answer patches on the same attempt", async () => {
+    let now = 300;
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: () => {
+        now += 1;
+        return now;
+      },
+    });
+    const service = new SessionService(repository, {
+      createId: () => "synthetic-concurrent-session",
+      now: () => {
+        now += 1;
+        return now;
+      },
+    });
+    const session = await service.start(
+      "synthetic-concurrent-exam",
+      "practice",
+      "synthetic-concurrent-question",
+    );
+    await service.getOrCreateAttempt(session.id, {
+      questionKey: "synthetic-concurrent-question",
+      sectionKey: "cp",
+      categoryCode: null,
+      passageOrDiscrete: "passage",
+    });
+
+    await Promise.all([
+      service.updateAttempt(session.id, "synthetic-concurrent-question", {
+        note: "Compare the limiting cases.",
+      }),
+      service.updateAttempt(session.id, "synthetic-concurrent-question", {
+        selection: "B",
+      }),
+      service.setConfidence(session.id, "synthetic-concurrent-question", "confident"),
+    ]);
+
+    expect(await repository.getAttempt(session.id, "synthetic-concurrent-question")).toMatchObject({
+      note: "Compare the limiting cases.",
+      selection: "B",
+      confidence: "confident",
+    });
   });
 });

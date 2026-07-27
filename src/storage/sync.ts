@@ -71,9 +71,13 @@ interface CandidateSnapshot {
 }
 
 export function buildSyncSnapshot(store: MKitStore): SyncSnapshot {
+  const settings = decodeSettings(store.settings) ?? { ...store.settings };
   const meta: SyncMeta = {
     schemaVersion: STORE_SCHEMA_VERSION,
-    settings: decodeSettings(store.settings) ?? { ...store.settings },
+    settings: {
+      ...settings,
+      enabled: true,
+    },
   };
   const metaBytes = storageItemBytes(SYNC_META_KEY, meta);
   if (metaBytes >= SYNC_ITEM_MAX_BYTES || metaBytes > SYNC_TOTAL_MAX_BYTES) {

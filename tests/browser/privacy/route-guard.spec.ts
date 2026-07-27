@@ -138,6 +138,306 @@ test("exact completed section review auto-attaches and cleans up across native r
   );
 });
 
+test("Normal review removes the host, restores native interaction, and persists within review routes", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section");
+  const host = page.locator("[data-mkit-host]");
+  await expect(host.locator("[data-focus-key='normal-review']")).toBeVisible();
+  await page.locator(".toolbar-btn.next").evaluate((element) => {
+    element.setAttribute("data-native-clicks", "0");
+    element.addEventListener("click", () => {
+      const clicks = Number(element.getAttribute("data-native-clicks") ?? "0");
+      element.setAttribute("data-native-clicks", String(clicks + 1));
+    });
+  });
+
+  await host.locator("[data-focus-key='normal-review']").click();
+
+  await expect(host).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  expect(await page.locator("html").getAttribute("data-mkit-protection")).toBeNull();
+  expect(await page.locator("html").getAttribute("data-mkit-route")).toBeNull();
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "normal-review",
+    route: "review",
+    issues: [],
+  });
+
+  await page.locator(".toolbar-btn.next").click();
+  await expect(page.locator(".toolbar-btn.next")).toHaveAttribute("data-native-clicks", "1");
+
+  await page.evaluate(() =>
+    window.__mkitRouteGuardHarness.setHash(
+      "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question-2",
+    ),
+  );
+  await expect(host).toHaveCount(0);
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "normal-review",
+    route: "review",
+    issues: [],
+  });
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setHash("#exams"));
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "unsupported",
+    route: "non-review",
+    issues: [],
+  });
+
+  await page.evaluate(() =>
+    window.__mkitRouteGuardHarness.setHash(
+      "#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question-3",
+    ),
+  );
+  await expect(host).toHaveCount(1);
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "active",
+    route: "review",
+    issues: [],
+  });
+});
+
+test("turning MKit off and on restores and reapplies protection without a reload", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section");
+  const host = page.locator("[data-mkit-host]");
+  await expect(host).toHaveCount(1);
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setEnabled(false));
+  await expect(host).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "disabled",
+    route: "review",
+    issues: [],
+  });
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setEnabled(true));
+  await expect(host).toHaveCount(1);
+  await expect(page.locator("#wrapper")).toBeHidden();
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "active",
+    route: "review",
+    issues: [],
+  });
+
+  await host.locator("[data-focus-key='normal-review']").click();
+  await expect(host).toHaveCount(0);
+  expect(
+    await page.evaluate(() => window.__mkitRouteGuardHarness.status()).then((value) => value.state),
+  ).toBe("normal-review");
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setEnabled(false));
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setEnabled(true));
+  await expect(host).toHaveCount(1);
+  expect(
+    await page.evaluate(() => window.__mkitRouteGuardHarness.status()).then((value) => value.state),
+  ).toBe("active");
+});
+
+test("a persisted Off setting leaves the review untouched during startup", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section&disabled");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("[data-mkit-hidden], [data-mkit-outcome-hidden]")).toHaveCount(0);
+  await expect(page.locator("#wrapper")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.hasAttribute("data-mkit-protection")),
+  ).toBe(false);
+  expect(await page.evaluate(() => window.__mkitRouteGuardStartupMutations)).toBe(0);
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "disabled",
+    route: "non-review",
+    issues: [],
+  });
+});
+
+for (const action of ["Practice", "Test", "Normal review"] as const) {
+  test(`${action} survives an unrelated page mutation during pointer activation`, async ({
+    page,
+  }) => {
+    await page.goto("http://127.0.0.1:4173/route-guard?section");
+    const host = page.locator("[data-mkit-host]");
+    await expect(host).toHaveCount(1);
+    await page.evaluate(() => window.__mkitRouteGuardHarness.armGateMutationOnPointerDown());
+
+    const actionButton =
+      action === "Practice"
+        ? host.getByRole("button", {
+            name: "Practice Check each answer when you’re ready.",
+            exact: true,
+          })
+        : action === "Test"
+          ? host.getByRole("button", {
+              name: "Test Finish before seeing results.",
+              exact: true,
+            })
+          : host.getByRole("button", { name: "Normal review", exact: true });
+    await expect(actionButton).toHaveCount(1);
+    await actionButton.click();
+
+    if (action === "Normal review") {
+      await expect(host).toHaveCount(0);
+      await expect(page.locator("#wrapper")).toBeVisible();
+      return;
+    }
+
+    await expect(host.locator(".mkit-study-rail")).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+  });
+}
+
+test("completed section result marks are neutralized without blocking native review links", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section-overview");
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const wrapper = document.querySelector("#wrapper");
+    if (!wrapper) throw new Error("Missing synthetic wrapper.");
+    wrapper.innerHTML = `
+      <ul class="answers-wrapper list-table" aria-hidden="true">
+        <li class="content">
+          <div
+            id="section-result-cue"
+            class="li-cell correctness correct"
+            title="Correct"
+            aria-label="Correct"
+          ></div>
+          <a id="section-review-link" href="#synthetic-review">Review</a>
+        </li>
+      </ul>
+      <div class="sr-only">
+        <table class="answers-wrapper">
+          <thead>
+            <tr>
+              <th id="answer-listing-header-correctness-synthetic">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="content">
+              <td headers="answer-listing-header-correctness-synthetic">
+                This was answered correctly
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+    const reviewLink = document.querySelector("#section-review-link");
+    reviewLink?.addEventListener("click", (event) => {
+      event.preventDefault();
+      const clicks = Number(reviewLink.getAttribute("data-native-clicks") ?? "0");
+      reviewLink.setAttribute("data-native-clicks", String(clicks + 1));
+    });
+  });
+
+  await expect(page.locator("[data-mkit-host]")).toHaveCount(0);
+  await expect(page.locator("#section-result-cue")).toHaveAttribute("data-mkit-outcome-hidden", "");
+  const resultMarkStyle = await page.locator("#section-result-cue").evaluate((element) => {
+    const style = getComputedStyle(element, "::before");
+    return {
+      backgroundImage: style.backgroundImage,
+      content: style.content,
+    };
+  });
+  expect(resultMarkStyle.content).toBe('""');
+  expect(resultMarkStyle.backgroundImage).toMatch(/^url\("data:image\/png;base64,/);
+  expect(
+    await page.locator("#section-result-cue").evaluate((element) => ({
+      correct: element.classList.contains("correct"),
+      incorrect: element.classList.contains("incorrect"),
+    })),
+  ).toEqual({ correct: false, incorrect: false });
+  await expect(
+    page.locator('td[headers="answer-listing-header-correctness-synthetic"]'),
+  ).toHaveText("Hidden");
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "active",
+    route: "section-overview",
+    issues: [],
+  });
+
+  await page.locator("#section-review-link").click();
+  await expect(page.locator("#section-review-link")).toHaveAttribute("data-native-clicks", "1");
+
+  await page.evaluate(() => {
+    const wrapper = document.querySelector("#wrapper");
+    if (!wrapper) throw new Error("Missing synthetic wrapper.");
+    wrapper.innerHTML = `
+      <ul class="answers-wrapper list-table" aria-hidden="true">
+        <li class="content">
+          <div
+            id="replacement-section-result-cue"
+            class="li-cell correctness incorrect"
+            title="Incorrect"
+            aria-label="Incorrect"
+          ></div>
+          <a id="replacement-section-review-link" href="#synthetic-review">Review</a>
+        </li>
+      </ul>
+      <div class="sr-only">
+        <table class="answers-wrapper">
+          <thead>
+            <tr>
+              <th id="answer-listing-header-correctness-replacement">Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="content">
+              <td headers="answer-listing-header-correctness-replacement">
+                This was answered incorrectly
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  await expect(page.locator("#replacement-section-result-cue")).toHaveAttribute(
+    "data-mkit-outcome-hidden",
+    "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveClass(/incorrect/);
+  await expect(
+    page.locator('td[headers="answer-listing-header-correctness-replacement"]'),
+  ).toHaveText("Hidden");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        document
+          .querySelector("#replacement-section-review-link")
+          ?.setAttribute("data-observer-mutation", "true");
+        requestAnimationFrame(() => resolve());
+      }),
+  );
+
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setHideSectionResultMarksEnabled(false));
+  await expect(page.locator("#replacement-section-result-cue")).toHaveClass(/incorrect/);
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "data-mkit-outcome-hidden",
+    "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  await expect(
+    page.locator('td[headers="answer-listing-header-correctness-replacement"]'),
+  ).toHaveText("This was answered incorrectly");
+  expect(await page.evaluate(() => window.__mkitRouteGuardHarness.status())).toEqual({
+    state: "supported-not-running",
+    route: "section-overview",
+    issues: [],
+  });
+});
+
 test("accepted answer route fails open when a completed-review capability is absent", async ({
   page,
 }) => {
