@@ -431,6 +431,111 @@ test("Clean Slate keeps capturing hydration after active-question navigation", a
     .toEqual({ cross: true, highlight: true });
 });
 
+test("Clean Slate preserves fresh highlights across related passage questions", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => {
+    const passage = document.querySelector(".reading-passage");
+    const toolbar = document.querySelector(".answer-toolbar-wrapper");
+    if (!passage || !toolbar) throw new Error("Synthetic passage controls are missing.");
+    passage.innerHTML =
+      '<p><span id="passage-prior" class="user-highlight">Previously highlighted.</span> <span id="passage-fresh-target">Fresh range.</span></p>';
+
+    const highlighter = document.createElement("button");
+    highlighter.id = "passage-native-highlighter";
+    highlighter.className = "add-highlight";
+    highlighter.textContent = "Highlight";
+    highlighter.addEventListener("click", () => {
+      document.querySelector("#passage-fresh-target")?.classList.add("user-highlight");
+    });
+    toolbar.prepend(highlighter);
+    window.__mkitPrivacyHarness.startController();
+  });
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  await expect(host.locator(".mkit-study-rail")).toBeVisible();
+  await expect(page.locator("#passage-prior")).not.toHaveClass(/user-highlight/);
+
+  await page.locator("#passage-native-highlighter").click();
+  await expect(page.locator("#passage-fresh-target")).toHaveClass(/user-highlight/);
+
+  await page.evaluate(() =>
+    window.__mkitPrivacyHarness.setReviewQuestion("synthetic-question-two"),
+  );
+  await expect.poll(() => page.evaluate(() => window.__mkitPrivacyHarness.attemptCount())).toBe(2);
+  await expect(page.locator("#passage-fresh-target")).toHaveClass(/user-highlight/);
+
+  await page.evaluate(() => {
+    const currentPassage = document.querySelector(".reading-passage");
+    const currentQuestion = document.querySelector(
+      "#current-question-container-synthetic-question",
+    );
+    if (!currentPassage || !currentQuestion) {
+      throw new Error("Synthetic question content is missing.");
+    }
+    const nextPassage = document.createElement("div");
+    nextPassage.id = "current-passage-container-synthetic-question-two";
+    nextPassage.className = "reading-passage";
+    nextPassage.innerHTML =
+      '<p><span id="same-passage-prior">Previously highlighted.</span> <span id="same-passage-fresh">Fresh range.</span></p>';
+    currentPassage.replaceWith(nextPassage);
+
+    const nextQuestion = document.createElement("div");
+    nextQuestion.id = "current-question-container-synthetic-question-two";
+    nextQuestion.innerHTML = `
+      <p id="content-question-start-synthetic-question-two">
+        <span id="second-question-prior">Second question.</span>
+      </p>
+      <div class="multi-choice incorrect" data-choice="A"></div>
+      <div class="multi-choice correct" data-choice="B"></div>
+      <div class="multi-choice" data-choice="C"></div>
+      <div class="multi-choice" data-choice="D"></div>
+    `;
+    currentQuestion.replaceWith(nextQuestion);
+  });
+  await page.evaluate(() => {
+    document.querySelector("#same-passage-prior")?.classList.add("user-highlight");
+    document.querySelector("#same-passage-fresh")?.classList.add("user-highlight");
+    document.querySelector("#second-question-prior")?.classList.add("user-highlight");
+  });
+
+  await expect(page.locator("#same-passage-prior")).not.toHaveClass(/user-highlight/);
+  await expect(page.locator("#same-passage-fresh")).toHaveClass(/user-highlight/);
+  await expect(page.locator("#second-question-prior")).not.toHaveClass(/user-highlight/);
+
+  await page.evaluate(() => {
+    window.__mkitPrivacyHarness.setReviewQuestion("synthetic-question-three");
+    const currentPassage = document.querySelector(".reading-passage");
+    const currentQuestion = document.querySelector(
+      "#current-question-container-synthetic-question-two",
+    );
+    if (!currentPassage || !currentQuestion) {
+      throw new Error("Synthetic question content is missing.");
+    }
+    currentPassage.id = "current-passage-container-synthetic-question-three";
+    currentPassage.innerHTML =
+      '<p><span id="new-passage-prior">Different passage highlight.</span></p>';
+
+    const nextQuestion = document.createElement("div");
+    nextQuestion.id = "current-question-container-synthetic-question-three";
+    nextQuestion.innerHTML = `
+      <p id="content-question-start-synthetic-question-three">Third question.</p>
+      <div class="multi-choice incorrect" data-choice="A"></div>
+      <div class="multi-choice correct" data-choice="B"></div>
+      <div class="multi-choice" data-choice="C"></div>
+      <div class="multi-choice" data-choice="D"></div>
+    `;
+    currentQuestion.replaceWith(nextQuestion);
+  });
+  await expect.poll(() => page.evaluate(() => window.__mkitPrivacyHarness.attemptCount())).toBe(3);
+  await page.evaluate(() =>
+    document.querySelector("#new-passage-prior")?.classList.add("user-highlight"),
+  );
+  await expect(page.locator("#new-passage-prior")).not.toHaveClass(/user-highlight/);
+});
+
 test("notes are usable before reveal and persist without exposing review feedback", async ({
   page,
 }) => {

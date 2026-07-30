@@ -50,45 +50,53 @@
                   <div class="questions-container">
                     <div class="content-container">
                       <div
-                        class="answer-container correct is-hidden question-container reading-passage"
+                        class="answer-container correct is-hidden question-container"
                         id="live-question-container"
                         style="padding: 16px; outline: 5px solid green; box-shadow: 0 0 0 4px red"
                       >
-                        <div id="live-question-region">
-                          <p id="live-style-question">Synthetic question workspace.</p>
-                          <img
-                            id="live-question-image"
-                            alt="Synthetic question figure"
-                            height="48"
-                            width="64"
-                            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='48'%3E%3Crect width='64' height='48' fill='%23ddd8ca'/%3E%3C/svg%3E"
-                          >
-                          <svg
-                            id="live-question-svg"
-                            aria-label="Synthetic question diagram"
-                            height="48"
-                            role="img"
-                            viewBox="0 0 64 48"
-                            width="64"
-                          >
-                            <rect fill="#d8d2c2" height="48" width="64"></rect>
-                          </svg>
-                          <div class="multi-choice incorrect" data-choice="D">
-                            <span class="choice-content">Synthetic choice A.</span>
-                          </div>
-                          <div
-                            class="multi-choice correct"
-                            data-choice="A"
-                            id="live-choice-b"
-                            style="padding-left: 32px; border: 5px solid green; background-color: palegreen"
-                          >
-                            <span class="choice-content">Synthetic choice B.</span>
-                          </div>
-                          <div class="multi-choice" data-choice="B">
-                            <span class="choice-content">Synthetic choice C.</span>
-                          </div>
-                          <div class="multi-choice" data-choice="C">
-                            <span class="choice-content">Synthetic choice D.</span>
+                        <div
+                          class="reading-passage"
+                          id="current-passage-container-synthetic-question"
+                        >
+                          Synthetic passage workspace.
+                        </div>
+                        <div id="current-question-container-synthetic-question">
+                          <div id="live-question-region">
+                            <p id="live-style-question">Synthetic question workspace.</p>
+                            <img
+                              id="live-question-image"
+                              alt="Synthetic question figure"
+                              height="48"
+                              width="64"
+                              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='48'%3E%3Crect width='64' height='48' fill='%23ddd8ca'/%3E%3C/svg%3E"
+                            >
+                            <svg
+                              id="live-question-svg"
+                              aria-label="Synthetic question diagram"
+                              height="48"
+                              role="img"
+                              viewBox="0 0 64 48"
+                              width="64"
+                            >
+                              <rect fill="#d8d2c2" height="48" width="64"></rect>
+                            </svg>
+                            <div class="multi-choice incorrect" data-choice="D">
+                              <span class="choice-content">Synthetic choice A.</span>
+                            </div>
+                            <div
+                              class="multi-choice correct"
+                              data-choice="A"
+                              id="live-choice-b"
+                              style="padding-left: 32px; border: 5px solid green; background-color: palegreen"
+                            >
+                              <span class="choice-content">Synthetic choice B.</span>
+                            </div>
+                            <div class="multi-choice" data-choice="B">
+                              <span class="choice-content">Synthetic choice C.</span>
+                            </div>
+                            <div class="multi-choice" data-choice="C">
+                              <span class="choice-content">Synthetic choice D.</span>
+                            </div>
                           </div>
                         </div>
                         <!-- biome-ignore lint/a11y/useSemanticElements: mirrors the confirmed live div region -->
