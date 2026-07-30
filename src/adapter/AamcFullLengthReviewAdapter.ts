@@ -71,8 +71,18 @@ interface ReaderAnnotationIntent {
   readonly questionIdentifier: string | null;
 }
 
+interface AnnotationScope {
+  readonly root: Element;
+  readonly identifier: string | null;
+}
+
+interface AnnotationMaskResult extends ReaderAnnotationIntent {
+  readonly highlightBaselines: readonly AnnotationBaseline[];
+  readonly crossOutBaselines: readonly AnnotationBaseline[];
+}
+
 interface AnnotationBaselines {
-  readonly byQuestion: Map<string, AnnotationBaseline>;
+  readonly byIdentifier: Map<string, AnnotationBaseline>;
   readonly byContainer: WeakMap<Element, AnnotationBaseline>;
   readonly records: Set<AnnotationBaseline>;
 }
@@ -90,6 +100,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
   #highlightBaselines = createAnnotationBaselines();
+  #passageHighlightBaselines = createAnnotationBaselines();
   #crossOutBaselines = createAnnotationBaselines();
   /**
    * Groups the reader has intentionally revealed. Masking runs again on every
@@ -271,6 +282,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       ".reviewable .highlight-color-options",
       '[data-mkit-fixture="highlight-palette"]',
     ],
+    passageRegion: [".reading-passage"],
     previous: [
       ".icon-bar.navigate [role='button'].toolbar-btn.previous",
       '[data-mkit-fixture="previous"]',
@@ -447,6 +459,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       if (previous?.clearPreviousHighlightsEnabled && !preferences.clearPreviousHighlightsEnabled) {
         this.#mask.restoreGroup(PRIOR_HIGHLIGHTS_GROUP);
         this.#markAnnotationBaselinesRestored(this.#highlightBaselines);
+        this.#markAnnotationBaselinesRestored(this.#passageHighlightBaselines);
       }
       if (previous?.clearPreviousCrossOutsEnabled && !preferences.clearPreviousCrossOutsEnabled) {
         this.#mask.restoreGroup(PRIOR_CROSS_OUTS_GROUP);
@@ -460,17 +473,22 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (!preferences) return null;
     let activeQuestion: ReaderAnnotationIntent | null = null;
     this.#withoutObservation(() => {
-      activeQuestion = this.#applyPriorAnnotationMasks();
-      if (!activeQuestion) return;
-      const { question, questionIdentifier } = activeQuestion;
+      const result = this.#applyPriorAnnotationMasks();
+      if (!result) return;
       if (annotationType !== "cross-out") {
-        this.#annotationBaseline(question, questionIdentifier, this.#highlightBaselines).sealed =
-          true;
+        for (const baseline of result.highlightBaselines) {
+          baseline.sealed = true;
+        }
       }
       if (annotationType !== "highlight") {
-        this.#annotationBaseline(question, questionIdentifier, this.#crossOutBaselines).sealed =
-          true;
+        for (const baseline of result.crossOutBaselines) {
+          baseline.sealed = true;
+        }
       }
+      activeQuestion = {
+        question: result.question,
+        questionIdentifier: result.questionIdentifier,
+      };
     });
     return activeQuestion;
   }
@@ -656,6 +674,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       }
       this.#completedReviewSwitch = null;
       this.#highlightBaselines = createAnnotationBaselines();
+      this.#passageHighlightBaselines = createAnnotationBaselines();
       this.#crossOutBaselines = createAnnotationBaselines();
       window.getSelection()?.removeAllRanges();
     });
@@ -889,15 +908,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return !this.#revealedGroups.has(group);
   }
 
-  #applyPriorAnnotationMasks(): {
-    question: Element;
-    questionIdentifier: string | null;
-  } | null {
+  #applyPriorAnnotationMasks(): AnnotationMaskResult | null {
     const preferences = this.#cleanSlatePreferences;
     if (!preferences) return null;
     const question = this.#activeAnnotationQuestion();
     if (!question) return null;
     const questionIdentifier = this.#readQuestionIdentifier();
+    const activeQuestion = { question, questionIdentifier };
     const highlightCandidates = this.#queryAllWithin(
       question,
       this.#selectors.priorHighlightCarrier,
@@ -906,53 +923,78 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       question,
       this.#selectors.priorCrossOutCarrier,
     ).filter((element) => this.#isAuthoredVisible(element));
-
-    this.#applyPriorAnnotationMask(
-      question,
-      questionIdentifier,
-      highlightCandidates,
-      this.#highlightBaselines,
-      PRIOR_HIGHLIGHT_CLASSES,
-      PRIOR_HIGHLIGHTS_GROUP,
-      preferences.clearPreviousHighlightsEnabled,
-    );
-    this.#applyPriorAnnotationMask(
-      question,
-      questionIdentifier,
+    const passageScope = this.#activePassageAnnotationScope(question);
+    const passageHighlightCandidates = passageScope
+      ? highlightCandidates.filter((element) => passageScope.root.contains(element))
+      : [];
+    const questionHighlightCandidates = passageScope
+      ? highlightCandidates.filter((element) => !passageScope.root.contains(element))
+      : highlightCandidates;
+    const highlightBaselines = [
+      this.#applyPriorAnnotationMask(
+        activeQuestion,
+        { root: question, identifier: questionIdentifier },
+        questionHighlightCandidates,
+        this.#highlightBaselines,
+        PRIOR_HIGHLIGHT_CLASSES,
+        PRIOR_HIGHLIGHTS_GROUP,
+        preferences.clearPreviousHighlightsEnabled,
+      ),
+    ];
+    if (passageScope) {
+      highlightBaselines.push(
+        this.#applyPriorAnnotationMask(
+          activeQuestion,
+          passageScope,
+          passageHighlightCandidates,
+          this.#passageHighlightBaselines,
+          PRIOR_HIGHLIGHT_CLASSES,
+          PRIOR_HIGHLIGHTS_GROUP,
+          preferences.clearPreviousHighlightsEnabled,
+        ),
+      );
+    }
+    const crossOutBaseline = this.#applyPriorAnnotationMask(
+      activeQuestion,
+      { root: question, identifier: questionIdentifier },
       crossOutCandidates,
       this.#crossOutBaselines,
       PRIOR_CROSS_OUT_CLASSES,
       PRIOR_CROSS_OUTS_GROUP,
       preferences.clearPreviousCrossOutsEnabled,
     );
-    return { question, questionIdentifier };
+    return {
+      ...activeQuestion,
+      highlightBaselines,
+      crossOutBaselines: [crossOutBaseline],
+    };
   }
 
   #applyPriorAnnotationMask(
-    question: Element,
-    questionIdentifier: string | null,
+    activeQuestion: ReaderAnnotationIntent,
+    scope: AnnotationScope,
     candidates: readonly Element[],
     baselines: AnnotationBaselines,
     classes: readonly string[],
     group: string,
     maskEnabled: boolean,
-  ): void {
-    const baseline = this.#annotationBaseline(question, questionIdentifier, baselines);
+  ): AnnotationBaseline {
+    const baseline = this.#annotationBaseline(scope.root, scope.identifier, baselines);
 
     if (baseline.sealed && !maskEnabled) {
       this.#releaseModifiedRestoredAnnotations(
-        question,
-        questionIdentifier,
+        activeQuestion,
+        scope,
         candidates,
         baseline,
         classes,
       );
-      return;
+      return baseline;
     }
 
     const toMask: Element[] = [];
     for (const element of candidates) {
-      const signature = annotationCarrierSignature(question, element);
+      const signature = annotationCarrierSignature(scope.root, element);
       if (!baseline.sealed) {
         baseline.signatures.add(signature);
         baseline.ownedElements.set(element, {
@@ -975,7 +1017,12 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       }
       const owned = baseline.ownedElements.get(element);
       if (!owned) {
-        if (this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
+        if (
+          this.#matchesReaderAnnotationIntent(
+            activeQuestion.question,
+            activeQuestion.questionIdentifier,
+          )
+        ) {
           baseline.signatures.delete(signature);
           for (const [priorElement, prior] of baseline.ownedElements) {
             if (prior.signature === signature) {
@@ -1001,16 +1048,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       baseline.signatures.delete(owned.signature);
     }
     this.#mask.removeClasses(toMask, classes, group);
+    return baseline;
   }
 
   #annotationBaseline(
-    question: Element,
-    questionIdentifier: string | null,
+    container: Element,
+    identifier: string | null,
     baselines: AnnotationBaselines,
   ): AnnotationBaseline {
-    let baseline = questionIdentifier
-      ? baselines.byQuestion.get(questionIdentifier)
-      : baselines.byContainer.get(question);
+    let baseline = identifier
+      ? baselines.byIdentifier.get(identifier)
+      : baselines.byContainer.get(container);
     if (baseline) return baseline;
     baseline = {
       signatures: new Set(),
@@ -1018,10 +1066,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       restoredElements: new Set(),
       sealed: false,
     };
-    if (questionIdentifier) {
-      baselines.byQuestion.set(questionIdentifier, baseline);
+    if (identifier) {
+      baselines.byIdentifier.set(identifier, baseline);
     } else {
-      baselines.byContainer.set(question, baseline);
+      baselines.byContainer.set(container, baseline);
     }
     baselines.records.add(baseline);
     return baseline;
@@ -1036,8 +1084,8 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   #releaseModifiedRestoredAnnotations(
-    question: Element,
-    questionIdentifier: string | null,
+    activeQuestion: ReaderAnnotationIntent,
+    scope: AnnotationScope,
     candidates: readonly Element[],
     baseline: AnnotationBaseline,
     classes: readonly string[],
@@ -1048,11 +1096,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         baseline.restoredElements.delete(element);
         continue;
       }
-      if (!question.contains(element)) {
+      if (!scope.root.contains(element)) {
         const replacement = candidates.find(
-          (candidate) => annotationCarrierSignature(question, candidate) === owned.signature,
+          (candidate) => annotationCarrierSignature(scope.root, candidate) === owned.signature,
         );
-        if (replacement && !this.#matchesReaderAnnotationIntent(question, questionIdentifier)) {
+        if (
+          replacement &&
+          !this.#matchesReaderAnnotationIntent(
+            activeQuestion.question,
+            activeQuestion.questionIdentifier,
+          )
+        ) {
           baseline.ownedElements.delete(element);
           baseline.restoredElements.delete(element);
           baseline.ownedElements.set(replacement, {
@@ -1069,6 +1123,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       baseline.ownedElements.delete(element);
       baseline.restoredElements.delete(element);
     }
+  }
+
+  #activePassageAnnotationScope(question: Element): AnnotationScope | null {
+    const passages = this.#queryAllWithin(question, this.#selectors.passageRegion).filter(
+      (element) => this.#isAuthoredVisible(element),
+    );
+    if (passages.length !== 1) return null;
+    const passage = passages[0];
+    if (!passage) return null;
+    const identifier = passageAnnotationIdentifier(passage, this.#url());
+    return identifier ? { root: passage, identifier } : null;
   }
 
   #recordReaderAnnotationIntent(annotationType: ReaderAnnotationType): void {
@@ -1481,10 +1546,21 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
 function createAnnotationBaselines(): AnnotationBaselines {
   return {
-    byQuestion: new Map(),
+    byIdentifier: new Map(),
     byContainer: new WeakMap(),
     records: new Set(),
   };
+}
+
+// AAMC's passage wrapper ID changes with the question. Normalized content is
+// kept only in this adapter's in-memory baseline key; it never enters shared
+// context, storage, logs, or sync.
+function passageAnnotationIdentifier(passage: Element, url: URL): string | null {
+  const text = (passage.textContent ?? "").replaceAll(/\s+/g, " ").trim();
+  if (!text) return null;
+  const route = parseConfirmedReviewRoute(url);
+  const documentScope = route?.examIdentifier ?? `${url.origin}${url.pathname}`;
+  return `${documentScope}\u0000${text}`;
 }
 
 function annotationCarrierSignature(question: Element, element: Element): string {

@@ -165,6 +165,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     if (!choiceA || !choiceC) throw new Error("Confirmed choices are missing.");
     passage.innerHTML = `
       <span id="prior-highlight" class="user-highlight">Prior highlight.</span>
+      <span id="fresh-highlight">Fresh highlight.</span>
     `;
     choiceA.innerHTML = `
       <span id="prior-cross-letter" class="user-strikethrough">A.</span>
@@ -198,10 +199,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     expect(requiredElement("#hidden-highlight").classList.contains("user-highlight")).toBe(true);
     expect(requiredElement("#palette-highlight").classList.contains("user-highlight")).toBe(true);
 
-    passage.insertAdjacentHTML(
-      "beforeend",
-      '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-    );
+    requiredElement("#fresh-highlight").classList.add("user-highlight");
     choiceC.insertAdjacentHTML(
       "beforeend",
       '<span id="fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
@@ -237,7 +235,8 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     const passage = requiredElement(".reading-passage");
     const choice = requiredElement(".multi-choice");
     question.id = "annotation-question";
-    passage.innerHTML = '<span id="prior-highlight" class="user-highlight">Prior highlight.</span>';
+    passage.innerHTML =
+      '<span id="prior-highlight" class="user-highlight">Prior highlight.</span><span id="fresh-highlight">Fresh highlight.</span>';
     choice.insertAdjacentHTML(
       "beforeend",
       '<span id="prior-cross" class="user-strikethrough">Prior cross-out.</span>',
@@ -252,10 +251,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
       question,
       questionIdentifier: "synthetic-question",
     });
-    passage.insertAdjacentHTML(
-      "beforeend",
-      '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-    );
+    requiredElement("#fresh-highlight").classList.add("user-highlight");
     adapter.applyCleanSlate();
 
     expect(requiredElement("#prior-highlight").classList.contains("user-highlight")).toBe(false);
@@ -386,11 +382,100 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     ).toBe(true);
   });
 
+  it("keeps fresh passage highlights across related questions and clears a new passage", () => {
+    mountConfirmedProductionFixture();
+    let questionIdentifier = "question-one";
+    const reviewUrl = () =>
+      new URL(
+        `https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-1#exams/answers/synthetic-exam/${questionIdentifier}`,
+      );
+    const question = requiredElement(".answer-container.question-container");
+    const renderQuestion = (passage: string, prompt: string): void => {
+      question.innerHTML = `
+        <div class="reading-passage" id="current-passage-container-${questionIdentifier}">
+          ${passage}
+        </div>
+        <p class="question-stem">${prompt}</p>
+        <ul class="question-choices-multi results">
+          <li class="multi-choice incorrect" data-choice="A"></li>
+          <li class="multi-choice corrected" data-choice="B"></li>
+          <li class="multi-choice" data-choice="C"></li>
+          <li class="multi-choice" data-choice="D"></li>
+        </ul>
+      `;
+    };
+    renderQuestion(
+      '<p><span id="passage-prior" class="user-highlight">Previously highlighted.</span> <span id="passage-fresh-target">Fresh range.</span></p>',
+      "First question.",
+    );
+    const adapter = new AamcFullLengthReviewAdapter(document, reviewUrl);
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    adapter.sealPriorAnnotations("highlight");
+    requiredElement("#passage-fresh-target").classList.add("user-highlight");
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#passage-prior").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#passage-fresh-target").classList.contains("user-highlight")).toBe(
+      true,
+    );
+
+    questionIdentifier = "question-two";
+    renderQuestion(
+      '<p><span id="same-passage-prior">Previously highlighted.</span> <span id="same-passage-fresh">Fresh range.</span></p>',
+      '<span id="second-question-prior">Second question.</span>',
+    );
+    adapter.applyCleanSlate();
+    requiredElement("#same-passage-prior").classList.add("user-highlight");
+    requiredElement("#same-passage-fresh").classList.add("user-highlight");
+    requiredElement("#second-question-prior").classList.add("user-highlight");
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#same-passage-prior").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#same-passage-fresh").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#second-question-prior").classList.contains("user-highlight")).toBe(
+      false,
+    );
+
+    adapter.configureCleanSlate({
+      ...CLEAR_PRIOR_ANNOTATIONS,
+      clearPreviousHighlightsEnabled: false,
+    });
+    expect(requiredElement("#same-passage-prior").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#same-passage-fresh").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#second-question-prior").classList.contains("user-highlight")).toBe(
+      true,
+    );
+
+    adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
+    adapter.applyCleanSlate();
+    expect(requiredElement("#same-passage-prior").classList.contains("user-highlight")).toBe(false);
+    expect(requiredElement("#same-passage-fresh").classList.contains("user-highlight")).toBe(true);
+    expect(requiredElement("#second-question-prior").classList.contains("user-highlight")).toBe(
+      false,
+    );
+
+    questionIdentifier = "question-three";
+    renderQuestion(
+      '<p><span id="new-passage-prior">Different passage.</span></p>',
+      "Third question.",
+    );
+    adapter.applyCleanSlate();
+    requiredElement("#new-passage-prior").classList.add("user-highlight");
+    adapter.applyCleanSlate();
+
+    expect(requiredElement("#new-passage-prior").classList.contains("user-highlight")).toBe(false);
+    adapter.restoreNormalReview();
+    expect(requiredElement("#new-passage-prior").classList.contains("user-highlight")).toBe(true);
+  });
+
   it("restores cleared annotations when their preferences are turned off", () => {
     mountConfirmedProductionFixture();
     const passage = requiredElement(".reading-passage");
     const choice = requiredElement(".multi-choice");
-    passage.innerHTML = '<span id="prior-highlight" class="user-highlight">Prior highlight.</span>';
+    passage.innerHTML =
+      '<span id="prior-highlight" class="user-highlight">Prior highlight.</span><span id="fresh-highlight">Fresh highlight.</span>';
     choice.insertAdjacentHTML(
       "beforeend",
       '<span id="prior-cross" class="user-strikethrough">Prior cross-out.</span>',
@@ -400,10 +485,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     adapter.configureCleanSlate(CLEAR_PRIOR_ANNOTATIONS);
     adapter.applyCleanSlate();
     adapter.sealPriorAnnotations();
-    passage.insertAdjacentHTML(
-      "beforeend",
-      '<span id="fresh-highlight" class="user-highlight">Fresh highlight.</span>',
-    );
+    requiredElement("#fresh-highlight").classList.add("user-highlight");
     choice.insertAdjacentHTML(
       "beforeend",
       '<span id="fresh-cross" class="user-strikethrough">Fresh cross-out.</span>',
