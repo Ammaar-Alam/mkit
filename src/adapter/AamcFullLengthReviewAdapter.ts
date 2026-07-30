@@ -1552,15 +1552,20 @@ function createAnnotationBaselines(): AnnotationBaselines {
   };
 }
 
-// AAMC's passage wrapper ID changes with the question. Normalized content is
-// kept only in this adapter's in-memory baseline key; it never enters shared
-// context, storage, logs, or sync.
+// AAMC's passage wrapper ID changes with the question. Normalized text and
+// stable image attributes are kept only in this adapter's in-memory baseline
+// key; they never enter shared context, storage, logs, or sync.
 function passageAnnotationIdentifier(passage: Element, url: URL): string | null {
   const text = (passage.textContent ?? "").replaceAll(/\s+/g, " ").trim();
-  if (!text) return null;
+  const images = [...passage.querySelectorAll("img")].map((image) => [
+    image.getAttribute("src"),
+    image.getAttribute("srcset"),
+    image.getAttribute("alt"),
+  ]);
+  if (!text && images.length === 0) return null;
   const route = parseConfirmedReviewRoute(url);
   const documentScope = route?.examIdentifier ?? `${url.origin}${url.pathname}`;
-  return `${documentScope}\u0000${text}`;
+  return `${documentScope}\u0000${JSON.stringify([text, images])}`;
 }
 
 function annotationCarrierSignature(question: Element, element: Element): string {

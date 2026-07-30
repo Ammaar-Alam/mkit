@@ -382,7 +382,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
     ).toBe(true);
   });
 
-  it("keeps fresh passage highlights across related questions and clears a new passage", () => {
+  it("keeps fresh highlights across related questions and clears an image-distinguished passage", () => {
     mountConfirmedProductionFixture();
     let questionIdentifier = "question-one";
     const reviewUrl = () =>
@@ -405,7 +405,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
       `;
     };
     renderQuestion(
-      '<p><span id="passage-prior" class="user-highlight">Previously highlighted.</span> <span id="passage-fresh-target">Fresh range.</span></p>',
+      '<img src="/passage-one.gif" alt=""><p><span id="passage-prior" class="user-highlight">Previously highlighted.</span> <span id="passage-fresh-target">Fresh range.</span></p>',
       "First question.",
     );
     const adapter = new AamcFullLengthReviewAdapter(document, reviewUrl);
@@ -423,7 +423,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
 
     questionIdentifier = "question-two";
     renderQuestion(
-      '<p><span id="same-passage-prior">Previously highlighted.</span> <span id="same-passage-fresh">Fresh range.</span></p>',
+      '<img src="/passage-one.gif" alt=""><p><span id="same-passage-prior">Previously highlighted.</span> <span id="same-passage-fresh">Fresh range.</span></p>',
       '<span id="second-question-prior">Second question.</span>',
     );
     adapter.applyCleanSlate();
@@ -458,7 +458,7 @@ describe("AamcFullLengthReviewAdapter clean slate", () => {
 
     questionIdentifier = "question-three";
     renderQuestion(
-      '<p><span id="new-passage-prior">Different passage.</span></p>',
+      '<img src="/passage-two.gif" alt=""><p><span>Previously highlighted.</span> <span id="new-passage-prior">Fresh range.</span></p>',
       "Third question.",
     );
     adapter.applyCleanSlate();
