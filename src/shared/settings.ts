@@ -27,6 +27,7 @@ export async function writeSettings(
       | "clearPreviousHighlightsEnabled"
       | "clearPreviousCrossOutsEnabled"
       | "hideSectionResultMarksEnabled"
+      | "showInitialCorrectnessEnabled"
       | "syncEnabled"
     >
   >,

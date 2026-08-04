@@ -366,6 +366,30 @@ test("completed section result marks are neutralized without blocking native rev
   await page.locator("#section-review-link").click();
   await expect(page.locator("#section-review-link")).toHaveAttribute("data-native-clicks", "1");
 
+  await page.evaluate(() => window.__mkitRouteGuardHarness.setShowInitialCorrectnessEnabled(true));
+  await expect(page.locator("#section-result-cue")).toHaveAttribute(
+    "data-mkit-initial-correctness-enabled",
+    "",
+  );
+  await expect(page.locator("#section-result-cue")).toHaveAttribute(
+    "data-mkit-initial-correct",
+    "",
+  );
+  const initialCorrectMarkStyle = await page.locator("#section-result-cue").evaluate((element) => {
+    const style = getComputedStyle(element, "::before");
+    return {
+      backgroundImage: style.backgroundImage,
+      content: style.content,
+    };
+  });
+  expect(initialCorrectMarkStyle).toEqual({
+    backgroundImage: "none",
+    content: '"✓"',
+  });
+  await expect(
+    page.locator('td[headers="answer-listing-header-correctness-synthetic"]'),
+  ).toHaveText("Correct on initial attempt");
+
   await page.evaluate(() => {
     const wrapper = document.querySelector("#wrapper");
     if (!wrapper) throw new Error("Missing synthetic wrapper.");
@@ -405,6 +429,14 @@ test("completed section result marks are neutralized without blocking native rev
     "",
   );
   await expect(page.locator("#replacement-section-result-cue")).not.toHaveClass(/incorrect/);
+  await expect(page.locator("#replacement-section-result-cue")).toHaveAttribute(
+    "data-mkit-initial-correctness-enabled",
+    "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "data-mkit-initial-correct",
+    "",
+  );
   await expect(
     page.locator('td[headers="answer-listing-header-correctness-replacement"]'),
   ).toHaveText("Hidden");
@@ -422,6 +454,14 @@ test("completed section result marks are neutralized without blocking native rev
   await expect(page.locator("#replacement-section-result-cue")).toHaveClass(/incorrect/);
   await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
     "data-mkit-outcome-hidden",
+    "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "data-mkit-initial-correctness-enabled",
+    "",
+  );
+  await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(
+    "data-mkit-initial-correct",
     "",
   );
   await expect(page.locator("#replacement-section-result-cue")).not.toHaveAttribute(

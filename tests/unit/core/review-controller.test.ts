@@ -152,6 +152,49 @@ describe("ReviewController generation safety", () => {
     controller.dispose();
   });
 
+  it("shows and hides the initial result when the live preference changes", async () => {
+    const adapter = new ControlledAdapter([
+      Promise.resolve(context("question-q1")),
+      Promise.resolve(context("question-q1")),
+      Promise.resolve(context("question-q1")),
+    ]);
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    expect(preflight.shadow.querySelector(".mkit-initial-outcome")).toBeNull();
+
+    controller.updateSettings({
+      ...DEFAULT_SETTINGS,
+      showInitialCorrectnessEnabled: true,
+      updatedAt: 42,
+    });
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-initial-outcome--incorrect")?.textContent).toBe(
+        "Initially incorrect",
+      );
+    });
+
+    controller.updateSettings({ ...DEFAULT_SETTINGS, updatedAt: 43 });
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-initial-outcome")).toBeNull();
+    });
+    controller.dispose();
+  });
+
   it("remeasures the mounted rail when the active question changes", async () => {
     const adapter = new ControlledAdapter([
       Promise.resolve(context("question-q1")),
@@ -347,6 +390,7 @@ class ControlledAdapter implements FullLengthReviewAdapter {
   applyScoreShield = () => SAFE_REVIEW_REPORT;
   applySectionOverviewCover = () => false;
   revealSectionOverview = () => undefined;
+  getInitialOutcome = () => "needs-review" as const;
   gradeFresh = () => "unknown" as const;
   revealScores: FullLengthReviewAdapter["revealScores"] = () => undefined;
   revealFeedback = () => undefined;

@@ -25,12 +25,16 @@ export interface ContentLifecycle {
   reconcile(): void;
   setEnabled(enabled: boolean): void;
   setHideSectionResultMarksEnabled(enabled: boolean): void;
+  setShowInitialCorrectnessEnabled(enabled: boolean): void;
   status(): ContentStatusResponse;
 }
 
 export function startContentLifecycle(
   dependencies: ContentLifecycleDependencies,
-  initialSettings?: Pick<SettingsRecord, "enabled" | "hideSectionResultMarksEnabled">,
+  initialSettings?: Pick<
+    SettingsRecord,
+    "enabled" | "hideSectionResultMarksEnabled" | "showInitialCorrectnessEnabled"
+  >,
 ): ContentLifecycle {
   const routeMarker = "answer-review";
   let adapter: FullLengthReviewAdapter | null = null;
@@ -43,6 +47,7 @@ export function startContentLifecycle(
   // protection to a reader who has turned MKit off.
   let enabled = initialSettings?.enabled ?? false;
   let hideSectionResultMarksEnabled = initialSettings?.hideSectionResultMarksEnabled ?? true;
+  let showInitialCorrectnessEnabled = initialSettings?.showInitialCorrectnessEnabled ?? false;
   let normalReviewBypass = false;
   let routeKind: ContentRouteKind = "non-review";
   let routeIssues: string[] = [];
@@ -212,7 +217,7 @@ export function startContentLifecycle(
           return;
         }
         sectionOverviewAdapter ??= candidate;
-        if (sectionOverviewAdapter.applySectionOverviewCover()) {
+        if (sectionOverviewAdapter.applySectionOverviewCover(showInitialCorrectnessEnabled)) {
           stopSectionOverviewObserver ??= sectionOverviewAdapter.observe((event) => {
             if (event.type === "page-change") {
               scheduleProbe();
@@ -334,21 +339,32 @@ export function startContentLifecycle(
     }
   };
 
+  const setShowInitialCorrectnessEnabled = (nextEnabled: boolean): void => {
+    if (disposed || showInitialCorrectnessEnabled === nextEnabled) return;
+    showInitialCorrectnessEnabled = nextEnabled;
+    if (enabled && hideSectionResultMarksEnabled && sectionOverviewAdapter) {
+      sectionOverviewAdapter.applySectionOverviewCover(showInitialCorrectnessEnabled);
+    }
+  };
+
   return {
     applySettings(settings: SettingsRecord): void {
       if (disposed) return;
       if (!settings.enabled) {
         setEnabled(false);
         hideSectionResultMarksEnabled = settings.hideSectionResultMarksEnabled;
+        showInitialCorrectnessEnabled = settings.showInitialCorrectnessEnabled;
         return;
       }
       setHideSectionResultMarksEnabled(settings.hideSectionResultMarksEnabled);
+      setShowInitialCorrectnessEnabled(settings.showInitialCorrectnessEnabled);
       setEnabled(true);
       controller?.updateSettings(settings);
     },
     reconcile,
     setEnabled,
     setHideSectionResultMarksEnabled,
+    setShowInitialCorrectnessEnabled,
     status(): ContentStatusResponse {
       return {
         state: runtimeState,

@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: SettingsRecord = {
   clearPreviousHighlightsEnabled: true,
   clearPreviousCrossOutsEnabled: true,
   hideSectionResultMarksEnabled: true,
+  showInitialCorrectnessEnabled: false,
   timerDisplayEnabled: false,
   syncEnabled: false,
   updatedAt: 0,
@@ -69,6 +70,8 @@ export function decodeSettings(value: unknown): SettingsRecord | undefined {
       typeof value.clearPreviousCrossOutsEnabled !== "boolean") ||
     (value.hideSectionResultMarksEnabled !== undefined &&
       typeof value.hideSectionResultMarksEnabled !== "boolean") ||
+    (value.showInitialCorrectnessEnabled !== undefined &&
+      typeof value.showInitialCorrectnessEnabled !== "boolean") ||
     value.timerDisplayEnabled !== false ||
     typeof value.syncEnabled !== "boolean" ||
     (value.aiHandoffTarget !== undefined && !isAiHandoffTarget(value.aiHandoffTarget)) ||
@@ -85,6 +88,7 @@ export function decodeSettings(value: unknown): SettingsRecord | undefined {
     clearPreviousHighlightsEnabled: value.clearPreviousHighlightsEnabled ?? true,
     clearPreviousCrossOutsEnabled: value.clearPreviousCrossOutsEnabled ?? true,
     hideSectionResultMarksEnabled: value.hideSectionResultMarksEnabled ?? true,
+    showInitialCorrectnessEnabled: value.showInitialCorrectnessEnabled ?? false,
     timerDisplayEnabled: false,
     syncEnabled: value.syncEnabled,
     updatedAt: value.updatedAt,
@@ -127,6 +131,10 @@ export function migrateLegacySettings(value: unknown, now: number): SettingsReco
       typeof value.hideSectionResultMarksEnabled === "boolean"
         ? value.hideSectionResultMarksEnabled
         : true,
+    showInitialCorrectnessEnabled:
+      typeof value.showInitialCorrectnessEnabled === "boolean"
+        ? value.showInitialCorrectnessEnabled
+        : false,
     timerDisplayEnabled: false,
     syncEnabled: value.syncEnabled,
     updatedAt: isTimestamp(value.updatedAt) ? value.updatedAt : now,

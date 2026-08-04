@@ -9,6 +9,7 @@ interface RouteGuardHarness {
   dispose(): void;
   setEnabled(enabled: boolean): void;
   setHideSectionResultMarksEnabled(enabled: boolean): void;
+  setShowInitialCorrectnessEnabled(enabled: boolean): void;
   status(): { issues: string[]; route: string; state: string };
   restoreCompletedReviewCapability(): {
     footerDisplay: string;
@@ -135,6 +136,8 @@ window.__mkitRouteGuardHarness = {
   setEnabled: (enabled) => lifecycle.setEnabled(enabled),
   setHideSectionResultMarksEnabled: (enabled) =>
     lifecycle.setHideSectionResultMarksEnabled(enabled),
+  setShowInitialCorrectnessEnabled: (enabled) =>
+    lifecycle.setShowInitialCorrectnessEnabled(enabled),
   status: () => lifecycle.status(),
   restoreCompletedReviewCapability: () => {
     const reviewControl = document.querySelector(".review-answer");

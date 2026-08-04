@@ -10,6 +10,7 @@ const mkitControl = requiredElement("mkit-control");
 const mkitInput = requiredElement<HTMLInputElement>("mkit-enabled");
 const mkitState = requiredElement("mkit-state");
 const hideSectionResultMarksInput = requiredElement<HTMLInputElement>("hide-section-result-marks");
+const showInitialCorrectnessInput = requiredElement<HTMLInputElement>("show-initial-correctness");
 const clearPreviousHighlightsInput = requiredElement<HTMLInputElement>("clear-previous-highlights");
 const clearPreviousCrossOutsInput = requiredElement<HTMLInputElement>("clear-previous-cross-outs");
 const shieldInput = requiredElement<HTMLInputElement>("score-shield");
@@ -33,6 +34,7 @@ async function initialize(): Promise<void> {
   ]);
   renderMKitState(settings.enabled);
   hideSectionResultMarksInput.checked = settings.hideSectionResultMarksEnabled;
+  showInitialCorrectnessInput.checked = settings.showInitialCorrectnessEnabled;
   clearPreviousHighlightsInput.checked = settings.clearPreviousHighlightsEnabled;
   clearPreviousCrossOutsInput.checked = settings.clearPreviousCrossOutsEnabled;
   shieldInput.checked = settings.scoreShieldEnabled;
@@ -48,6 +50,9 @@ async function initialize(): Promise<void> {
   });
   hideSectionResultMarksInput.addEventListener("change", () => {
     void save({ hideSectionResultMarksEnabled: hideSectionResultMarksInput.checked });
+  });
+  showInitialCorrectnessInput.addEventListener("change", () => {
+    void save({ showInitialCorrectnessEnabled: showInitialCorrectnessInput.checked });
   });
   clearPreviousHighlightsInput.addEventListener("change", () => {
     void save({ clearPreviousHighlightsEnabled: clearPreviousHighlightsInput.checked });

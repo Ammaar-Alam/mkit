@@ -38,12 +38,13 @@ describe("storage codec and migrations", () => {
     });
   });
 
-  it("defaults newly added concealment settings on when an existing v2 store omits them", async () => {
+  it("defaults newly added review settings safely when an existing v2 store omits them", async () => {
     const existingStore = makeStore();
     const existingSettings = existingStore.settings as unknown as Record<string, unknown>;
     delete existingSettings.clearPreviousHighlightsEnabled;
     delete existingSettings.clearPreviousCrossOutsEnabled;
     delete existingSettings.hideSectionResultMarksEnabled;
+    delete existingSettings.showInitialCorrectnessEnabled;
     const repository = new StorageRepository({
       local: new FakeStorageArea("local", { [LOCAL_STORE_KEY]: existingStore }),
     });
@@ -52,12 +53,15 @@ describe("storage codec and migrations", () => {
       clearPreviousHighlightsEnabled: true,
       clearPreviousCrossOutsEnabled: true,
       hideSectionResultMarksEnabled: true,
+      showInitialCorrectnessEnabled: false,
     });
   });
 
   it("rejects invalid concealment setting values without rewriting storage", async () => {
     const malformed = makeStore();
     (malformed.settings as unknown as Record<string, unknown>).clearPreviousHighlightsEnabled =
+      "yes";
+    (malformed.settings as unknown as Record<string, unknown>).showInitialCorrectnessEnabled =
       "yes";
     const local = new FakeStorageArea("local", { [LOCAL_STORE_KEY]: malformed });
     const repository = new StorageRepository({ local });

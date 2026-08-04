@@ -28,6 +28,7 @@ describe("settings surfaces", () => {
     const expectedLabels = new Map([
       ["mkit-enabled", "Use MKit on supported reviews"],
       ["hide-section-result-marks", "Hide section result marks"],
+      ["show-initial-correctness", "First-attempt checks"],
       ["clear-previous-highlights", "Clear previous highlights"],
       ["clear-previous-cross-outs", "Clear previous cross-outs"],
     ]);
@@ -40,6 +41,14 @@ describe("settings surfaces", () => {
       expect(input.type).toBe("checkbox");
       expect(input.closest("label")?.textContent).toContain(copy);
     }
+    const reviewSettings = requiredElement(
+      page,
+      "section[aria-labelledby='review-protection-heading']",
+    );
+    const reviewInputs = [
+      ...reviewSettings.querySelectorAll<HTMLInputElement>(".switch-row input"),
+    ];
+    expect(reviewInputs.at(-1)?.id).toBe("show-initial-correctness");
   });
 
   it("keeps all new review controls in the extension popup", async () => {
@@ -50,6 +59,7 @@ describe("settings surfaces", () => {
     const expectedLabels = new Map([
       ["mkit-enabled", "MKit"],
       ["hide-section-result-marks", "Hide section result marks"],
+      ["show-initial-correctness", "First-attempt checks"],
       ["clear-previous-highlights", "Clear previous highlights"],
       ["clear-previous-cross-outs", "Clear previous cross-outs"],
     ]);
@@ -62,6 +72,10 @@ describe("settings surfaces", () => {
     expect([...main.children].indexOf(protection)).toBeLessThan(
       [...main.children].indexOf(activeAttempt),
     );
+    const protectionInputs = [
+      ...protection.querySelectorAll<HTMLInputElement>(".switch-row input"),
+    ];
+    expect(protectionInputs.at(-1)?.id).toBe("show-initial-correctness");
     expect(requiredElement(page, "#open-settings").textContent).toContain("All settings");
   });
 });

@@ -497,6 +497,9 @@ export class ReviewController {
     }
     const attempt = this.#attempt;
     const section = sectionLabel(attempt.sectionKey);
+    const initialOutcome = this.#settings?.showInitialCorrectnessEnabled
+      ? this.#adapter.getInitialOutcome()
+      : "unknown";
     this.#railAnchor ??= this.#adapter.getStudyRailAnchor();
     return {
       anchor: this.#railAnchor,
@@ -511,6 +514,12 @@ export class ReviewController {
       confidence: attempt.confidence,
       flagged: attempt.flagged,
       reviewAgain: attempt.reviewAgain,
+      initialOutcome:
+        initialOutcome === "correct"
+          ? "correct"
+          : initialOutcome === "needs-review"
+            ? "incorrect"
+            : null,
       outcome: this.#state.reveal === "CONCEALED" ? null : attempt.outcome,
       saveState: this.#saveState,
       answersRevealed: this.#answersRevealed,

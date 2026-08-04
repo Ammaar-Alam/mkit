@@ -660,6 +660,20 @@ describe("AamcFullLengthReviewAdapter score shielding", () => {
 });
 
 describe("AamcFullLengthReviewAdapter confirmed production boundary", () => {
+  it("reads only an unambiguous question-level initial result", () => {
+    mountConfirmedProductionFixture();
+    const container = requiredElement("#confirmed-question-container");
+    const adapter = new AamcFullLengthReviewAdapter(document, CONFIRMED_REVIEW_URL);
+
+    expect(adapter.getInitialOutcome()).toBe("correct");
+    container.classList.replace("correct", "incorrect");
+    expect(adapter.getInitialOutcome()).toBe("needs-review");
+    container.classList.add("correct");
+    expect(adapter.getInitialOutcome()).toBe("unknown");
+    container.classList.remove("correct", "incorrect");
+    expect(adapter.getInitialOutcome()).toBe("unknown");
+  });
+
   it("masks the inline solution when the original attempt was incorrect", () => {
     mountConfirmedProductionFixture();
     const container = requiredElement("#confirmed-question-container");
@@ -1256,6 +1270,8 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     for (const cue of document.querySelectorAll(".li-cell.correctness")) {
       expect(cue.hasAttribute("title")).toBe(false);
       expect(cue.hasAttribute("data-mkit-outcome-hidden")).toBe(true);
+      expect(cue.hasAttribute("data-mkit-initial-correctness-enabled")).toBe(false);
+      expect(cue.hasAttribute("data-mkit-initial-correct")).toBe(false);
       expect(cue.getAttribute("aria-hidden")).toBe("true");
     }
     expect(accessibleResults()).toEqual(["Hidden", "Hidden"]);
@@ -1269,6 +1285,38 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     expect(document.querySelectorAll("[data-mkit-host]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-mkit-hidden]")).toHaveLength(0);
     expect(document.documentElement.dataset.mkitProtection).toBeUndefined();
+  });
+
+  it("shows only correct initial outcomes when the learner opts in", () => {
+    mountSectionOverviewFixture();
+    const adapter = new AamcFullLengthReviewAdapter(document, SECTION_OVERVIEW_URL);
+
+    expect(adapter.applySectionOverviewCover(true)).toBe(true);
+
+    const cues = [...document.querySelectorAll(".li-cell.correctness")];
+    expect(cueClasses()).toEqual(["li-cell correctness", "li-cell correctness"]);
+    expect(
+      cues.map((cue) => ({
+        correct: cue.hasAttribute("data-mkit-initial-correct"),
+        mode: cue.hasAttribute("data-mkit-initial-correctness-enabled"),
+      })),
+    ).toEqual([
+      { correct: true, mode: true },
+      { correct: false, mode: true },
+    ]);
+    expect(accessibleResults()).toEqual(["Correct on initial attempt", "Hidden"]);
+
+    adapter.applySectionOverviewCover(false);
+    expect(
+      cues.map((cue) => ({
+        correct: cue.hasAttribute("data-mkit-initial-correct"),
+        mode: cue.hasAttribute("data-mkit-initial-correctness-enabled"),
+      })),
+    ).toEqual([
+      { correct: false, mode: false },
+      { correct: false, mode: false },
+    ]);
+    expect(accessibleResults()).toEqual(["Hidden", "Hidden"]);
   });
 
   it("restores the authored cues on reveal and keeps other routes untouched", () => {
@@ -1306,7 +1354,7 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
   it("covers replacement result rows while the section overview stays mounted", async () => {
     mountSectionOverviewFixture();
     const adapter = new AamcFullLengthReviewAdapter(document, SECTION_OVERVIEW_URL);
-    adapter.applySectionOverviewCover();
+    adapter.applySectionOverviewCover(true);
     const stop = adapter.observe(() => undefined);
     const report = requiredElement(".score-reports-wrapper");
 
@@ -1340,6 +1388,8 @@ describe("AamcFullLengthReviewAdapter completed section overview", () => {
     const replacement = requiredElement("#replacement-result");
     expect(replacement.classList.contains("incorrect")).toBe(false);
     expect(replacement.hasAttribute("data-mkit-outcome-hidden")).toBe(true);
+    expect(replacement.hasAttribute("data-mkit-initial-correctness-enabled")).toBe(true);
+    expect(replacement.hasAttribute("data-mkit-initial-correct")).toBe(false);
     expect(accessibleResults()).toEqual(["Hidden"]);
     stop();
   });
