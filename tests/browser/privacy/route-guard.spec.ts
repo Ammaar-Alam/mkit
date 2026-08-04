@@ -138,6 +138,165 @@ test("exact completed section review auto-attaches and cleans up across native r
   );
 });
 
+test("question transitions keep the Jack Westin shadow sidebar interactive", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4173/route-guard?section");
+
+  const mkitHost = page.locator("[data-mkit-host]");
+  await mkitHost.locator("[data-focus-key='practice']").click();
+  await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+
+  await page.evaluate(() => {
+    const jackWestinHost = document.createElement("div");
+    jackWestinHost.id = "jw-exam-page-shadow-root";
+    const shadow = jackWestinHost.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <style>
+        aside {
+          position: fixed;
+          z-index: 10000;
+          top: 0;
+          right: 0;
+          display: flex;
+          width: 453px;
+          height: 100vh;
+        }
+
+        .side-panel-tab-content {
+          width: 405px;
+          height: 100%;
+          overflow-y: auto;
+          background: white;
+        }
+
+        .explanation {
+          min-height: 2400px;
+        }
+      </style>
+      <aside>
+        <div class="side-panel-tab-content">
+          <section class="explanation" data-question="1">
+            Jack Westin Question Solutions
+          </section>
+        </div>
+      </aside>
+    `;
+    document.body.append(jackWestinHost);
+
+    const records: Array<{
+      jackWestinDisplay: string;
+      jackWestinTransitionCovered: boolean;
+      mkitPointerEvents: string;
+      protection: string | null;
+      wrapperDisplay: string;
+    }> = [];
+    const record = (): void => {
+      const mkit = document.querySelector("[data-mkit-host]");
+      const wrapper = document.querySelector("#wrapper");
+      records.push({
+        jackWestinDisplay: getComputedStyle(jackWestinHost).display,
+        jackWestinTransitionCovered: jackWestinHost.hasAttribute("data-mkit-transition-hidden"),
+        mkitPointerEvents: mkit ? getComputedStyle(mkit).pointerEvents : "",
+        protection: document.documentElement.dataset.mkitProtection ?? null,
+        wrapperDisplay: wrapper ? getComputedStyle(wrapper).display : "",
+      });
+    };
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.attributeName === "data-mkit-protection")) {
+        record();
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-mkit-protection"],
+    });
+    record();
+    Reflect.set(window, "__mkitJackWestinTransitionProbe", { observer, records });
+
+    const next = document.querySelector<HTMLElement>(".toolbar-btn.next");
+    if (!next) throw new Error("Missing synthetic native Next button.");
+    next.dataset.nativeClicks = "0";
+    next.addEventListener("click", () => {
+      const nextQuestion = Number(next.dataset.nativeClicks ?? "0") + 1;
+      next.dataset.nativeClicks = String(nextQuestion);
+      window.__mkitRouteGuardHarness.setHash(
+        `#exams/synthetic-exam/exam_sections/synthetic-section/synthetic-question-${nextQuestion + 1}`,
+      );
+      const explanation = shadow.querySelector<HTMLElement>(".explanation");
+      if (explanation) {
+        explanation.dataset.question = String(nextQuestion + 1);
+        explanation.textContent = `Jack Westin Question ${nextQuestion + 1} Solutions`;
+      }
+      const scroller = shadow.querySelector<HTMLElement>(".side-panel-tab-content");
+      if (scroller) scroller.scrollTop = 0;
+    });
+  });
+
+  const nativeNext = page.locator(".toolbar-btn.next");
+  for (const expectedTransitions of [1, 2]) {
+    await nativeNext.click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const probe = Reflect.get(window, "__mkitJackWestinTransitionProbe") as {
+            records: Array<{ protection: string | null }>;
+          };
+          return probe.records.filter((record) => record.protection === "transition").length;
+        }),
+      )
+      .toBe(expectedTransitions);
+    await expect(page.locator("html")).toHaveAttribute("data-mkit-protection", "masked");
+  }
+
+  const transitionRecords = await page.evaluate(() => {
+    const probe = Reflect.get(window, "__mkitJackWestinTransitionProbe") as {
+      observer: MutationObserver;
+      records: Array<{
+        jackWestinDisplay: string;
+        jackWestinTransitionCovered: boolean;
+        mkitPointerEvents: string;
+        protection: string | null;
+        wrapperDisplay: string;
+      }>;
+    };
+    probe.observer.disconnect();
+    return probe.records.filter((record) => record.protection === "transition");
+  });
+  expect(transitionRecords).toHaveLength(2);
+  expect(transitionRecords).toEqual(
+    transitionRecords.map((record) => ({
+      ...record,
+      jackWestinDisplay: "block",
+      jackWestinTransitionCovered: false,
+      mkitPointerEvents: "none",
+      wrapperDisplay: "none",
+    })),
+  );
+  await expect(nativeNext).toHaveAttribute("data-native-clicks", "2");
+  await expect(page.locator("#wrapper")).toBeVisible();
+  await expect(page.locator("#wrapper")).not.toHaveAttribute("data-mkit-transition-hidden");
+
+  const jackWestinScroller = page
+    .locator("#jw-exam-page-shadow-root")
+    .locator(".side-panel-tab-content");
+  await expect(jackWestinScroller).toHaveCount(1);
+  const scrollBounds = await jackWestinScroller.boundingBox();
+  if (!scrollBounds) throw new Error("Missing Jack Westin scroll geometry.");
+  await page.mouse.move(scrollBounds.x + 12, scrollBounds.y + 200);
+  await page.mouse.wheel(0, 600);
+  await expect
+    .poll(() => jackWestinScroller.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  const scrollState = await jackWestinScroller.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    pointerEvents: getComputedStyle(element).pointerEvents,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollState.clientHeight).toBeGreaterThan(0);
+  expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+  expect(scrollState).toMatchObject({ overflowY: "auto", pointerEvents: "auto" });
+});
+
 test("Normal review removes the host, restores native interaction, and persists within review routes", async ({
   page,
 }) => {
