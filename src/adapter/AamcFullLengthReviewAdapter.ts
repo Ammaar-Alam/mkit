@@ -24,6 +24,7 @@ const SECTION_OVERVIEW_MARKER = "data-mkit-outcome-hidden";
 const SECTION_OVERVIEW_RESULT_MARKER = "data-mkit-result-hidden";
 const INITIAL_CORRECTNESS_MODE_MARKER = "data-mkit-initial-correctness-enabled";
 const INITIAL_CORRECT_MARKER = "data-mkit-initial-correct";
+const QUESTION_TRANSITION_COVER_MARKER = "data-mkit-transition-hidden";
 const STUDY_RAIL_VIEWPORT_MARGIN = 16;
 const STUDY_RAIL_PALETTE_CLEARANCE = 96;
 const STUDY_RAIL_PALETTE_GAP = 8;
@@ -705,13 +706,14 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#revealedGroups.clear();
       this.#mask.restoreAll();
       for (const marked of this.#document.querySelectorAll(
-        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}], [${SECTION_OVERVIEW_RESULT_MARKER}], [${INITIAL_CORRECTNESS_MODE_MARKER}], [${INITIAL_CORRECT_MARKER}]`,
+        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}], [${SECTION_OVERVIEW_RESULT_MARKER}], [${INITIAL_CORRECTNESS_MODE_MARKER}], [${INITIAL_CORRECT_MARKER}], [${QUESTION_TRANSITION_COVER_MARKER}]`,
       )) {
         marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
         marked.removeAttribute(SECTION_OVERVIEW_MARKER);
         marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
         marked.removeAttribute(INITIAL_CORRECTNESS_MODE_MARKER);
         marked.removeAttribute(INITIAL_CORRECT_MARKER);
+        marked.removeAttribute(QUESTION_TRANSITION_COVER_MARKER);
       }
       this.#completedReviewSwitch = null;
       this.#highlightBaselines = createAnnotationBaselines();
@@ -801,7 +803,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
         const questionChanged = questionKey !== lastQuestionKey;
         if (pageKind === "review") {
           if (pageChanged || questionChanged) {
-            document.documentElement.dataset.mkitProtection = "boot";
+            this.#coverQuestionTransition();
             // A reveal applies to the question it was made on, so arriving at a
             // different question conceals again before masking runs.
             this.#revealedGroups.clear();
@@ -1524,6 +1526,29 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return questionRoots.length === 1 ? (questionRoots[0] ?? null) : null;
   }
 
+  #coverQuestionTransition(): void {
+    for (const covered of this.#document.querySelectorAll(
+      `[${QUESTION_TRANSITION_COVER_MARKER}]`,
+    )) {
+      covered.removeAttribute(QUESTION_TRANSITION_COVER_MARKER);
+    }
+
+    const body = this.#document.body;
+    let surface = this.#activeReviewRoot();
+    while (surface?.parentElement && surface.parentElement !== body) {
+      surface = surface.parentElement;
+    }
+    if (body && surface?.parentElement === body) {
+      surface.setAttribute(QUESTION_TRANSITION_COVER_MARKER, "");
+      this.#document.documentElement.dataset.mkitProtection = "transition";
+      return;
+    }
+
+    // If the authored AAMC surface cannot be isolated, retain the existing
+    // fail-closed cover rather than risking a transient answer leak.
+    this.#document.documentElement.dataset.mkitProtection = "boot";
+  }
+
   #isAuthoredVisible(element: Element): boolean {
     const view = this.#document.defaultView;
     const pageCoverActive = this.#isMKitPageCoverActive();
@@ -1564,14 +1589,17 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   }
 
   /**
-   * The boot and unsupported covers hide every direct body child that is not an
-   * MKit host, so that single rule must not read as authored concealment: the
-   * page wrapper MKit itself just covered would otherwise report every review
-   * anchor as hidden and startup could never complete. Computed `display` is not
-   * inherited by descendants, so exempting the covered element alone still
-   * judges responsive duplicates and page-authored hiding by their own styles.
+   * Page covers must not read as authored concealment: the AAMC wrapper MKit
+   * just covered would otherwise report every review anchor as hidden and
+   * startup could never complete. Boot and unsupported cover every body child;
+   * a question transition covers only the marked AAMC surface so independent
+   * extension roots keep their layout. Computed `display` is not inherited by
+   * descendants, so responsive copies still use their own authored styles.
    */
   #isHiddenByPageCover(element: Element, pageCoverActive: boolean): boolean {
+    if (pageCoverActive && this.#document.documentElement.dataset.mkitProtection === "transition") {
+      return element.hasAttribute(QUESTION_TRANSITION_COVER_MARKER);
+    }
     return (
       pageCoverActive &&
       element.parentElement === this.#document.body &&
@@ -1581,7 +1609,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
 
   #isMKitPageCoverActive(): boolean {
     const protection = this.#document.documentElement.dataset.mkitProtection;
-    return protection === "boot" || protection === "unsupported";
+    return protection === "boot" || protection === "transition" || protection === "unsupported";
   }
 }
 

@@ -1,5 +1,6 @@
 export type PreflightProtection =
   | "boot"
+  | "transition"
   | "non-review"
   | "masked"
   | "unsupported"
@@ -35,6 +36,11 @@ export function createPreflight(): DisposableMKitPreflight {
   const shadow = host.attachShadow({ mode: "open" });
 
   const setProtection = (protection: PreflightProtection): void => {
+    if (protection !== "transition") {
+      for (const covered of document.querySelectorAll("[data-mkit-transition-hidden]")) {
+        covered.removeAttribute("data-mkit-transition-hidden");
+      }
+    }
     document.documentElement.dataset.mkitProtection = protection;
     host.hidden = protection === "non-review" || protection === "normal-review";
   };
@@ -145,6 +151,9 @@ export function createPreflight(): DisposableMKitPreflight {
     destroy(): void {
       mountObserver.disconnect();
       host.remove();
+      for (const covered of document.querySelectorAll("[data-mkit-transition-hidden]")) {
+        covered.removeAttribute("data-mkit-transition-hidden");
+      }
       if (document.documentElement.hasAttribute("data-mkit-protection")) {
         document.documentElement.removeAttribute("data-mkit-protection");
       }

@@ -68,6 +68,9 @@ export function startContentLifecycle(
   const clearPageMarkers = (): void => {
     document.documentElement.removeAttribute("data-mkit-route");
     document.documentElement.removeAttribute("data-mkit-protection");
+    for (const covered of document.querySelectorAll("[data-mkit-transition-hidden]")) {
+      covered.removeAttribute("data-mkit-transition-hidden");
+    }
   };
 
   const restoreNativePage = (

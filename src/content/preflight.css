@@ -3,6 +3,10 @@ html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   display: none !important;
 }
 
+html[data-mkit-protection="transition"] [data-mkit-transition-hidden] {
+  display: none !important;
+}
+
 [data-mkit-hidden] {
   display: none !important;
   user-select: none !important;
@@ -61,13 +65,15 @@ html[data-mkit-protection="masked"]
   pointer-events: none !important;
 }
 
-html[data-mkit-protection="masked"] [data-mkit-host][data-mkit-placement="rail"] {
+html[data-mkit-protection="masked"] [data-mkit-host][data-mkit-placement="rail"],
+html[data-mkit-protection="transition"] [data-mkit-host][data-mkit-placement="rail"] {
   pointer-events: none !important;
 }
 
 @media print {
   html[data-mkit-protection="boot"] body > :not([data-mkit-host]),
   html[data-mkit-protection="masked"] body > :not([data-mkit-host]),
+  html[data-mkit-protection="transition"] body > :not([data-mkit-host]),
   html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
     display: none !important;
   }
