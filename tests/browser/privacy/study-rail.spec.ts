@@ -72,6 +72,29 @@ test("moving Fresh Attempt toward the top preserves its current height", async (
   expect(movedRail.y + movedRail.height).toBeLessThanOrEqual(900 - 16);
 });
 
+test("a minimized moved rail stays expandable after the viewport shrinks", async ({ page }) => {
+  await page.setViewportSize({ width: 1_280, height: 900 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const grip = rail.locator("[data-focus-key='rail-grip']");
+  const toggle = rail.locator("[data-focus-key='rail-toggle']");
+
+  await grip.press("ArrowRight");
+  await toggle.click();
+  await expect(rail).toHaveClass(/is-minimized/);
+  await page.setViewportSize({ width: 1_280, height: 640 });
+  await toggle.click();
+
+  const expanded = await rail.boundingBox();
+  if (!expanded) throw new Error("Expanded Study Rail geometry is unavailable.");
+  expect(expanded.y).toBeGreaterThanOrEqual(16);
+  expect(expanded.y + expanded.height).toBeLessThanOrEqual(640 - 16);
+});
+
 test("Resume stays below the rendered highlighter palette through answer updates", async ({
   page,
 }) => {

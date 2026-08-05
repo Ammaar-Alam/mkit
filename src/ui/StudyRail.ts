@@ -179,9 +179,13 @@ function createRailPlacement(): RailPlacement {
         : Math.min(movedHeight, availableHeight(VIEWPORT_MARGIN));
     target.style.maxHeight = `${preservedHeight}px`;
     const fittedRect = target.getBoundingClientRect();
+    const heightForTopClamp =
+      target.classList.contains("is-minimized") && movedHeight !== null
+        ? preservedHeight
+        : fittedRect.height;
     const maxTop = Math.max(
       VIEWPORT_MARGIN,
-      window.innerHeight - fittedRect.height - VIEWPORT_MARGIN,
+      window.innerHeight - heightForTopClamp - VIEWPORT_MARGIN,
     );
     offset = {
       left: clamp(offset.left, VIEWPORT_MARGIN, maxLeft),

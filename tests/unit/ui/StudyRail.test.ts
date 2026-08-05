@@ -10,6 +10,8 @@ describe("Study Rail placement", () => {
   let viewportHeight = 800;
 
   beforeEach(() => {
+    viewportWidth = 1_000;
+    viewportHeight = 800;
     vi.spyOn(window, "innerWidth", "get").mockImplementation(() => viewportWidth);
     vi.spyOn(window, "innerHeight", "get").mockImplementation(() => viewportHeight);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
@@ -19,7 +21,9 @@ describe("Study Rail placement", () => {
       const top = numericStyle(this.style.top);
       const width = Math.min(RAIL_WIDTH, viewportWidth - 32);
       const maxHeight = numericStyle(this.style.maxHeight);
-      const height = Math.min(RAIL_HEIGHT, maxHeight);
+      const height = this.classList.contains("is-minimized")
+        ? 48
+        : Math.min(RAIL_HEIGHT, maxHeight);
       const left = this.style.left
         ? numericStyle(this.style.left)
         : viewportWidth - numericStyle(this.style.right) - width;
@@ -103,6 +107,27 @@ describe("Study Rail placement", () => {
     expect(view.element.style.top).toBe("192px");
     expect(view.element.style.right).toBe("48px");
     expect(view.element.style.maxHeight).toBe("192px");
+    view.destroy();
+  });
+
+  it("clamps a minimized moved rail against its expanded height on resize", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    const toggle = view.element.querySelector<HTMLButtonElement>("[data-focus-key='rail-toggle']");
+    if (!grip || !toggle) throw new Error("Study Rail movement controls were not rendered.");
+
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    toggle.click();
+    expect(view.element.classList.contains("is-minimized")).toBe(true);
+
+    viewportHeight = 400;
+    window.dispatchEvent(new Event("resize"));
+
+    expect(view.element.style.top).toBe("16px");
+    expect(view.element.style.maxHeight).toBe("368px");
+    toggle.click();
+    expect(view.element.classList.contains("is-minimized")).toBe(false);
+    expect(view.element.getBoundingClientRect().bottom).toBe(384);
     view.destroy();
   });
 
