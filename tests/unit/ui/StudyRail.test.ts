@@ -6,10 +6,12 @@ const RAIL_WIDTH = 352;
 const RAIL_HEIGHT = 600;
 
 describe("Study Rail placement", () => {
+  let railHeight = RAIL_HEIGHT;
   let viewportWidth = 1_000;
   let viewportHeight = 800;
 
   beforeEach(() => {
+    railHeight = RAIL_HEIGHT;
     viewportWidth = 1_000;
     viewportHeight = 800;
     vi.spyOn(window, "innerWidth", "get").mockImplementation(() => viewportWidth);
@@ -21,9 +23,7 @@ describe("Study Rail placement", () => {
       const top = numericStyle(this.style.top);
       const width = Math.min(RAIL_WIDTH, viewportWidth - 32);
       const maxHeight = numericStyle(this.style.maxHeight);
-      const height = this.classList.contains("is-minimized")
-        ? 48
-        : Math.min(RAIL_HEIGHT, maxHeight);
+      const height = this.classList.contains("is-minimized") ? 48 : Math.min(railHeight, maxHeight);
       const left = this.style.left
         ? numericStyle(this.style.left)
         : viewportWidth - numericStyle(this.style.right) - width;
@@ -68,6 +68,23 @@ describe("Study Rail placement", () => {
     expect(view.element.style.top).toBe("16px");
     expect(view.element.style.maxHeight).toBe(`${initialHeight}px`);
     expect(view.element.getBoundingClientRect().height).toBe(initialHeight);
+    view.destroy();
+  });
+
+  it("refreshes the preserved height on later keyboard movements", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    expect(view.element.style.maxHeight).toBe("600px");
+
+    railHeight = 320;
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    expect(view.element.style.maxHeight).toBe("320px");
+
+    railHeight = RAIL_HEIGHT;
+    expect(view.element.getBoundingClientRect().height).toBe(320);
     view.destroy();
   });
 

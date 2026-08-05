@@ -203,8 +203,8 @@ function createRailPlacement(): RailPlacement {
     const rect = target.getBoundingClientRect();
     if (!offset) {
       offset = { top: rect.top, left: rect.left };
-      movedHeight = target.classList.contains("is-minimized") ? null : rect.height;
     }
+    if (!target.classList.contains("is-minimized")) movedHeight = rect.height;
     offset = { top: offset.top + deltaY, left: offset.left + deltaX };
     apply();
   };
