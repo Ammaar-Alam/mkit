@@ -6,10 +6,14 @@ const RAIL_WIDTH = 352;
 const RAIL_HEIGHT = 600;
 
 describe("Study Rail placement", () => {
+  let railHeight = RAIL_HEIGHT;
   let viewportWidth = 1_000;
   let viewportHeight = 800;
 
   beforeEach(() => {
+    railHeight = RAIL_HEIGHT;
+    viewportWidth = 1_000;
+    viewportHeight = 800;
     vi.spyOn(window, "innerWidth", "get").mockImplementation(() => viewportWidth);
     vi.spyOn(window, "innerHeight", "get").mockImplementation(() => viewportHeight);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
@@ -19,7 +23,7 @@ describe("Study Rail placement", () => {
       const top = numericStyle(this.style.top);
       const width = Math.min(RAIL_WIDTH, viewportWidth - 32);
       const maxHeight = numericStyle(this.style.maxHeight);
-      const height = Math.min(RAIL_HEIGHT, maxHeight);
+      const height = this.classList.contains("is-minimized") ? 48 : Math.min(railHeight, maxHeight);
       const left = this.style.left
         ? numericStyle(this.style.left)
         : viewportWidth - numericStyle(this.style.right) - width;
@@ -45,6 +49,58 @@ describe("Study Rail placement", () => {
     expect(view.element.style.top).toBe("16px");
     expect(view.element.style.right).toBe("16px");
     expect(view.element.style.maxHeight).toBe("768px");
+    view.destroy();
+  });
+
+  it("preserves its rendered height when moved toward the top", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 220, right: 28 }));
+    const initialHeight = view.element.getBoundingClientRect().height;
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    for (let index = 0; index < 6; index += 1) {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp", shiftKey: true }),
+      );
+    }
+
+    expect(initialHeight).toBe(564);
+    expect(view.element.style.top).toBe("16px");
+    expect(view.element.style.maxHeight).toBe(`${initialHeight}px`);
+    expect(view.element.getBoundingClientRect().height).toBe(initialHeight);
+    view.destroy();
+  });
+
+  it("allows downward movement by shrinking within the remaining viewport", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 220, right: 28 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    grip.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown", shiftKey: true }),
+    );
+
+    expect(view.element.style.top).toBe("260px");
+    expect(view.element.style.maxHeight).toBe("524px");
+    expect(view.element.getBoundingClientRect().height).toBe(524);
+    expect(view.element.getBoundingClientRect().bottom).toBe(784);
+    view.destroy();
+  });
+
+  it("refreshes the preserved height on later keyboard movements", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    expect(view.element.style.maxHeight).toBe("600px");
+
+    railHeight = 320;
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    expect(view.element.style.maxHeight).toBe("320px");
+
+    railHeight = RAIL_HEIGHT;
+    expect(view.element.getBoundingClientRect().height).toBe(320);
     view.destroy();
   });
 
@@ -84,6 +140,27 @@ describe("Study Rail placement", () => {
     expect(view.element.style.top).toBe("192px");
     expect(view.element.style.right).toBe("48px");
     expect(view.element.style.maxHeight).toBe("192px");
+    view.destroy();
+  });
+
+  it("clamps a minimized moved rail against its expanded height on resize", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    const toggle = view.element.querySelector<HTMLButtonElement>("[data-focus-key='rail-toggle']");
+    if (!grip || !toggle) throw new Error("Study Rail movement controls were not rendered.");
+
+    grip.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    toggle.click();
+    expect(view.element.classList.contains("is-minimized")).toBe(true);
+
+    viewportHeight = 400;
+    window.dispatchEvent(new Event("resize"));
+
+    expect(view.element.style.top).toBe("120px");
+    expect(view.element.style.maxHeight).toBe("264px");
+    toggle.click();
+    expect(view.element.classList.contains("is-minimized")).toBe(false);
+    expect(view.element.getBoundingClientRect().bottom).toBe(384);
     view.destroy();
   });
 

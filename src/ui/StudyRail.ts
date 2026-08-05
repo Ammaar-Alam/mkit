@@ -148,11 +148,14 @@ interface RailPlacement {
  * The rail is a fixed overlay, so it can cover page content the reader wants to
  * see. Dragging keeps its own offset rather than a persisted preference: the
  * position is a momentary reading adjustment, and a stored one would reapply on
- * a page whose layout has since changed. The offset is clamped on every apply so
- * a resize can never strand the rail outside the viewport.
+ * a page whose layout has since changed. Moving captures the rendered height so
+ * moving upward does not implicitly expand the rail; when less room remains
+ * below a requested top, the rail shrinks to stay visible. The offset is clamped
+ * on every apply so a viewport resize can never strand it outside the viewport.
  */
 function createRailPlacement(): RailPlacement {
   let offset: { top: number; left: number } | null = null;
+  let movedHeight: number | null = null;
   let target: HTMLElement | null = null;
   let anchor: StudyRailProps["anchor"] = FALLBACK_ANCHOR;
 
@@ -171,11 +174,19 @@ function createRailPlacement(): RailPlacement {
     const rect = target.getBoundingClientRect();
     const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.width - VIEWPORT_MARGIN);
     const preliminaryTop = clamp(offset.top, VIEWPORT_MARGIN, maximumRailTop());
-    target.style.maxHeight = `${availableHeight(preliminaryTop)}px`;
+    const movedMaxHeight =
+      movedHeight === null
+        ? availableHeight(preliminaryTop)
+        : Math.min(movedHeight, availableHeight(preliminaryTop));
+    target.style.maxHeight = `${movedMaxHeight}px`;
     const fittedRect = target.getBoundingClientRect();
+    const heightForTopClamp =
+      target.classList.contains("is-minimized") && movedHeight !== null
+        ? movedMaxHeight
+        : fittedRect.height;
     const maxTop = Math.max(
       VIEWPORT_MARGIN,
-      window.innerHeight - fittedRect.height - VIEWPORT_MARGIN,
+      window.innerHeight - heightForTopClamp - VIEWPORT_MARGIN,
     );
     offset = {
       left: clamp(offset.left, VIEWPORT_MARGIN, maxLeft),
@@ -185,13 +196,16 @@ function createRailPlacement(): RailPlacement {
     target.style.top = `${offset.top}px`;
     target.style.left = `${offset.left}px`;
     target.style.removeProperty("right");
-    target.style.maxHeight = `${availableHeight(offset.top)}px`;
+    target.style.maxHeight = `${movedMaxHeight}px`;
   };
 
   const moveBy = (deltaX: number, deltaY: number): void => {
     if (!target) return;
     const rect = target.getBoundingClientRect();
-    offset ??= { top: rect.top, left: rect.left };
+    if (!offset) {
+      offset = { top: rect.top, left: rect.left };
+    }
+    if (!target.classList.contains("is-minimized")) movedHeight = rect.height;
     offset = { top: offset.top + deltaY, left: offset.left + deltaX };
     apply();
   };
@@ -225,6 +239,7 @@ function createRailPlacement(): RailPlacement {
         const rect = root.getBoundingClientRect();
         const grabX = event.clientX - rect.left;
         const grabY = event.clientY - rect.top;
+        if (!root.classList.contains("is-minimized")) movedHeight = rect.height;
         grip.setPointerCapture(event.pointerId);
         root.classList.add("is-moving");
         event.preventDefault();
@@ -262,6 +277,7 @@ function createRailPlacement(): RailPlacement {
         if (event.key === "Home") {
           event.preventDefault();
           offset = null;
+          movedHeight = null;
           apply();
         }
       });
