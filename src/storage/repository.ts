@@ -44,6 +44,7 @@ type SettingsPatch = Partial<
     | "clearPreviousHighlightsEnabled"
     | "clearPreviousCrossOutsEnabled"
     | "hideSectionResultMarksEnabled"
+    | "showInitialCorrectnessEnabled"
     | "syncEnabled"
   >
 >;
@@ -101,6 +102,8 @@ export class StorageRepository {
           patch.clearPreviousCrossOutsEnabled ?? current.clearPreviousCrossOutsEnabled,
         hideSectionResultMarksEnabled:
           patch.hideSectionResultMarksEnabled ?? current.hideSectionResultMarksEnabled,
+        showInitialCorrectnessEnabled:
+          patch.showInitialCorrectnessEnabled ?? current.showInitialCorrectnessEnabled,
         timerDisplayEnabled: false,
         syncEnabled: patch.syncEnabled ?? current.syncEnabled,
         updatedAt: affectsSync ? nextTimestamp(current.updatedAt, this.now()) : current.updatedAt,

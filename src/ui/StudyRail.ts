@@ -363,6 +363,20 @@ function progress(props: StudyRailProps): HTMLElement {
       }),
     ),
   );
+  if (props.initialOutcome) {
+    const initial =
+      props.initialOutcome === "correct"
+        ? { label: "Initially correct", icon: "check" as const }
+        : { label: "Initially incorrect", icon: "circle" as const };
+    container.append(
+      element(
+        "span",
+        { className: `mkit-initial-outcome mkit-initial-outcome--${props.initialOutcome}` },
+        icon(initial.icon),
+        element("strong", { text: initial.label }),
+      ),
+    );
+  }
   if (hasExactProgress) {
     container.append(
       element("progress", {

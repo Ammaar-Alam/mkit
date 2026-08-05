@@ -555,6 +555,28 @@
   color: var(--mkit-ink-muted);
 }
 
+.mkit-initial-outcome {
+  display: inline-flex;
+  width: fit-content;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.mkit-initial-outcome .mkit-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.mkit-initial-outcome--correct {
+  color: var(--mkit-moss);
+}
+
+.mkit-initial-outcome--incorrect {
+  color: var(--mkit-clay);
+}
+
 .mkit-progress progress {
   width: 100%;
   height: 0.35rem;

@@ -143,6 +143,33 @@ test("starting Practice keeps a live-style question workspace and MKit rail visi
   ).toBe(true);
 });
 
+test("opt-in initial checks label the live question without revealing answer content", async ({
+  page,
+}) => {
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+
+  await expect(rail.locator(".mkit-initial-outcome")).toHaveCount(0);
+  await page.evaluate(() => window.__mkitPrivacyHarness.setControllerInitialCorrectness(true));
+  await expect(rail.locator(".mkit-initial-outcome--correct")).toHaveText("Initially correct");
+  await expect(page.locator(".result-wrapper")).toBeHidden();
+
+  await page.evaluate(() => {
+    const question = document.querySelector("#live-question-container");
+    if (!question) throw new Error("Missing synthetic question container.");
+    question.classList.replace("correct", "incorrect");
+    window.__mkitPrivacyHarness.setReviewQuestion("synthetic-question-two");
+  });
+  await expect(rail.locator(".mkit-initial-outcome--incorrect")).toHaveText("Initially incorrect");
+  await expect(rail.locator(".mkit-initial-outcome")).not.toContainText("Choice");
+
+  await page.evaluate(() => window.__mkitPrivacyHarness.setControllerInitialCorrectness(false));
+  await expect(rail.locator(".mkit-initial-outcome")).toHaveCount(0);
+});
+
 test("Clean Slate captures delayed native annotations before Practice", async ({ page }) => {
   await page.goto("http://127.0.0.1:4173/live-review");
   await installNativeAnnotationControls(page, "fresh");

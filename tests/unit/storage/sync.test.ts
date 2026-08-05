@@ -16,6 +16,7 @@ describe("quota-aware sync serialization", () => {
       ...store.settings,
       enabled: false,
       clearPreviousCrossOutsEnabled: false,
+      showInitialCorrectnessEnabled: true,
       updatedAt: 12,
     };
 
@@ -25,6 +26,7 @@ describe("quota-aware sync serialization", () => {
     expect(decoded.settings).toMatchObject({
       enabled: true,
       clearPreviousCrossOutsEnabled: false,
+      showInitialCorrectnessEnabled: true,
       updatedAt: 12,
     });
     expect(store.settings.enabled).toBe(false);

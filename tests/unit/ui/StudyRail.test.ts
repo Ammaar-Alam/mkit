@@ -182,6 +182,33 @@ describe("Study Rail notes", () => {
   });
 });
 
+describe("Study Rail initial outcome", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("shows only the coarse initial result when the preference supplies one", () => {
+    const view = mountStudyRail(
+      mountTarget(),
+      props({ top: 120, right: 16 }, { initialOutcome: "correct" }),
+    );
+
+    const correct = view.element.querySelector(".mkit-initial-outcome--correct");
+    expect(correct?.textContent).toBe("Initially correct");
+    expect(correct?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+
+    view.update(props({ top: 120, right: 16 }, { initialOutcome: "incorrect" }));
+    expect(view.element.querySelector(".mkit-initial-outcome--correct")).toBeNull();
+    expect(view.element.querySelector(".mkit-initial-outcome--incorrect")?.textContent).toBe(
+      "Initially incorrect",
+    );
+
+    view.update(props({ top: 120, right: 16 }, { initialOutcome: null }));
+    expect(view.element.querySelector(".mkit-initial-outcome")).toBeNull();
+    view.destroy();
+  });
+});
+
 describe("Score Shield interaction", () => {
   afterEach(() => {
     document.body.replaceChildren();
@@ -227,6 +254,7 @@ function props(
     confidence: null,
     flagged: false,
     reviewAgain: false,
+    initialOutcome: null,
     outcome: null,
     saveState: "idle",
     answersRevealed: false,

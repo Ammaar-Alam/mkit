@@ -74,8 +74,10 @@ export interface FullLengthReviewAdapter {
   sealPriorAnnotations(): void;
   applyScoreShield(): CapabilityReport;
   /** Neutralizes row-level correctness cues on a completed section overview. */
-  applySectionOverviewCover(): boolean;
+  applySectionOverviewCover(showInitialCorrectnessEnabled?: boolean): boolean;
   revealSectionOverview(): void;
+  /** Reads only the active question's coarse original result, never an answer choice. */
+  getInitialOutcome(): AttemptOutcome;
   gradeFresh(selection: AnswerChoice): AttemptOutcome;
   revealScores(): void;
   revealFeedback(): void;

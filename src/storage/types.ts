@@ -18,6 +18,7 @@ export interface SettingsRecord {
   clearPreviousHighlightsEnabled: boolean;
   clearPreviousCrossOutsEnabled: boolean;
   hideSectionResultMarksEnabled: boolean;
+  showInitialCorrectnessEnabled: boolean;
   timerDisplayEnabled: false;
   syncEnabled: boolean;
   aiHandoffTarget?: AiHandoffTarget;

@@ -22,6 +22,8 @@ const CONFIRMED_REVIEW_SWITCH_MARKER = "data-mkit-review-switch";
 const SECTION_OVERVIEW_GROUP = "section-overview";
 const SECTION_OVERVIEW_MARKER = "data-mkit-outcome-hidden";
 const SECTION_OVERVIEW_RESULT_MARKER = "data-mkit-result-hidden";
+const INITIAL_CORRECTNESS_MODE_MARKER = "data-mkit-initial-correctness-enabled";
+const INITIAL_CORRECT_MARKER = "data-mkit-initial-correct";
 const STUDY_RAIL_VIEWPORT_MARGIN = 16;
 const STUDY_RAIL_PALETTE_CLEARANCE = 96;
 const STUDY_RAIL_PALETTE_GAP = 8;
@@ -99,6 +101,7 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
   #readerAnnotationIntentTimeout: number | null = null;
   #completedReviewSwitch: Element | null = null;
   #cleanSlatePreferences: CleanSlatePreferences | null = null;
+  #showInitialCorrectnessEnabled = false;
   #highlightBaselines = createAnnotationBaselines();
   #passageHighlightBaselines = createAnnotationBaselines();
   #crossOutBaselines = createAnnotationBaselines();
@@ -594,7 +597,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
    * preview, native filters, sorting, pagination, and Review links all stay
    * usable. Returns whether any cue was covered.
    */
-  applySectionOverviewCover(): boolean {
+  applySectionOverviewCover(
+    showInitialCorrectnessEnabled = this.#showInitialCorrectnessEnabled,
+  ): boolean {
+    this.#showInitialCorrectnessEnabled = showInitialCorrectnessEnabled;
     if (this.classifyPage() !== "section-overview") {
       return false;
     }
@@ -606,14 +612,32 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     if (this.#revealedGroups.has(SECTION_OVERVIEW_GROUP)) {
       return true;
     }
+    const showInitialCorrectness =
+      showInitialCorrectnessEnabled && cues.length === accessibleResults.length;
+    const initiallyCorrect = cues.map(
+      (cue) =>
+        this.#mask.hasClass(cue, "correct", SECTION_OVERVIEW_GROUP) &&
+        !this.#mask.hasClass(cue, "incorrect", SECTION_OVERVIEW_GROUP),
+    );
     this.#mask.removeClasses(cues, ["correct", "incorrect"], SECTION_OVERVIEW_GROUP);
     this.#mask.removeAttributes(cues, ["title", "aria-label"], SECTION_OVERVIEW_GROUP);
     this.#mask.setAttributes(cues, { "aria-hidden": "true" }, SECTION_OVERVIEW_GROUP);
-    for (const cue of cues) {
+    for (const [index, cue] of cues.entries()) {
       cue.setAttribute(SECTION_OVERVIEW_MARKER, "");
+      cue.toggleAttribute(INITIAL_CORRECTNESS_MODE_MARKER, showInitialCorrectness);
+      cue.toggleAttribute(
+        INITIAL_CORRECT_MARKER,
+        showInitialCorrectness && initiallyCorrect[index] === true,
+      );
     }
-    this.#mask.replaceText(accessibleResults, "Hidden", SECTION_OVERVIEW_GROUP);
-    for (const result of accessibleResults) {
+    for (const [index, result] of accessibleResults.entries()) {
+      this.#mask.replaceText(
+        [result],
+        showInitialCorrectness && initiallyCorrect[index] === true
+          ? "Correct on initial attempt"
+          : "Hidden",
+        SECTION_OVERVIEW_GROUP,
+      );
       result.setAttribute(SECTION_OVERVIEW_RESULT_MARKER, "");
     }
     return true;
@@ -625,11 +649,26 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#mask.restoreGroup(SECTION_OVERVIEW_GROUP);
       for (const marked of this.#document.querySelectorAll(`[${SECTION_OVERVIEW_MARKER}]`)) {
         marked.removeAttribute(SECTION_OVERVIEW_MARKER);
+        marked.removeAttribute(INITIAL_CORRECTNESS_MODE_MARKER);
+        marked.removeAttribute(INITIAL_CORRECT_MARKER);
       }
       for (const marked of this.#document.querySelectorAll(`[${SECTION_OVERVIEW_RESULT_MARKER}]`)) {
         marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
       }
     });
+  }
+
+  getInitialOutcome(): AttemptOutcome {
+    const reviewRoot = this.#activeReviewRoot();
+    if (!reviewRoot) return "unknown";
+    const markedQuestions = [...reviewRoot.querySelectorAll(".answer-container.question-container")]
+      .map((question) => ({
+        correct: question.classList.contains("correct"),
+        incorrect: question.classList.contains("incorrect"),
+      }))
+      .filter(({ correct, incorrect }) => correct !== incorrect);
+    if (markedQuestions.length !== 1) return "unknown";
+    return markedQuestions[0]?.correct ? "correct" : "needs-review";
   }
 
   gradeFresh(selection: AnswerChoice): AttemptOutcome {
@@ -666,11 +705,13 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
       this.#revealedGroups.clear();
       this.#mask.restoreAll();
       for (const marked of this.#document.querySelectorAll(
-        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}], [${SECTION_OVERVIEW_RESULT_MARKER}]`,
+        `[${CONFIRMED_REVIEW_SWITCH_MARKER}], [${SECTION_OVERVIEW_MARKER}], [${SECTION_OVERVIEW_RESULT_MARKER}], [${INITIAL_CORRECTNESS_MODE_MARKER}], [${INITIAL_CORRECT_MARKER}]`,
       )) {
         marked.removeAttribute(CONFIRMED_REVIEW_SWITCH_MARKER);
         marked.removeAttribute(SECTION_OVERVIEW_MARKER);
         marked.removeAttribute(SECTION_OVERVIEW_RESULT_MARKER);
+        marked.removeAttribute(INITIAL_CORRECTNESS_MODE_MARKER);
+        marked.removeAttribute(INITIAL_CORRECT_MARKER);
       }
       this.#completedReviewSwitch = null;
       this.#highlightBaselines = createAnnotationBaselines();

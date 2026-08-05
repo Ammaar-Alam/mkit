@@ -18,6 +18,8 @@ const pageStatus = requiredElement("page-status");
 const pageDetail = requiredElement("page-detail");
 const hideSectionResultMarksInput = requiredElement<HTMLInputElement>("hide-section-result-marks");
 const resultMarksState = requiredElement("result-marks-state");
+const showInitialCorrectnessInput = requiredElement<HTMLInputElement>("show-initial-correctness");
+const initialCorrectnessState = requiredElement("initial-correctness-state");
 const clearPreviousHighlightsInput = requiredElement<HTMLInputElement>("clear-previous-highlights");
 const highlightsState = requiredElement("highlights-state");
 const clearPreviousCrossOutsInput = requiredElement<HTMLInputElement>("clear-previous-cross-outs");
@@ -70,6 +72,12 @@ async function initialize(): Promise<void> {
     });
   });
 
+  showInitialCorrectnessInput.addEventListener("change", () => {
+    void savePageSetting({
+      showInitialCorrectnessEnabled: showInitialCorrectnessInput.checked,
+    });
+  });
+
   clearPreviousHighlightsInput.addEventListener("change", () => {
     void savePageSetting({
       clearPreviousHighlightsEnabled: clearPreviousHighlightsInput.checked,
@@ -106,6 +114,8 @@ function renderSettings(settings: SettingsRecord): void {
   mkitControl.dataset.enabled = String(settings.enabled);
   hideSectionResultMarksInput.checked = settings.hideSectionResultMarksEnabled;
   resultMarksState.textContent = settings.hideSectionResultMarksEnabled ? "On" : "Off";
+  showInitialCorrectnessInput.checked = settings.showInitialCorrectnessEnabled;
+  initialCorrectnessState.textContent = settings.showInitialCorrectnessEnabled ? "On" : "Off";
   clearPreviousHighlightsInput.checked = settings.clearPreviousHighlightsEnabled;
   highlightsState.textContent = settings.clearPreviousHighlightsEnabled ? "On" : "Off";
   clearPreviousCrossOutsInput.checked = settings.clearPreviousCrossOutsEnabled;

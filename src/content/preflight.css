@@ -18,6 +18,16 @@ html[data-mkit-protection="unsupported"] body > :not([data-mkit-host]) {
   background: transparent url("__MKIT_RESULT_MARK_URL__") center / contain no-repeat !important;
 }
 
+[data-mkit-outcome-hidden][data-mkit-initial-correctness-enabled]::before {
+  background: transparent !important;
+}
+
+[data-mkit-outcome-hidden][data-mkit-initial-correct]::before {
+  content: "✓" !important;
+  color: oklch(40% 0.06 132) !important;
+  font: 700 1rem / 1 sans-serif !important;
+}
+
 html[data-mkit-protection="masked"]
   .reviewable
   :is(

@@ -22,12 +22,14 @@ describe("local-first storage repository", () => {
       clearPreviousHighlightsEnabled: false,
       clearPreviousCrossOutsEnabled: false,
       hideSectionResultMarksEnabled: false,
+      showInitialCorrectnessEnabled: true,
     });
 
     await expect(repository.getSettings()).resolves.toMatchObject({
       clearPreviousHighlightsEnabled: false,
       clearPreviousCrossOutsEnabled: false,
       hideSectionResultMarksEnabled: false,
+      showInitialCorrectnessEnabled: true,
     });
   });
 

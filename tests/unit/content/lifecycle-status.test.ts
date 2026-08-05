@@ -232,7 +232,7 @@ describe("content lifecycle status", () => {
   });
 
   it("releases and reapplies section result coverage when its setting changes", () => {
-    let covers = 0;
+    const coverPreferences: boolean[] = [];
     let observations = 0;
     let observerStops = 0;
     let restores = 0;
@@ -240,8 +240,8 @@ describe("content lifecycle status", () => {
       createAdapter: () =>
         ({
           ...mutableAdapter(() => "section-overview"),
-          applySectionOverviewCover: () => {
-            covers += 1;
+          applySectionOverviewCover: (showInitialCorrectnessEnabled = false) => {
+            coverPreferences.push(showInitialCorrectnessEnabled);
             return true;
           },
           observe: () => {
@@ -258,13 +258,17 @@ describe("content lifecycle status", () => {
       createController: stubController,
     });
 
-    expect(covers).toBe(1);
+    expect(coverPreferences).toEqual([false]);
     expect(observations).toBe(1);
     expect(lifecycle.status()).toEqual({
       state: "active",
       route: "section-overview",
       issues: [],
     });
+
+    lifecycle.setShowInitialCorrectnessEnabled(true);
+    expect(coverPreferences).toEqual([false, true]);
+    expect(observations).toBe(1);
 
     lifecycle.setHideSectionResultMarksEnabled(false);
     expect(observerStops).toBe(1);
@@ -276,7 +280,7 @@ describe("content lifecycle status", () => {
     });
 
     lifecycle.setHideSectionResultMarksEnabled(true);
-    expect(covers).toBe(2);
+    expect(coverPreferences).toEqual([false, true, true]);
     expect(observations).toBe(2);
     expect(lifecycle.status()).toEqual({
       state: "active",

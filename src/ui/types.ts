@@ -75,6 +75,7 @@ export interface StudyRailProps {
   confidence: Confidence | null;
   flagged: boolean;
   reviewAgain: boolean;
+  initialOutcome: "correct" | "incorrect" | null;
   outcome: AttemptOutcome | null;
   saveState: SaveState;
   answersRevealed: boolean;
