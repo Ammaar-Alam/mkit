@@ -46,6 +46,32 @@ test("Fresh Attempt opens below the native tools and stays inside the viewport",
   expect(resized.rail.bottom).toBeLessThanOrEqual(640 - 16);
 });
 
+test("moving Fresh Attempt toward the top preserves its current height", async ({ page }) => {
+  await page.setViewportSize({ width: 1_280, height: 900 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const grip = rail.locator("[data-focus-key='rail-grip']");
+  const [initialRail, gripBounds] = await Promise.all([rail.boundingBox(), grip.boundingBox()]);
+  if (!initialRail || !gripBounds) throw new Error("Study Rail drag geometry is unavailable.");
+
+  const startX = gripBounds.x + gripBounds.width / 2;
+  const startY = gripBounds.y + gripBounds.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX, startY - (initialRail.y - 16), { steps: 5 });
+  await page.mouse.up();
+
+  const movedRail = await rail.boundingBox();
+  if (!movedRail) throw new Error("Moved Study Rail geometry is unavailable.");
+  expect(movedRail.y).toBeCloseTo(16, 0);
+  expect(movedRail.height).toBeCloseTo(initialRail.height, 0);
+  expect(movedRail.y + movedRail.height).toBeLessThanOrEqual(900 - 16);
+});
+
 test("Resume stays below the rendered highlighter palette through answer updates", async ({
   page,
 }) => {

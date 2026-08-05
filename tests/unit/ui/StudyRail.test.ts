@@ -48,6 +48,25 @@ describe("Study Rail placement", () => {
     view.destroy();
   });
 
+  it("preserves its rendered height when moved toward the top", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 220, right: 28 }));
+    const initialHeight = view.element.getBoundingClientRect().height;
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    for (let index = 0; index < 6; index += 1) {
+      grip.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp", shiftKey: true }),
+      );
+    }
+
+    expect(initialHeight).toBe(564);
+    expect(view.element.style.top).toBe("16px");
+    expect(view.element.style.maxHeight).toBe(`${initialHeight}px`);
+    expect(view.element.getBoundingClientRect().height).toBe(initialHeight);
+    view.destroy();
+  });
+
   it("keeps a manual move ephemeral, clamps it on resize, and sends Home to the latest anchor", () => {
     const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
     let grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
@@ -72,8 +91,8 @@ describe("Study Rail placement", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(view.element.style.left).toBe("132px");
-    expect(view.element.style.top).toBe("120px");
-    expect(view.element.style.maxHeight).toBe("264px");
+    expect(view.element.style.top).toBe("16px");
+    expect(view.element.style.maxHeight).toBe("368px");
 
     grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
     if (!grip) throw new Error("Updated Study Rail grip was not rendered.");
