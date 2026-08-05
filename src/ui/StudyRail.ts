@@ -149,8 +149,9 @@ interface RailPlacement {
  * see. Dragging keeps its own offset rather than a persisted preference: the
  * position is a momentary reading adjustment, and a stored one would reapply on
  * a page whose layout has since changed. Moving captures the rendered height so
- * a new top edge does not implicitly resize the rail. The offset is clamped on
- * every apply so a viewport resize can never strand it outside the viewport.
+ * moving upward does not implicitly expand the rail; when less room remains
+ * below a requested top, the rail shrinks to stay visible. The offset is clamped
+ * on every apply so a viewport resize can never strand it outside the viewport.
  */
 function createRailPlacement(): RailPlacement {
   let offset: { top: number; left: number } | null = null;
@@ -173,15 +174,15 @@ function createRailPlacement(): RailPlacement {
     const rect = target.getBoundingClientRect();
     const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.width - VIEWPORT_MARGIN);
     const preliminaryTop = clamp(offset.top, VIEWPORT_MARGIN, maximumRailTop());
-    const preservedHeight =
+    const movedMaxHeight =
       movedHeight === null
         ? availableHeight(preliminaryTop)
-        : Math.min(movedHeight, availableHeight(VIEWPORT_MARGIN));
-    target.style.maxHeight = `${preservedHeight}px`;
+        : Math.min(movedHeight, availableHeight(preliminaryTop));
+    target.style.maxHeight = `${movedMaxHeight}px`;
     const fittedRect = target.getBoundingClientRect();
     const heightForTopClamp =
       target.classList.contains("is-minimized") && movedHeight !== null
-        ? preservedHeight
+        ? movedMaxHeight
         : fittedRect.height;
     const maxTop = Math.max(
       VIEWPORT_MARGIN,
@@ -195,7 +196,7 @@ function createRailPlacement(): RailPlacement {
     target.style.top = `${offset.top}px`;
     target.style.left = `${offset.left}px`;
     target.style.removeProperty("right");
-    target.style.maxHeight = `${preservedHeight}px`;
+    target.style.maxHeight = `${movedMaxHeight}px`;
   };
 
   const moveBy = (deltaX: number, deltaY: number): void => {

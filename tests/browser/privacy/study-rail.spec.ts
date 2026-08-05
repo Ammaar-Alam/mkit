@@ -72,6 +72,27 @@ test("moving Fresh Attempt toward the top preserves its current height", async (
   expect(movedRail.y + movedRail.height).toBeLessThanOrEqual(900 - 16);
 });
 
+test("moving Fresh Attempt downward shrinks it within the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1_280, height: 900 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const grip = rail.locator("[data-focus-key='rail-grip']");
+  const initialRail = await rail.boundingBox();
+  if (!initialRail) throw new Error("Study Rail geometry is unavailable.");
+
+  await grip.press("Shift+ArrowDown");
+
+  const movedRail = await rail.boundingBox();
+  if (!movedRail) throw new Error("Moved Study Rail geometry is unavailable.");
+  expect(movedRail.y).toBeCloseTo(initialRail.y + 40, 0);
+  expect(movedRail.height).toBeCloseTo(initialRail.height - 40, 0);
+  expect(movedRail.y + movedRail.height).toBeLessThanOrEqual(900 - 16);
+});
+
 test("later keyboard movement preserves the rail's current rendered height", async ({ page }) => {
   await page.setViewportSize({ width: 1_280, height: 900 });
   await page.goto("http://127.0.0.1:4173/live-review");

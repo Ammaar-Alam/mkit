@@ -71,6 +71,22 @@ describe("Study Rail placement", () => {
     view.destroy();
   });
 
+  it("allows downward movement by shrinking within the remaining viewport", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 220, right: 28 }));
+    const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
+    if (!grip) throw new Error("Study Rail grip was not rendered.");
+
+    grip.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown", shiftKey: true }),
+    );
+
+    expect(view.element.style.top).toBe("260px");
+    expect(view.element.style.maxHeight).toBe("524px");
+    expect(view.element.getBoundingClientRect().height).toBe(524);
+    expect(view.element.getBoundingClientRect().bottom).toBe(784);
+    view.destroy();
+  });
+
   it("refreshes the preserved height on later keyboard movements", () => {
     const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
     const grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
@@ -112,8 +128,8 @@ describe("Study Rail placement", () => {
     window.dispatchEvent(new Event("resize"));
 
     expect(view.element.style.left).toBe("132px");
-    expect(view.element.style.top).toBe("16px");
-    expect(view.element.style.maxHeight).toBe("368px");
+    expect(view.element.style.top).toBe("120px");
+    expect(view.element.style.maxHeight).toBe("264px");
 
     grip = view.element.querySelector<HTMLElement>("[data-focus-key='rail-grip']");
     if (!grip) throw new Error("Updated Study Rail grip was not rendered.");
@@ -140,8 +156,8 @@ describe("Study Rail placement", () => {
     viewportHeight = 400;
     window.dispatchEvent(new Event("resize"));
 
-    expect(view.element.style.top).toBe("16px");
-    expect(view.element.style.maxHeight).toBe("368px");
+    expect(view.element.style.top).toBe("120px");
+    expect(view.element.style.maxHeight).toBe("264px");
     toggle.click();
     expect(view.element.classList.contains("is-minimized")).toBe(false);
     expect(view.element.getBoundingClientRect().bottom).toBe(384);
