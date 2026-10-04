@@ -56,6 +56,8 @@ export interface CleanSlatePreferences {
 export interface StudyRailAnchor {
   top: number;
   right: number;
+  /** Viewport space to keep clear below the anchored rail, such as a native footer. */
+  bottom?: number;
 }
 
 export type AdapterEvent =

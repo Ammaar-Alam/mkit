@@ -34,7 +34,7 @@ Browser vendors control their sync systems and account security. Sync failure ne
 
 ## Page access
 
-MKit’s static content script is limited to the verified full-length practice-exam path family. Its adapter activates Fresh Attempt only on the confirmed completed-answer review route and reads page structure in memory to conceal prior-attempt material and calculate a fresh outcome. Official answer and explanation content is not copied into extension storage.
+MKit’s static content scripts are limited to the verified AAMC full-length practice-exam path family and the UWorld MCAT app path family. Each site adapter activates Fresh Attempt only on a confirmed completed-answer review and reads page structure in memory to conceal prior-attempt material and calculate a fresh outcome. Official answer and explanation content is not copied into extension storage.
 
 MKit does not operate on active exams, submit answers, reset attempts, bypass access controls, or change account state.
 

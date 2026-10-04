@@ -1,0 +1,69 @@
+/*
+ * MathJax measures equations while typesetting and draws them collapsed inside
+ * display: none, so anything it may typeset is hidden but kept in layout.
+ */
+html:root:is([data-mkit-protection="boot"], [data-mkit-protection="unsupported"])
+  body
+  > :not([data-mkit-host]) {
+  display: revert !important;
+  visibility: hidden !important;
+}
+
+/* Official feedback stays hidden until the reader reveals it. */
+html[data-mkit-protection="masked"]:not([data-mkit-feedback-revealed])
+:is(
+  #questionInformation .stats-bar,
+  #answerContainer .answercontent > span:last-child:not(:first-child)
+) {
+  display: none !important;
+}
+
+html[data-mkit-protection="masked"]:not([data-mkit-feedback-revealed]) #explanation-container {
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+
+html[data-mkit-protection="masked"]:not([data-mkit-feedback-revealed])
+  #answerContainer
+  .left-td
+  i.fa-check {
+  visibility: hidden !important;
+}
+
+/* The earlier pick shows through the native radio and the wrong-answer mark. */
+html[data-mkit-protection="masked"]:not([data-mkit-original-revealed])
+  #answerContainer
+  :is(.left-td i.fa-times, mat-radio-group) {
+  visibility: hidden !important;
+}
+
+html[data-mkit-protection="masked"]
+  .pearson-navigator-advanced
+  .mat-column-question
+  i:is(.fa-check, .fa-times) {
+  visibility: hidden !important;
+}
+
+html[data-mkit-protection="masked"][data-mkit-clear-highlights]
+  [data-mkit-prior-annotation="highlight"] {
+  border-color: transparent !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  filter: none !important;
+  outline: 0 !important;
+}
+
+html[data-mkit-protection="masked"][data-mkit-clear-cross-outs]
+  [data-mkit-prior-annotation="cross-out"] {
+  text-decoration: none !important;
+}
+
+/* Keep the question readable beside the rail. */
+html[data-mkit-protection="masked"] #centerContent {
+  margin-right: calc(min(22rem, 100vw - 2rem) + 2rem) !important;
+}

@@ -313,6 +313,13 @@ export function startContentLifecycle(
   addEventListener("popstate", routeListener);
   addEventListener("pageshow", routeListener);
   document.addEventListener("DOMContentLoaded", routeListener);
+  // Single-page apps that route with pushState fire none of the events above.
+  let lastHref = location.href;
+  const routePoll = setInterval(() => {
+    if (location.href === lastHref) return;
+    lastHref = location.href;
+    reconcile();
+  }, 250);
   reconcile();
 
   const setEnabled = (nextEnabled: boolean): void => {
@@ -382,6 +389,7 @@ export function startContentLifecycle(
       removeEventListener("popstate", routeListener);
       removeEventListener("pageshow", routeListener);
       document.removeEventListener("DOMContentLoaded", routeListener);
+      clearInterval(routePoll);
       releaseSectionOverview();
       deactivate();
     },

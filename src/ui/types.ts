@@ -63,6 +63,7 @@ export type StudyRailStage =
 export interface StudyRailAnchor {
   top: number;
   right: number;
+  bottom?: number;
 }
 
 export interface StudyRailProps {

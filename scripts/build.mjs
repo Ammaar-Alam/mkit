@@ -60,6 +60,10 @@ await Promise.all([
   }),
   writeFile(new URL("../dist/content/preflight.css", import.meta.url), preflightCss),
   cp(
+    new URL("../src/content/preflight-uworld.css", import.meta.url),
+    new URL("../dist/content/preflight-uworld.css", import.meta.url),
+  ),
+  cp(
     new URL("../src/popup/index.html", import.meta.url),
     new URL("../dist/popup/index.html", import.meta.url),
   ),

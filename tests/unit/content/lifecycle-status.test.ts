@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   CapabilityReport,
   FullLengthReviewAdapter,
@@ -72,6 +72,25 @@ describe("content lifecycle status", () => {
       issues: ["REVIEW_SWITCH_MISSING"],
     });
     lifecycle.dispose();
+  });
+
+  it("reconciles after a pushState navigation, which fires no route event", () => {
+    vi.useFakeTimers();
+    const start = location.pathname;
+    const lifecycle = startHydratedContentLifecycle({
+      createAdapter: () =>
+        mutableAdapter(() => (location.pathname === "/synthetic-review" ? "review" : "non-review")),
+      createPreflight: stubPreflight,
+      createController: stubController,
+    });
+    expect(lifecycle.status().state).toBe("unsupported");
+
+    history.pushState(null, "", "/synthetic-review");
+    vi.advanceTimersByTime(250);
+    expect(lifecycle.status()).toEqual({ state: "active", route: "review", issues: [] });
+
+    lifecycle.dispose();
+    history.pushState(null, "", start);
   });
 
   it("reports a non-review page as unattached without claiming review support", () => {

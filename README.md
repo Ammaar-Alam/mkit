@@ -6,9 +6,9 @@
 
 _(Really only made to help my girlfriend study for the MCAT, but thought it'd be fun to make the repository public and upload to the Chrome webstore)_
 
-MKit is a study companion for students studying for the MCAT through AAMC's website.The goal is to give students a suite of tools on AAMC's official practice materials. The first tool, Fresh Attempt, is designed to let a learner try completed full-length or section-review questions again while keeping the official solutions (and their prior answers) hidden.
+MKit is a study companion for students studying for the MCAT through AAMC's official practice website and UWorld's MCAT QBank. The first tool, Fresh Attempt, is designed to let a learner try completed questions again while keeping the official solutions (and their prior answers) hidden.
 
-> MKit is an independent project. It is not affiliated with, endorsed by, or sponsored by the Association of American Medical Colleges.
+> MKit is an independent project. It is not affiliated with, endorsed by, or sponsored by the Association of American Medical Colleges or UWorld.
 
 ## Install
 
@@ -23,15 +23,16 @@ It works in Chrome and Arc.
 - Offers two modes: **Practice** lets you check each answer, while **Test** waits until you finish.
 - Lets you answer questions, cross out choices, rate your confidence, flag questions, and write notes.
 - Starts without earlier highlights or crossed-out choices by default while
-  leaving AAMC's native annotation tools available.
+  leaving the site's native annotation tools available.
 - Can hide the correct and incorrect marks in a completed section's question
   list without disabling its filters, previews, or Review links.
 - Saves your progress and study time in your browser.
-- Leaves your original AAMC attempt unchanged.
+- Leaves your original attempt unchanged.
 
 ## How to use it
 
-1. Open a completed full-length or section review on AAMC's official practice website.
+1. Open a completed review on AAMC's official practice website, or a completed
+   QBank test or practice exam review on UWorld.
 2. Choose **Practice** or **Test**. Choose **Normal review** to see the native
    review, or turn **MKit** Off from the popup.
 3. Answer the questions again.
@@ -39,9 +40,10 @@ It works in Chrome and Arc.
 
 ## Supported pages
 
-MKit currently works on completed full-length answer reviews, completed section
-**Review All** pages, and completed section question lists. It never runs during
-an active exam.
+On AAMC, MKit works on completed full-length answer reviews, completed section
+**Review All** pages, and completed section question lists. On UWorld, it works
+on completed QBank test and practice exam reviews and their results lists. It
+never runs during an active exam.
 
 See [Supported pages](docs/supported-pages.md) for the exact list and known limits.
 
@@ -49,7 +51,7 @@ See [Supported pages](docs/supported-pages.md) for the exact list and known limi
 
 MKit does not collect or sell your data. It has no analytics, ads, or server. By default, your Fresh Attempt data stays on your device. Browser sync is optional.
 
-MKit never saves AAMC questions, passages, answer choices, explanations, images, correct answers, old answers, or scores.
+MKit never saves AAMC or UWorld questions, passages, answer choices, explanations, images, correct answers, old answers, or scores.
 
 The extension can access only supported completed-review pages. It cannot submit answers, reset an exam, bypass access controls, or change your account.
 
