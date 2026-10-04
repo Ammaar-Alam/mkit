@@ -4,8 +4,9 @@
 
 Open the MKit popup and confirm that **MKit** is On. Fresh Attempt runs on a
 completed full-length answer review or completed section Review All question at
-`www.mcatofficialprep.org`. The completed section score report can also hide its
-per-question result marks.
+`www.mcatofficialprep.org`, and on a completed QBank test or practice exam review
+at `apps.uworld.com`. Completed section score reports and UWorld results lists
+can also hide their per-question result marks.
 
 If a supported page was already open when MKit was installed or updated, reload
 the extension from the extension manager, then reload that page.

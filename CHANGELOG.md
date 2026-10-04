@@ -4,6 +4,16 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-04
+
+### Added
+
+- Added Fresh Attempt to completed UWorld MCAT QBank test reviews and practice
+  exam section reviews, with Practice and Test modes, local resume, first-attempt
+  checks, and optional clearing of earlier highlights and strikethroughs.
+- Hid per-question correct and incorrect marks on UWorld QBank test results and
+  practice exam section results, and in the review navigator during Fresh Attempt.
+
 ## [0.2.1] - 2026-07-27
 
 ### Fixed

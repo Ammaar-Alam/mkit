@@ -39,7 +39,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/content/preflight.css"],
+      "includes": ["src/content/preflight.css", "src/content/preflight-uworld.css"],
       "linter": {
         "rules": {
           "complexity": {

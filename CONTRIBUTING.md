@@ -5,7 +5,7 @@ Thank you for helping make MKit safer and more useful.
 ## Before changing code
 
 1. Read [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), and [Supported pages](docs/supported-pages.md).
-2. Keep every site-specific selector inside `AamcFullLengthReviewAdapter`.
+2. Keep every site-specific selector inside that site's adapter in `src/adapter/` and its preflight stylesheet.
 3. Work from synthetic fixtures. Never commit or paste official practice questions, passages, answer choices, explanations, screenshots, scores, answer keys, identity data, cookies, or tokens.
 4. Keep changes small and traceable to an issue or documented requirement.
 

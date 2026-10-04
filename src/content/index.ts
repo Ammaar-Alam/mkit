@@ -1,4 +1,5 @@
 import { AamcFullLengthReviewAdapter } from "../adapter/AamcFullLengthReviewAdapter";
+import { UWORLD_HOSTNAME, UWorldReviewAdapter } from "../adapter/UWorldReviewAdapter";
 import { ReviewController } from "../core/review-controller";
 import { CONTENT_RECONCILE_MESSAGE, POPUP_STATUS_MESSAGE } from "../shared/popup-status";
 import { createChromeStorageRepository } from "../storage";
@@ -15,7 +16,10 @@ const uiCss = __MKIT_UI_CSS__
 const repository = createChromeStorageRepository();
 
 const lifecycle = startContentLifecycle({
-  createAdapter: () => new AamcFullLengthReviewAdapter(document, () => new URL(location.href)),
+  createAdapter: () =>
+    location.hostname === UWORLD_HOSTNAME
+      ? new UWorldReviewAdapter(document, () => new URL(location.href))
+      : new AamcFullLengthReviewAdapter(document, () => new URL(location.href)),
   createPreflight,
   createController: (adapter, preflight) =>
     new ReviewController({

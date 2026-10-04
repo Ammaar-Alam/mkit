@@ -22,30 +22,40 @@ test("production manifest keeps the extension worker-free and narrowly permissio
   const contentScripts = manifest.content_scripts;
   expect(
     Array.isArray(contentScripts),
-    "A release manifest must inject exactly one static content script on confirmed completed-review paths.",
+    "A release manifest must inject one static content script per supported site.",
   ).toBe(true);
   if (!Array.isArray(contentScripts)) return;
-  expect(contentScripts).toHaveLength(1);
-  expect(contentScripts[0]).toMatchObject({
-    css: ["content/preflight.css"],
-    js: ["content/index.js"],
-    run_at: "document_start",
-    world: "ISOLATED",
-  });
-  expect(contentScripts[0]?.all_frames ?? false).toBe(false);
+  expect(contentScripts).toEqual([
+    {
+      matches: ["https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-*"],
+      css: ["content/preflight.css"],
+      js: ["content/index.js"],
+      run_at: "document_start",
+      world: "ISOLATED",
+      all_frames: false,
+    },
+    {
+      matches: ["https://apps.uworld.com/courseapp/gradschool/v*"],
+      css: ["content/preflight.css", "content/preflight-uworld.css"],
+      js: ["content/index.js"],
+      run_at: "document_start",
+      world: "ISOLATED",
+      all_frames: false,
+    },
+  ]);
 
-  const matches = contentScripts[0]?.matches as string[];
-  expect(matches).toEqual(["https://www.mcatofficialprep.org/app/aamc-mcat-practice-exam-*"]);
+  const matches = contentScripts.flatMap((script) => script.matches as string[]);
   expect(matches).not.toContain("<all_urls>");
   expect(matches).not.toContain("https://mcatofficialprep.org/app/aamc-mcat-practice-exam-*");
   expect(matches).not.toContain("https://apps.aamc.org/mrs/*");
   expect(matches).not.toContain("https://prep.aamc.org/*");
+  expect(matches).not.toContain("https://apps.uworld.com/*");
   expect(matches.every((match) => match.startsWith("https://"))).toBe(true);
 
   expect(manifest.web_accessible_resources).toEqual([
     {
       resources: ["icons/icon-48.png"],
-      matches: ["https://www.mcatofficialprep.org/*"],
+      matches: ["https://www.mcatofficialprep.org/*", "https://apps.uworld.com/*"],
     },
   ]);
 });
@@ -54,6 +64,7 @@ test("runtime source and build configuration contain no network or remote-code p
   const runtimeFiles = [
     "src/content/preflight.ts",
     "src/adapter/AamcFullLengthReviewAdapter.ts",
+    "src/adapter/UWorldReviewAdapter.ts",
     "src/adapter/ReversibleDomMask.ts",
     "src/core/keyboard.ts",
     "src/core/state.ts",

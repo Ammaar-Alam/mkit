@@ -166,7 +166,7 @@ function createRailPlacement(): RailPlacement {
       target.style.top = `${anchored.top}px`;
       target.style.removeProperty("left");
       target.style.right = `${anchored.right}px`;
-      target.style.maxHeight = `${availableHeight(anchored.top)}px`;
+      target.style.maxHeight = `${availableHeight(anchored.top, anchor.bottom)}px`;
       target.classList.remove("is-moved");
       return;
     }
@@ -291,6 +291,9 @@ function sanitizeAnchor(anchor: StudyRailProps["anchor"]): StudyRailProps["ancho
   return {
     top: Number.isFinite(anchor.top) ? anchor.top : FALLBACK_ANCHOR.top,
     right: Number.isFinite(anchor.right) ? anchor.right : FALLBACK_ANCHOR.right,
+    ...(anchor.bottom !== undefined && Number.isFinite(anchor.bottom)
+      ? { bottom: anchor.bottom }
+      : {}),
   };
 }
 
@@ -299,7 +302,7 @@ function clampAnchor(
   target: HTMLElement,
 ): StudyRailProps["anchor"] {
   const top = clamp(anchor.top, VIEWPORT_MARGIN, maximumRailTop());
-  target.style.maxHeight = `${availableHeight(top)}px`;
+  target.style.maxHeight = `${availableHeight(top, anchor.bottom)}px`;
   const width = target.getBoundingClientRect().width;
   const maxRight = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN);
   return {
@@ -308,8 +311,8 @@ function clampAnchor(
   };
 }
 
-function availableHeight(top: number): number {
-  return Math.max(0, window.innerHeight - top - VIEWPORT_MARGIN);
+function availableHeight(top: number, bottom = VIEWPORT_MARGIN): number {
+  return Math.max(0, window.innerHeight - top - Math.max(bottom, VIEWPORT_MARGIN));
 }
 
 function maximumRailTop(): number {

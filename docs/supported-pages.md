@@ -1,5 +1,7 @@
 # Supported pages
 
+## AAMC
+
 MKit currently targets completed full-length answer reviews, completed section
 Review All questions, and the question list on a completed section score report
 at `www.mcatofficialprep.org`.
@@ -20,6 +22,24 @@ submission, reset, or account controls.
 | Sample tests | Planned after separate inspection | No adapter |
 | Question packs and banks | Planned after separate inspection | No adapter |
 | Registration and account pages | Never supported | MKit does not run |
+
+## UWorld
+
+The manifest is limited to `https://apps.uworld.com/courseapp/gradschool/v*`.
+The adapter activates Fresh Attempt only on the test interface when its header
+reads **REVIEW**, so live QBank tests and practice exams are left alone.
+
+| Surface | Status | Behavior |
+| --- | --- | --- |
+| Completed QBank test review | Supported | Clean Slate, Practice, Test, local resume, and optional clearing of earlier highlights and strikethroughs |
+| Completed practice exam section review | Supported | The same Fresh Attempt flow, one session per section |
+| QBank test results and practice exam section results | Supported | Correct and incorrect marks are replaced with a neutral MKit mark by default; filters and Review links stay native |
+| Practice exam score overview | Not covered | Section scores stay native |
+| Live QBank test or practice exam | Never supported | Fresh Attempt does not activate |
+
+The review navigator's per-question marks stay hidden while Fresh Attempt is
+active. UWorld's peer percentages, time spent, and explanation are revealed
+together with the answer.
 
 Unknown layouts on a confirmed review route remain covered. **Normal review**
 restores the native page, and the popup's **MKit** switch can release every open
