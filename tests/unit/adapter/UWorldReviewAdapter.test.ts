@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AdapterEvent } from "../../../src/adapter/contracts";
 import { UWorldReviewAdapter } from "../../../src/adapter/UWorldReviewAdapter";
+import { startContentLifecycle } from "../../../src/content/lifecycle";
+import type { DisposableMKitPreflight } from "../../../src/content/preflight";
+import type { ReviewController } from "../../../src/core/review-controller";
+import { DEFAULT_SETTINGS } from "../../../src/storage";
 
 const ROOT = "https://apps.uworld.com/courseapp/gradschool/v62";
 const REVIEW_URL = () => new URL(`${ROOT}/testinterface/launchtest/111/222333/3/1`);
@@ -120,6 +124,45 @@ describe("UWorldReviewAdapter", () => {
     expect(new UWorldReviewAdapter(document, elsewhere).classifyPage()).toBe("non-review");
     const otherHost = () => new URL("https://www.uworld.com/courseapp/gradschool/v62/x");
     expect(new UWorldReviewAdapter(document, otherHost).classifyPage()).toBe("non-review");
+  });
+
+  it("keeps detecting while the review header hydrates", async () => {
+    // Angular renders the header before its REVIEW label and the question.
+    mountReview({ review: false, counter: "" });
+    document.querySelector("#questionInformation")?.remove();
+    expect(new UWorldReviewAdapter(document, REVIEW_URL).classifyPage()).toBe("unknown-review");
+
+    const lifecycle = startContentLifecycle(
+      {
+        createAdapter: () => new UWorldReviewAdapter(document, REVIEW_URL),
+        createPreflight: () => {
+          const host = document.createElement("div");
+          host.dataset.mkitHost = "";
+          document.body.append(host);
+          return {
+            host,
+            shadow: host.attachShadow({ mode: "open" }),
+            setProtection: () => undefined,
+            showPreparing: () => undefined,
+            destroy: () => host.remove(),
+          } as DisposableMKitPreflight;
+        },
+        createController: () =>
+          ({
+            start: () => undefined,
+            dispose: () => undefined,
+            normalReview: () => undefined,
+            updateSettings: () => undefined,
+          }) as unknown as ReviewController,
+      },
+      DEFAULT_SETTINGS,
+    );
+    expect(lifecycle.status().state).toBe("supported-not-running");
+
+    mountReview();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(lifecycle.status()).toEqual({ state: "active", route: "review", issues: [] });
+    lifecycle.dispose();
   });
 
   it("fails closed when the review shape is incomplete", () => {

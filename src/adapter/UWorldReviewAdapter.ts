@@ -94,11 +94,17 @@ export class UWorldReviewAdapter implements FullLengthReviewAdapter {
     if (!REVIEW_PATH.test(url.pathname)) return "non-review";
     const header = this.#document.querySelector(SELECTORS.header);
     if (!header) return "unknown-review";
-    // The same interface runs live tests, which MKit must never touch.
     const isReview = [...header.querySelectorAll("span")].some(
       (span) => span.textContent?.trim() === "REVIEW",
     );
-    return isReview ? "review" : "non-review";
+    if (isReview) return "review";
+    // The same interface runs live tests, which MKit must never touch. Angular
+    // can render the header before its REVIEW label, so only a header that has
+    // settled on a rendered question counts as a live test.
+    const settled =
+      /\d+\s+of\s+\d+/.test(header.textContent ?? "") &&
+      Boolean(this.#document.querySelector(SELECTORS.question));
+    return settled ? "non-review" : "unknown-review";
   }
 
   inspectCapabilities(): CapabilityReport {
