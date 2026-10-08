@@ -17,6 +17,8 @@ const TAGS: readonly AttemptTag[] = ["content gap", "reasoning", "misread", "tim
 const VIEWPORT_MARGIN = 16;
 const MIN_USABLE_RAIL_HEIGHT = 192;
 const FALLBACK_ANCHOR = { top: VIEWPORT_MARGIN, right: VIEWPORT_MARGIN } as const;
+// Pages that reserve room for the rail read its resized width from here
+const RAIL_WIDTH_PROPERTY = "--mkit-rail-width";
 
 export function mountStudyRail(
   target: HTMLElement | ShadowRoot,
@@ -162,7 +164,7 @@ function createRailPlacement(): RailPlacement {
   let target: HTMLElement | null = null;
   let anchor: StudyRailProps["anchor"] = FALLBACK_ANCHOR;
 
-  const apply = (): void => {
+  const position = (): void => {
     if (!target) return;
     if (!offset) {
       const anchored = clampAnchor(anchor, target);
@@ -202,6 +204,16 @@ function createRailPlacement(): RailPlacement {
     target.style.maxHeight = `${movedMaxHeight}px`;
   };
 
+  const apply = (): void => {
+    position();
+    const page = document.documentElement.style;
+    if (target?.style.width) {
+      page.setProperty(RAIL_WIDTH_PROPERTY, `${target.getBoundingClientRect().width}px`);
+    } else {
+      page.removeProperty(RAIL_WIDTH_PROPERTY);
+    }
+  };
+
   const resizeTo = (width: number, height: number): void => {
     if (!target) return;
     const rect = target.getBoundingClientRect();
@@ -239,6 +251,7 @@ function createRailPlacement(): RailPlacement {
     },
     destroy(): void {
       window.removeEventListener("resize", apply);
+      document.documentElement.style.removeProperty(RAIL_WIDTH_PROPERTY);
       target = null;
     },
     handle(root: HTMLElement): HTMLElement {

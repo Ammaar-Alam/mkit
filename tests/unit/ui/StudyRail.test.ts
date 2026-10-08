@@ -122,6 +122,7 @@ describe("Study Rail placement", () => {
     expect(view.element.style.width).toBe("272px");
     expect(view.element.style.maxHeight).toBe("480px");
     expect(view.element.style.left).toBe("616px");
+    expect(document.documentElement.style.getPropertyValue("--mkit-rail-width")).toBe("272px");
 
     // Rerenders keep the chosen size
     view.update(props({ top: 120, right: 32 }));
@@ -134,6 +135,7 @@ describe("Study Rail placement", () => {
 
     press("Home");
     expect(view.element.style.width).toBe("");
+    expect(document.documentElement.style.getPropertyValue("--mkit-rail-width")).toBe("");
     expect(view.element.style.top).toBe("120px");
     expect(view.element.classList.contains("is-moved")).toBe(false);
     view.destroy();
