@@ -65,5 +65,5 @@ html[data-mkit-protection="masked"][data-mkit-clear-cross-outs]
 
 /* Keep the question readable beside the rail. */
 html[data-mkit-protection="masked"] #centerContent {
-  margin-right: calc(min(22rem, 100vw - 2rem) + 2rem) !important;
+  margin-right: calc(var(--mkit-rail-width, min(22rem, 100vw - 2rem)) + 2rem) !important;
 }

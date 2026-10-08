@@ -309,4 +309,37 @@ describe("UWorldReviewAdapter", () => {
       bottom: 48,
     });
   });
+
+  it("jumps to a question through the native navigator", async () => {
+    mountReview({ counter: "1 of 30" });
+    const counter = document.querySelector("#layoutHeader > div:last-child > span:last-child");
+    const navigator = document.createElement("a");
+    navigator.setAttribute("aria-label", "Navigator");
+    navigator.addEventListener("click", () => {
+      const dialog = document.createElement("div");
+      dialog.className = "pearson-navigator-advanced";
+      dialog.innerHTML = `<i class="close-button"></i><table><tbody>${Array.from(
+        { length: 30 },
+        (_, index) => `<tr aria-label="Navigate to question number ${index + 1}"></tr>`,
+      ).join("")}</tbody></table>`;
+      dialog.querySelector(".close-button")?.addEventListener("click", () => dialog.remove());
+      dialog.querySelectorAll("tr").forEach((row, index) => {
+        row.addEventListener("click", () => {
+          setTimeout(() => {
+            if (counter) counter.textContent = `${index + 1} of 30`;
+          }, 60);
+        });
+      });
+      document.body.append(dialog);
+    });
+    document.querySelector("pearson-footer")?.append(navigator);
+    const adapter = new UWorldReviewAdapter(document, REVIEW_URL);
+
+    expect(await adapter.goToQuestion(27)).toBe(true);
+    expect((await adapter.getQuestionContext())?.progress.current).toBe(27);
+    expect(document.querySelector(".pearson-navigator-advanced")).toBeNull();
+
+    mountReview({ review: false, counter: "1 of 30" });
+    expect(await adapter.goToQuestion(27)).toBe(false);
+  });
 });

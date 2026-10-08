@@ -17,6 +17,8 @@ const TAGS: readonly AttemptTag[] = ["content gap", "reasoning", "misread", "tim
 const VIEWPORT_MARGIN = 16;
 const MIN_USABLE_RAIL_HEIGHT = 192;
 const FALLBACK_ANCHOR = { top: VIEWPORT_MARGIN, right: VIEWPORT_MARGIN } as const;
+// Pages that reserve room for the rail read its resized width from here
+const RAIL_WIDTH_PROPERTY = "--mkit-rail-width";
 
 export function mountStudyRail(
   target: HTMLElement | ShadowRoot,
@@ -112,7 +114,7 @@ export function mountStudyRail(
     const actions =
       next.mode === "practice" ? practiceActions(next, answersId) : testActions(next, answersId);
     content.append(scroller, element("div", { className: "mkit-study-rail__dock" }, actions));
-    root.append(content);
+    root.append(content, placement.resizer(root));
     placement.attach(root, next.anchor);
     if (previousStage !== next.stage) {
       if (next.stage === "original-revealed") {
@@ -142,6 +144,7 @@ interface RailPlacement {
   attach(root: HTMLElement, anchor: StudyRailProps["anchor"]): void;
   destroy(): void;
   handle(root: HTMLElement): HTMLElement;
+  resizer(root: HTMLElement): HTMLElement;
 }
 
 /**
@@ -152,6 +155,8 @@ interface RailPlacement {
  * moving upward does not implicitly expand the rail; when less room remains
  * below a requested top, the rail shrinks to stay visible. The offset is clamped
  * on every apply so a viewport resize can never strand it outside the viewport.
+ * Resizing reuses the same height cap and sets a width, so a large figure can
+ * stay visible beside a smaller rail.
  */
 function createRailPlacement(): RailPlacement {
   let offset: { top: number; left: number } | null = null;
@@ -159,7 +164,7 @@ function createRailPlacement(): RailPlacement {
   let target: HTMLElement | null = null;
   let anchor: StudyRailProps["anchor"] = FALLBACK_ANCHOR;
 
-  const apply = (): void => {
+  const position = (): void => {
     if (!target) return;
     if (!offset) {
       const anchored = clampAnchor(anchor, target);
@@ -199,6 +204,32 @@ function createRailPlacement(): RailPlacement {
     target.style.maxHeight = `${movedMaxHeight}px`;
   };
 
+  const apply = (): void => {
+    position();
+    const page = document.documentElement.style;
+    if (target?.style.width) {
+      page.setProperty(RAIL_WIDTH_PROPERTY, `${target.getBoundingClientRect().width}px`);
+    } else {
+      page.removeProperty(RAIL_WIDTH_PROPERTY);
+    }
+  };
+
+  const resizeTo = (width: number, height: number): void => {
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    offset ??= { top: rect.top, left: rect.left };
+    target.style.width = `${Math.min(width, window.innerWidth - offset.left - VIEWPORT_MARGIN)}px`;
+    movedHeight = Math.max(MIN_USABLE_RAIL_HEIGHT, height);
+    apply();
+  };
+
+  const reset = (): void => {
+    offset = null;
+    movedHeight = null;
+    target?.style.removeProperty("width");
+    apply();
+  };
+
   const moveBy = (deltaX: number, deltaY: number): void => {
     if (!target) return;
     const rect = target.getBoundingClientRect();
@@ -220,6 +251,7 @@ function createRailPlacement(): RailPlacement {
     },
     destroy(): void {
       window.removeEventListener("resize", apply);
+      document.documentElement.style.removeProperty(RAIL_WIDTH_PROPERTY);
       target = null;
     },
     handle(root: HTMLElement): HTMLElement {
@@ -240,24 +272,10 @@ function createRailPlacement(): RailPlacement {
         const grabX = event.clientX - rect.left;
         const grabY = event.clientY - rect.top;
         if (!root.classList.contains("is-minimized")) movedHeight = rect.height;
-        grip.setPointerCapture(event.pointerId);
-        root.classList.add("is-moving");
-        event.preventDefault();
-
-        const onMove = (move: PointerEvent): void => {
+        trackDrag(grip, root, event, (move) => {
           offset = { top: move.clientY - grabY, left: move.clientX - grabX };
           apply();
-        };
-        const onUp = (): void => {
-          grip.releasePointerCapture(event.pointerId);
-          root.classList.remove("is-moving");
-          grip.removeEventListener("pointermove", onMove);
-          grip.removeEventListener("pointerup", onUp);
-          grip.removeEventListener("pointercancel", onUp);
-        };
-        grip.addEventListener("pointermove", onMove);
-        grip.addEventListener("pointerup", onUp);
-        grip.addEventListener("pointercancel", onUp);
+        });
       });
 
       grip.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -276,15 +294,80 @@ function createRailPlacement(): RailPlacement {
         }
         if (event.key === "Home") {
           event.preventDefault();
-          offset = null;
-          movedHeight = null;
-          apply();
+          reset();
         }
       });
 
       return grip;
     },
+    resizer(root: HTMLElement): HTMLElement {
+      const corner = element("span", {
+        className: "mkit-rail-resize",
+        attributes: {
+          "data-focus-key": "rail-resize",
+          role: "button",
+          tabindex: "0",
+          "aria-label": "Resize Fresh Attempt rail. Use arrow keys once focused.",
+          title: "Drag to resize",
+        },
+      });
+
+      corner.addEventListener("pointerdown", (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        const start = root.getBoundingClientRect();
+        trackDrag(corner, root, event, (move) => {
+          resizeTo(
+            start.width + move.clientX - event.clientX,
+            start.height + move.clientY - event.clientY,
+          );
+        });
+      });
+
+      corner.addEventListener("keydown", (event: KeyboardEvent) => {
+        const step = event.shiftKey ? 40 : 12;
+        const sizes: Record<string, [number, number]> = {
+          ArrowUp: [0, -step],
+          ArrowDown: [0, step],
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+        };
+        const size = sizes[event.key];
+        if (size) {
+          event.preventDefault();
+          const rect = root.getBoundingClientRect();
+          resizeTo(rect.width + size[0], rect.height + size[1]);
+          return;
+        }
+        if (event.key === "Home") {
+          event.preventDefault();
+          reset();
+        }
+      });
+
+      return corner;
+    },
   };
+}
+
+function trackDrag(
+  handle: HTMLElement,
+  root: HTMLElement,
+  event: PointerEvent,
+  onMove: (move: PointerEvent) => void,
+): void {
+  handle.setPointerCapture(event.pointerId);
+  root.classList.add("is-moving");
+  event.preventDefault();
+  const onUp = (): void => {
+    handle.releasePointerCapture(event.pointerId);
+    root.classList.remove("is-moving");
+    handle.removeEventListener("pointermove", onMove);
+    handle.removeEventListener("pointerup", onUp);
+    handle.removeEventListener("pointercancel", onUp);
+  };
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+  handle.addEventListener("pointercancel", onUp);
 }
 
 function sanitizeAnchor(anchor: StudyRailProps["anchor"]): StudyRailProps["anchor"] {

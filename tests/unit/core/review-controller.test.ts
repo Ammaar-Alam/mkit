@@ -356,11 +356,112 @@ describe("ReviewController generation safety", () => {
   });
 });
 
+describe("ReviewController resume position", () => {
+  it("records the question number and jumps back to it on Resume", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const atQuestion = (questionKey: string, current: number) => ({
+      ...context(questionKey),
+      progress: { scope: "unknown" as const, current, total: 30 },
+    });
+    const first = new ControlledAdapter([Promise.resolve(atQuestion("question-q27", 27))]);
+    const firstPreflight = createPreflight();
+    const firstVisit = new ReviewController({
+      adapter: first,
+      preflight: firstPreflight,
+      repository,
+      uiCss: "",
+    });
+    await firstVisit.reconcile();
+    firstPreflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listSessions())[0]?.currentQuestionNumber).toBe(27);
+    });
+    firstVisit.dispose();
+
+    const reopened = new ControlledAdapter([]);
+    let showing = 1;
+    reopened.getQuestionContext = async () => {
+      reopened.contextRequests += 1;
+      return atQuestion(`question-q${showing}`, showing);
+    };
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter: reopened,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+    // Page updates while the navigator opens must not resume on question 1
+    reopened.goToQuestion = async (questionNumber) => {
+      reopened.questionJumps.push(questionNumber);
+      await controller.reconcile();
+      showing = questionNumber;
+      return true;
+    };
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='resume']")?.click();
+
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    const [session] = await repository.listSessions();
+    expect(reopened.questionJumps).toEqual([27]);
+    expect(session?.currentQuestionNumber).toBe(27);
+    expect(
+      (await repository.listAttempts(session?.id)).map((attempt) => attempt.questionKey),
+    ).toEqual(["question-q27"]);
+    controller.dispose();
+  });
+
+  it("resumes on the current question when the jump fails", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const atQuestion = (questionKey: string, current: number) => ({
+      ...context(questionKey),
+      progress: { scope: "unknown" as const, current, total: 30 },
+    });
+    const now = Date.now();
+    await repository.saveSession({
+      id: "saved-session",
+      examKey: "synthetic-exam",
+      mode: "practice",
+      status: "active",
+      startedAt: now,
+      updatedAt: now,
+      currentQuestionKey: "question-q27",
+      currentQuestionNumber: 27,
+      completedAt: null,
+      finishedSections: [],
+    });
+    const adapter = new ControlledAdapter([
+      Promise.resolve(atQuestion("question-q1", 1)),
+      Promise.resolve(atQuestion("question-q1", 1)),
+    ]);
+    const preflight = createPreflight();
+    const controller = new ReviewController({ adapter, preflight, repository, uiCss: "" });
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='resume']")?.click();
+
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    expect(adapter.questionJumps).toEqual([27]);
+    expect((await repository.getSession("saved-session"))?.currentQuestionNumber).toBe(1);
+    controller.dispose();
+  });
+});
+
 class ControlledAdapter implements FullLengthReviewAdapter {
   annotationSeals = 0;
   anchorRequests = 0;
   contextRequests = 0;
   studyRailMounts = 0;
+  readonly questionJumps: number[] = [];
   cleanSlatePreferences: CleanSlatePreferences | null = null;
   readonly #contexts: Array<Promise<SanitizedQuestionContext | null>>;
 
@@ -404,6 +505,10 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     return true;
   };
   navigate = () => false;
+  goToQuestion = async (questionNumber: number) => {
+    this.questionJumps.push(questionNumber);
+    return false;
+  };
   observe = (_listener: (event: AdapterEvent) => void) => () => undefined;
 }
 

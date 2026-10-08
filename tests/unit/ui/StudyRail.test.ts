@@ -21,7 +21,9 @@ describe("Study Rail placement", () => {
     ) {
       if (!this.classList.contains("mkit-study-rail")) return new DOMRect();
       const top = numericStyle(this.style.top);
-      const width = Math.min(RAIL_WIDTH, viewportWidth - 32);
+      const width = this.style.width
+        ? numericStyle(this.style.width)
+        : Math.min(RAIL_WIDTH, viewportWidth - 32);
       const maxHeight = numericStyle(this.style.maxHeight);
       const height = this.classList.contains("is-minimized") ? 48 : Math.min(railHeight, maxHeight);
       const left = this.style.left
@@ -101,6 +103,41 @@ describe("Study Rail placement", () => {
 
     railHeight = RAIL_HEIGHT;
     expect(view.element.getBoundingClientRect().height).toBe(320);
+    view.destroy();
+  });
+
+  it("resizes from its corner within the viewport and Home restores the default size", () => {
+    const view = mountStudyRail(mountTarget(), props({ top: 120, right: 32 }));
+    const corner = () => view.element.querySelector<HTMLElement>("[data-focus-key='rail-resize']");
+    const press = (key: string, count = 1) => {
+      for (let index = 0; index < count; index += 1) {
+        corner()?.dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key, shiftKey: true }),
+        );
+      }
+    };
+
+    press("ArrowLeft", 2);
+    press("ArrowUp", 3);
+    expect(view.element.style.width).toBe("272px");
+    expect(view.element.style.maxHeight).toBe("480px");
+    expect(view.element.style.left).toBe("616px");
+    expect(document.documentElement.style.getPropertyValue("--mkit-rail-width")).toBe("272px");
+
+    // Rerenders keep the chosen size
+    view.update(props({ top: 120, right: 32 }));
+    expect(view.element.style.width).toBe("272px");
+
+    press("ArrowUp", 20);
+    expect(view.element.style.maxHeight).toBe("192px");
+    press("ArrowRight", 20);
+    expect(view.element.style.width).toBe("368px");
+
+    press("Home");
+    expect(view.element.style.width).toBe("");
+    expect(document.documentElement.style.getPropertyValue("--mkit-rail-width")).toBe("");
+    expect(view.element.style.top).toBe("120px");
+    expect(view.element.classList.contains("is-moved")).toBe(false);
     view.destroy();
   });
 

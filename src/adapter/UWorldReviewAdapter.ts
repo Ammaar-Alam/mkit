@@ -39,6 +39,8 @@ const SELECTORS = {
   header: "#layoutHeader",
   toolbar: "#mcatHeader",
   footer: "pearson-footer",
+  navigatorButton: 'pearson-footer a[aria-label="Navigator"]',
+  navigatorClose: ".pearson-navigator-advanced .close-button",
   content: "#centerContent",
   passage: "#AbstractContainer",
   passageLabel: "#abstractQuestionCount",
@@ -283,6 +285,28 @@ export class UWorldReviewAdapter implements FullLengthReviewAdapter {
     return false;
   }
 
+  /**
+   * Every question shares one URL, so the native navigator is the only way to
+   * reach one directly. Resolves once the header counter shows the question.
+   */
+  async goToQuestion(questionNumber: number): Promise<boolean> {
+    if (this.classifyPage() !== "review") return false;
+    const rowSelector = `tr[aria-label="Navigate to question number ${questionNumber}"]`;
+    if (!this.#document.querySelector(rowSelector)) {
+      this.#document.querySelector<HTMLElement>(SELECTORS.navigatorButton)?.click();
+    }
+    const row = await waitFor(() => this.#document.querySelector<HTMLElement>(rowSelector), 2000);
+    row?.click();
+    const reached =
+      row &&
+      (await waitFor(
+        () => /(\d+)\s+of\s+\d+/.exec(this.#headerText())?.[1] === String(questionNumber),
+        5000,
+      ));
+    this.#document.querySelector<HTMLElement>(SELECTORS.navigatorClose)?.click();
+    return reached === true;
+  }
+
   observe(listener: (event: AdapterEvent) => void): () => void {
     if (this.#observer) {
       throw new Error("UWorldReviewAdapter already has an active observer.");
@@ -460,6 +484,16 @@ export class UWorldReviewAdapter implements FullLengthReviewAdapter {
   #readPassageOrDiscrete(): PassageOrDiscrete {
     const label = this.#document.querySelector(SELECTORS.passageLabel)?.textContent ?? "";
     return /not refer to a passage/i.test(label) ? "discrete" : "passage";
+  }
+}
+
+async function waitFor<T>(read: () => T, timeoutMs: number): Promise<T | null> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = read();
+    if (value) return value;
+    if (Date.now() >= deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
 

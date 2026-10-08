@@ -384,6 +384,7 @@
   grid-template-rows: auto minmax(0, 1fr);
   width: min(22rem, calc(100vw - 2rem));
   min-width: 16rem;
+  max-width: calc(100vw - 2rem);
   max-height: calc(100vh - 2rem);
   overflow: hidden;
   gap: 0;
@@ -440,6 +441,35 @@
 
 .mkit-study-rail.is-moving .mkit-rail-grip {
   cursor: grabbing;
+}
+
+/* Two short diagonals in the bottom corner, the usual resize affordance. */
+.mkit-rail-resize {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  z-index: 3;
+  width: 1rem;
+  height: 1rem;
+  color: var(--mkit-ink-muted);
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 45%,
+    currentcolor 45% 52%,
+    transparent 52% 66%,
+    currentcolor 66% 73%,
+    transparent 73%
+  );
+}
+
+.mkit-rail-resize:hover {
+  color: var(--mkit-moss);
+}
+
+.mkit-study-rail.is-minimized .mkit-rail-resize {
+  display: none;
 }
 
 .mkit-study-rail > .mkit-folio {

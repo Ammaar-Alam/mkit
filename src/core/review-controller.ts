@@ -81,6 +81,7 @@ export class ReviewController {
   #stopObserver: (() => void) | null = null;
   #generation = 0;
   #normalReview = false;
+  #jumping = false;
   readonly #pendingNoteSaves = new Map<string, PendingNoteSave>();
   #noteSaveActive = false;
   readonly #keyboard: FreshAttemptKeyboardController;
@@ -138,7 +139,7 @@ export class ReviewController {
   }
 
   async reconcile(): Promise<void> {
-    if (this.#normalReview) return;
+    if (this.#normalReview || this.#jumping) return;
     const generation = ++this.#generation;
     const pageKind = this.#adapter.classifyPage();
 
@@ -319,7 +320,7 @@ export class ReviewController {
       },
       onResume: () => {
         if (this.#availableSession) {
-          this.#resumeFromGate(this.#availableSession);
+          void this.#resumeFromGate(this.#availableSession);
         }
       },
       onArchive: () => undefined,
@@ -341,7 +342,7 @@ export class ReviewController {
       activeSession: this.#activeSessionSummary(session),
       onSelectMode: () => undefined,
       onResume: () => {
-        this.#resumeFromGate(session);
+        void this.#resumeFromGate(session);
       },
       onArchive: () => {
         void this.#archiveAndStart(session);
@@ -405,8 +406,23 @@ export class ReviewController {
     await this.#startSession(mode);
   }
 
-  #resumeFromGate(session: SessionRecord): void {
+  async #resumeFromGate(session: SessionRecord): Promise<void> {
     this.#preflight.setProtection("boot");
+    const target = session.currentQuestionNumber;
+    if (target && this.#context && target !== this.#context.progress.current) {
+      // Pages passed on the way are not visits, so hold reconciles until the jump settles
+      this.#generation += 1;
+      this.#jumping = true;
+      try {
+        await this.#adapter.goToQuestion(target);
+      } finally {
+        this.#jumping = false;
+      }
+      if (this.#normalReview) return;
+      this.#session = session;
+      await this.reconcile();
+      return;
+    }
     void this.#resumeSession(session, this.#generation);
   }
 
@@ -417,6 +433,7 @@ export class ReviewController {
         this.#context.examKey,
         mode,
         this.#context.questionKey,
+        this.#context.progress.current,
       );
       this.#session = session;
       this.#attempt = await this.#sessions.getOrCreateAttempt(session.id, this.#context);
@@ -461,10 +478,14 @@ export class ReviewController {
       reveal: revealed,
       selection: attempt.selection,
     };
-    if (session.currentQuestionKey !== this.#context.questionKey) {
+    if (
+      session.currentQuestionKey !== this.#context.questionKey ||
+      session.currentQuestionNumber !== (this.#context.progress.current ?? undefined)
+    ) {
       this.#session = await this.#sessions.setCurrentQuestion(
         session.id,
         this.#context.questionKey,
+        this.#context.progress.current,
       );
     }
     this.#answersRevealed = sameQuestion && this.#answersRevealed;

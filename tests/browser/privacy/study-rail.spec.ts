@@ -72,6 +72,41 @@ test("moving Fresh Attempt toward the top preserves its current height", async (
   expect(movedRail.y + movedRail.height).toBeLessThanOrEqual(900 - 16);
 });
 
+test("dragging the corner resizes Fresh Attempt in place", async ({ page }) => {
+  await page.setViewportSize({ width: 1_280, height: 900 });
+  await page.goto("http://127.0.0.1:4173/live-review");
+  await page.evaluate(() => window.__mkitPrivacyHarness.startController());
+
+  const host = page.locator("[data-mkit-host]");
+  await host.locator("[data-focus-key='practice']").click();
+  const rail = host.locator(".mkit-study-rail");
+  const corner = rail.locator("[data-focus-key='rail-resize']");
+  const dockButton = rail.locator(".mkit-study-rail__dock button").last();
+  const [initialRail, cornerBounds] = await Promise.all([rail.boundingBox(), corner.boundingBox()]);
+  if (!initialRail || !cornerBounds) throw new Error("Study Rail resize geometry is unavailable.");
+
+  const startX = cornerBounds.x + cornerBounds.width / 2;
+  const startY = cornerBounds.y + cornerBounds.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 60, startY - 150, { steps: 5 });
+  await page.mouse.up();
+
+  const resized = await rail.boundingBox();
+  if (!resized) throw new Error("Resized Study Rail geometry is unavailable.");
+  expect(resized.x).toBeCloseTo(initialRail.x, 0);
+  expect(resized.y).toBeCloseTo(initialRail.y, 0);
+  expect(resized.width).toBeCloseTo(initialRail.width - 60, 0);
+  expect(resized.height).toBeCloseTo(initialRail.height - 150, 0);
+  await expect(dockButton).toBeInViewport();
+
+  const [button, movedCorner] = await Promise.all([dockButton.boundingBox(), corner.boundingBox()]);
+  if (!button || !movedCorner) throw new Error("Study Rail dock geometry is unavailable.");
+  expect(
+    button.x + button.width <= movedCorner.x || button.y + button.height <= movedCorner.y,
+  ).toBe(true);
+});
+
 test("moving Fresh Attempt downward shrinks it within the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1_280, height: 900 });
   await page.goto("http://127.0.0.1:4173/live-review");

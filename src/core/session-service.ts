@@ -50,6 +50,7 @@ export class SessionService {
     examKey: string,
     mode: FreshAttemptMode,
     currentQuestionKey: string | null,
+    currentQuestionNumber: number | null = null,
   ): Promise<SessionRecord> {
     const now = this.#now();
     return this.#repository.saveSession({
@@ -60,14 +61,21 @@ export class SessionService {
       startedAt: now,
       updatedAt: now,
       currentQuestionKey,
+      ...(currentQuestionNumber ? { currentQuestionNumber } : {}),
       completedAt: null,
       finishedSections: [],
     });
   }
 
-  async setCurrentQuestion(sessionId: string, questionKey: string): Promise<SessionRecord> {
+  async setCurrentQuestion(
+    sessionId: string,
+    questionKey: string,
+    questionNumber: number | null = null,
+  ): Promise<SessionRecord> {
+    // A question without a readable position must not keep the last one
     return this.#updateSession(sessionId, {
       currentQuestionKey: questionKey,
+      currentQuestionNumber: questionNumber,
     });
   }
 
@@ -208,14 +216,21 @@ export class SessionService {
 
   async #updateSession(
     sessionId: string,
-    patch: Partial<
+    {
+      currentQuestionNumber,
+      ...patch
+    }: Partial<
       Pick<SessionRecord, "status" | "currentQuestionKey" | "completedAt" | "finishedSections">
-    >,
+    > & { currentQuestionNumber?: number | null },
   ): Promise<SessionRecord> {
-    const current = await this.#requireSession(sessionId);
+    const { currentQuestionNumber: storedNumber, ...current } =
+      await this.#requireSession(sessionId);
+    const questionNumber =
+      currentQuestionNumber === undefined ? storedNumber : currentQuestionNumber;
     return this.#repository.saveSession({
       ...current,
       ...patch,
+      ...(questionNumber ? { currentQuestionNumber: questionNumber } : {}),
       finishedSections: patch.finishedSections
         ? [...patch.finishedSections]
         : [...current.finishedSections],
