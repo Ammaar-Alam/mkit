@@ -3,6 +3,30 @@ import { SessionService } from "../../../src/core/session-service";
 import { StorageRepository } from "../../../src/storage";
 import { FakeStorageArea } from "../storage/fake-storage";
 
+describe("SessionService question position", () => {
+  it("keeps the position across other updates and clears it when the counter is unreadable", async () => {
+    let now = 100;
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: () => ++now,
+    });
+    const service = new SessionService(repository, {
+      createId: () => "synthetic-session",
+      now: () => ++now,
+    });
+    const session = await service.start("synthetic-exam", "practice", "question-1", 1);
+
+    expect(
+      (await service.setCurrentQuestion(session.id, "question-27", 27)).currentQuestionNumber,
+    ).toBe(27);
+    expect((await service.finishSection(session.id, "cp")).currentQuestionNumber).toBe(27);
+
+    const unreadable = await service.setCurrentQuestion(session.id, "question-28", null);
+    expect(unreadable.currentQuestionKey).toBe("question-28");
+    expect(unreadable).not.toHaveProperty("currentQuestionNumber");
+  });
+});
+
 describe("SessionService attempt mutations", () => {
   it("makes an eliminated selection unavailable and restores the choice without reselecting it", async () => {
     let now = 100;

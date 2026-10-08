@@ -72,9 +72,10 @@ export class SessionService {
     questionKey: string,
     questionNumber: number | null = null,
   ): Promise<SessionRecord> {
+    // A question without a readable position must not keep the last one
     return this.#updateSession(sessionId, {
       currentQuestionKey: questionKey,
-      ...(questionNumber ? { currentQuestionNumber: questionNumber } : {}),
+      currentQuestionNumber: questionNumber,
     });
   }
 
@@ -215,21 +216,21 @@ export class SessionService {
 
   async #updateSession(
     sessionId: string,
-    patch: Partial<
-      Pick<
-        SessionRecord,
-        | "status"
-        | "currentQuestionKey"
-        | "currentQuestionNumber"
-        | "completedAt"
-        | "finishedSections"
-      >
-    >,
+    {
+      currentQuestionNumber,
+      ...patch
+    }: Partial<
+      Pick<SessionRecord, "status" | "currentQuestionKey" | "completedAt" | "finishedSections">
+    > & { currentQuestionNumber?: number | null },
   ): Promise<SessionRecord> {
-    const current = await this.#requireSession(sessionId);
+    const { currentQuestionNumber: storedNumber, ...current } =
+      await this.#requireSession(sessionId);
+    const questionNumber =
+      currentQuestionNumber === undefined ? storedNumber : currentQuestionNumber;
     return this.#repository.saveSession({
       ...current,
       ...patch,
+      ...(questionNumber ? { currentQuestionNumber: questionNumber } : {}),
       finishedSections: patch.finishedSections
         ? [...patch.finishedSections]
         : [...current.finishedSections],

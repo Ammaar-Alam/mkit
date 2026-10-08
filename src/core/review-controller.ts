@@ -478,7 +478,10 @@ export class ReviewController {
       reveal: revealed,
       selection: attempt.selection,
     };
-    if (session.currentQuestionKey !== this.#context.questionKey) {
+    if (
+      session.currentQuestionKey !== this.#context.questionKey ||
+      session.currentQuestionNumber !== (this.#context.progress.current ?? undefined)
+    ) {
       this.#session = await this.#sessions.setCurrentQuestion(
         session.id,
         this.#context.questionKey,
