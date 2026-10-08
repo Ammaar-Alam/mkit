@@ -7,6 +7,8 @@ All notable changes to MKit are documented here.
 ### Added
 
 - Resuming a UWorld review now returns to the question you left off on.
+- The Fresh Attempt panel can be resized from its bottom corner, so large figures
+  stay visible beside it. Home restores its default size and position.
 
 ## [0.3.0] - 2026-10-04
 
