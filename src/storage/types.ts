@@ -33,6 +33,8 @@ export interface SessionRecord {
   startedAt: number;
   updatedAt: number;
   currentQuestionKey: string | null;
+  /** Position shown by the native counter, where the platform has one */
+  currentQuestionNumber?: number;
   completedAt: number | null;
   finishedSections: string[];
 }

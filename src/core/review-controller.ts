@@ -319,7 +319,7 @@ export class ReviewController {
       },
       onResume: () => {
         if (this.#availableSession) {
-          this.#resumeFromGate(this.#availableSession);
+          void this.#resumeFromGate(this.#availableSession);
         }
       },
       onArchive: () => undefined,
@@ -341,7 +341,7 @@ export class ReviewController {
       activeSession: this.#activeSessionSummary(session),
       onSelectMode: () => undefined,
       onResume: () => {
-        this.#resumeFromGate(session);
+        void this.#resumeFromGate(session);
       },
       onArchive: () => {
         void this.#archiveAndStart(session);
@@ -405,8 +405,14 @@ export class ReviewController {
     await this.#startSession(mode);
   }
 
-  #resumeFromGate(session: SessionRecord): void {
+  async #resumeFromGate(session: SessionRecord): Promise<void> {
     this.#preflight.setProtection("boot");
+    const target = session.currentQuestionNumber;
+    if (target && this.#context && target !== this.#context.progress.current) {
+      // Holding the session lets the question change reconcile straight into it
+      this.#session = session;
+      if (await this.#adapter.goToQuestion(target)) return;
+    }
     void this.#resumeSession(session, this.#generation);
   }
 
@@ -417,6 +423,7 @@ export class ReviewController {
         this.#context.examKey,
         mode,
         this.#context.questionKey,
+        this.#context.progress.current,
       );
       this.#session = session;
       this.#attempt = await this.#sessions.getOrCreateAttempt(session.id, this.#context);
@@ -465,6 +472,7 @@ export class ReviewController {
       this.#session = await this.#sessions.setCurrentQuestion(
         session.id,
         this.#context.questionKey,
+        this.#context.progress.current,
       );
     }
     this.#answersRevealed = sameQuestion && this.#answersRevealed;

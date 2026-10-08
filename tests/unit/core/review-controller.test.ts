@@ -356,11 +356,57 @@ describe("ReviewController generation safety", () => {
   });
 });
 
+describe("ReviewController resume position", () => {
+  it("records the question number and jumps back to it on Resume", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const atQuestion = (questionKey: string, current: number) => ({
+      ...context(questionKey),
+      progress: { scope: "unknown" as const, current, total: 30 },
+    });
+    const first = new ControlledAdapter([Promise.resolve(atQuestion("question-q27", 27))]);
+    const firstPreflight = createPreflight();
+    const firstVisit = new ReviewController({
+      adapter: first,
+      preflight: firstPreflight,
+      repository,
+      uiCss: "",
+    });
+    await firstVisit.reconcile();
+    firstPreflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='practice']")?.click();
+    await vi.waitFor(async () => {
+      expect((await repository.listSessions())[0]?.currentQuestionNumber).toBe(27);
+    });
+    firstVisit.dispose();
+
+    const reopened = new ControlledAdapter([Promise.resolve(atQuestion("question-q1", 1))]);
+    const preflight = createPreflight();
+    const controller = new ReviewController({
+      adapter: reopened,
+      preflight,
+      repository,
+      uiCss: "",
+    });
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='resume']")?.click();
+
+    await vi.waitFor(() => expect(reopened.questionJumps).toEqual([27]));
+    // A failed jump still resumes where the reader is
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    controller.dispose();
+  });
+});
+
 class ControlledAdapter implements FullLengthReviewAdapter {
   annotationSeals = 0;
   anchorRequests = 0;
   contextRequests = 0;
   studyRailMounts = 0;
+  readonly questionJumps: number[] = [];
   cleanSlatePreferences: CleanSlatePreferences | null = null;
   readonly #contexts: Array<Promise<SanitizedQuestionContext | null>>;
 
@@ -404,6 +450,10 @@ class ControlledAdapter implements FullLengthReviewAdapter {
     return true;
   };
   navigate = () => false;
+  goToQuestion = async (questionNumber: number) => {
+    this.questionJumps.push(questionNumber);
+    return false;
+  };
   observe = (_listener: (event: AdapterEvent) => void) => () => undefined;
 }
 

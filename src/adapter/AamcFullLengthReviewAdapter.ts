@@ -782,6 +782,10 @@ export class AamcFullLengthReviewAdapter implements FullLengthReviewAdapter {
     return false;
   }
 
+  goToQuestion(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
   observe(listener: (event: AdapterEvent) => void): () => void {
     if (this.#observer) {
       throw new Error("AamcFullLengthReviewAdapter already has an active observer.");

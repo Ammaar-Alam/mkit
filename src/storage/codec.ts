@@ -164,7 +164,7 @@ export function decodeSession(value: unknown): SessionRecord | undefined {
   ) {
     return undefined;
   }
-  return {
+  const result: SessionRecord = {
     id,
     examKey,
     mode: value.mode,
@@ -175,6 +175,11 @@ export function decodeSession(value: unknown): SessionRecord | undefined {
     completedAt,
     finishedSections,
   };
+  // A bad position only costs the jump on Resume, never the session
+  if (isPositiveInteger(value.currentQuestionNumber)) {
+    result.currentQuestionNumber = value.currentQuestionNumber;
+  }
+  return result;
 }
 
 export function decodeSessionTombstone(value: unknown): SessionTombstone | undefined {
@@ -556,6 +561,10 @@ function isTimestamp(value: unknown): value is number {
 
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return isNonNegativeInteger(value) && value > 0;
 }
 
 function isAiHandoffTarget(value: unknown): value is AiHandoffTarget {

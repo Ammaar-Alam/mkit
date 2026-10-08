@@ -90,5 +90,7 @@ export interface FullLengthReviewAdapter {
   mountStudyRail(host: HTMLElement): boolean;
   getStudyRailAnchor(): StudyRailAnchor;
   navigate(direction: "previous" | "next"): boolean;
+  /** Moves to a question by its native position, true once that question is showing */
+  goToQuestion(questionNumber: number): Promise<boolean>;
   observe(listener: (event: AdapterEvent) => void): () => void;
 }

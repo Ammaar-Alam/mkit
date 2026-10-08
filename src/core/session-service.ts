@@ -50,6 +50,7 @@ export class SessionService {
     examKey: string,
     mode: FreshAttemptMode,
     currentQuestionKey: string | null,
+    currentQuestionNumber: number | null = null,
   ): Promise<SessionRecord> {
     const now = this.#now();
     return this.#repository.saveSession({
@@ -60,14 +61,20 @@ export class SessionService {
       startedAt: now,
       updatedAt: now,
       currentQuestionKey,
+      ...(currentQuestionNumber ? { currentQuestionNumber } : {}),
       completedAt: null,
       finishedSections: [],
     });
   }
 
-  async setCurrentQuestion(sessionId: string, questionKey: string): Promise<SessionRecord> {
+  async setCurrentQuestion(
+    sessionId: string,
+    questionKey: string,
+    questionNumber: number | null = null,
+  ): Promise<SessionRecord> {
     return this.#updateSession(sessionId, {
       currentQuestionKey: questionKey,
+      ...(questionNumber ? { currentQuestionNumber: questionNumber } : {}),
     });
   }
 
@@ -209,7 +216,14 @@ export class SessionService {
   async #updateSession(
     sessionId: string,
     patch: Partial<
-      Pick<SessionRecord, "status" | "currentQuestionKey" | "completedAt" | "finishedSections">
+      Pick<
+        SessionRecord,
+        | "status"
+        | "currentQuestionKey"
+        | "currentQuestionNumber"
+        | "completedAt"
+        | "finishedSections"
+      >
     >,
   ): Promise<SessionRecord> {
     const current = await this.#requireSession(sessionId);
