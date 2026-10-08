@@ -381,7 +381,12 @@ describe("ReviewController resume position", () => {
     });
     firstVisit.dispose();
 
-    const reopened = new ControlledAdapter([Promise.resolve(atQuestion("question-q1", 1))]);
+    const reopened = new ControlledAdapter([]);
+    let showing = 1;
+    reopened.getQuestionContext = async () => {
+      reopened.contextRequests += 1;
+      return atQuestion(`question-q${showing}`, showing);
+    };
     const preflight = createPreflight();
     const controller = new ReviewController({
       adapter: reopened,
@@ -389,14 +394,64 @@ describe("ReviewController resume position", () => {
       repository,
       uiCss: "",
     });
+    // Page updates while the navigator opens must not resume on question 1
+    reopened.goToQuestion = async (questionNumber) => {
+      reopened.questionJumps.push(questionNumber);
+      await controller.reconcile();
+      showing = questionNumber;
+      return true;
+    };
     await controller.reconcile();
     preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='resume']")?.click();
 
-    await vi.waitFor(() => expect(reopened.questionJumps).toEqual([27]));
-    // A failed jump still resumes where the reader is
     await vi.waitFor(() => {
       expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
     });
+    const [session] = await repository.listSessions();
+    expect(reopened.questionJumps).toEqual([27]);
+    expect(session?.currentQuestionNumber).toBe(27);
+    expect(
+      (await repository.listAttempts(session?.id)).map((attempt) => attempt.questionKey),
+    ).toEqual(["question-q27"]);
+    controller.dispose();
+  });
+
+  it("resumes on the current question when the jump fails", async () => {
+    const repository = new StorageRepository({
+      local: new FakeStorageArea("local"),
+      now: monotonicNow(),
+    });
+    const atQuestion = (questionKey: string, current: number) => ({
+      ...context(questionKey),
+      progress: { scope: "unknown" as const, current, total: 30 },
+    });
+    const now = Date.now();
+    await repository.saveSession({
+      id: "saved-session",
+      examKey: "synthetic-exam",
+      mode: "practice",
+      status: "active",
+      startedAt: now,
+      updatedAt: now,
+      currentQuestionKey: "question-q27",
+      currentQuestionNumber: 27,
+      completedAt: null,
+      finishedSections: [],
+    });
+    const adapter = new ControlledAdapter([
+      Promise.resolve(atQuestion("question-q1", 1)),
+      Promise.resolve(atQuestion("question-q1", 1)),
+    ]);
+    const preflight = createPreflight();
+    const controller = new ReviewController({ adapter, preflight, repository, uiCss: "" });
+    await controller.reconcile();
+    preflight.shadow.querySelector<HTMLButtonElement>("[data-focus-key='resume']")?.click();
+
+    await vi.waitFor(() => {
+      expect(preflight.shadow.querySelector(".mkit-study-rail")).not.toBeNull();
+    });
+    expect(adapter.questionJumps).toEqual([27]);
+    expect((await repository.getSession("saved-session"))?.currentQuestionNumber).toBe(1);
     controller.dispose();
   });
 });

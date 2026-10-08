@@ -81,6 +81,7 @@ export class ReviewController {
   #stopObserver: (() => void) | null = null;
   #generation = 0;
   #normalReview = false;
+  #jumping = false;
   readonly #pendingNoteSaves = new Map<string, PendingNoteSave>();
   #noteSaveActive = false;
   readonly #keyboard: FreshAttemptKeyboardController;
@@ -138,7 +139,7 @@ export class ReviewController {
   }
 
   async reconcile(): Promise<void> {
-    if (this.#normalReview) return;
+    if (this.#normalReview || this.#jumping) return;
     const generation = ++this.#generation;
     const pageKind = this.#adapter.classifyPage();
 
@@ -409,9 +410,18 @@ export class ReviewController {
     this.#preflight.setProtection("boot");
     const target = session.currentQuestionNumber;
     if (target && this.#context && target !== this.#context.progress.current) {
-      // Holding the session lets the question change reconcile straight into it
+      // Pages passed on the way are not visits, so hold reconciles until the jump settles
+      this.#generation += 1;
+      this.#jumping = true;
+      try {
+        await this.#adapter.goToQuestion(target);
+      } finally {
+        this.#jumping = false;
+      }
+      if (this.#normalReview) return;
       this.#session = session;
-      if (await this.#adapter.goToQuestion(target)) return;
+      await this.reconcile();
+      return;
     }
     void this.#resumeSession(session, this.#generation);
   }
