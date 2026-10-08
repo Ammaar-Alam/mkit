@@ -4,6 +4,8 @@ All notable changes to MKit are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-08
+
 ### Added
 
 - Resuming a UWorld review now returns to the question you left off on.
