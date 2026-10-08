@@ -1,6 +1,6 @@
 {
   "name": "mkit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Retry completed AAMC and UWorld MCAT questions without seeing your old answers or the solutions.",
   "type": "module",
   "private": true,
